@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Hard Reload All Tabs",
+    "name": "Refresh Em All",
     "version": "1.0",
-    "description": "Refresh all tabs and bypass cache, like Ctrl+Shift+R.",
+    "description": "Refresh all tabs in every window for Chromium-based browsers",
     "permissions": [
         "tabs"
     ],
@@ -10,9 +10,20 @@
         "<all_urls>"
     ],
     "action": {
-        "default_title": "Hard Reload All Tabs",
-        "default_icon": "assets/icon-refresh-em.png",
+        "default_title": "Refresh Em All",
+        "default_icon": {
+            "16": "assets/icon-refresh-em-colorful-16.png",
+            "32": "assets/icon-refresh-em-colorful-32.png",
+            "48": "assets/icon-refresh-em-colorful-48.png",
+            "128": "assets/icon-refresh-em-colorful-128.png"
+        },
         "default_popup": "popup.html"
+    },
+    "icons": {
+        "16": "assets/icon-refresh-em-16.png",
+        "32": "assets/icon-refresh-em-32.png",
+        "48": "assets/icon-refresh-em-48.png",
+        "128": "assets/icon-refresh-em-128.png"
     },
     "background": {
         "service_worker": "background.js"

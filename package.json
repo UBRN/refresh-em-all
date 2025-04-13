@@ -1,0 +1,14 @@
+{
+  "name": "refresh-em-all",
+  "version": "1.0.0",
+  "description": "A lightweight browser extension to refresh all tabs in every window for Chromium-based browsers",
+  "main": "background.js",
+  "scripts": {
+    "generate-icons": "node generate-icons.js"
+  },
+  "author": "UBRN",
+  "license": "MIT",
+  "devDependencies": {
+    "sharp": "^0.32.1"
+  }
+} 
