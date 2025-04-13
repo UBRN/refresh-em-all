@@ -4,7 +4,9 @@
     "version": "1.0",
     "description": "Refresh all tabs in every window for Chromium-based browsers",
     "permissions": [
-        "tabs"
+        "tabs",
+        "scripting",
+        "storage"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -27,5 +29,12 @@
     },
     "background": {
         "service_worker": "background.js"
-    }
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content-script.js"],
+            "run_at": "document_idle"
+        }
+    ]
 }
