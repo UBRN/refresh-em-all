@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/UBRN/refresh-em-all/blob/main/assets/icon-refresh-em-all.png?raw=true" alt="Refresh Em All Icon" width="128"/>
+  <img src="https://raw.githubusercontent.com/UBRN/refresh-em-all-1/main/assets/icon-refresh-em.png" alt="Refresh Em All Icon" width="128"/>
 </p>
 
 # Refresh Em All
