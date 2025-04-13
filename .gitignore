@@ -1,0 +1,73 @@
+# Dependency directories
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Build and distribution directories
+dist/
+build/
+*.zip
+*.crx
+*.pem
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor and IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.editorconfig
+.project
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+.jest/
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+tmp/
+
+# Package files
+package-lock.json
+yarn.lock
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Generated extension files
+# Comment these out if you want to track generated files
+# assets/icon-refresh-em-*.png
+# assets/icon-refresh-em-colorful-*.png 
