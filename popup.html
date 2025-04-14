@@ -5,12 +5,12 @@
     <title>Refresh Em All</title>
     <style>
         body {
-            width: 250px;
-            height: 120px;
+            width: 350px;
+            height: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             font-family: sans-serif;
             padding: 10px;
         }
@@ -36,10 +36,237 @@
             border: none;
             border-radius: 4px;
             transition: background-color 0.3s;
+            position: relative;
+            overflow: hidden;
         }
 
         button:hover {
             background-color: #3367d6;
+        }
+
+        button:disabled {
+            background-color: #a9a9a9;
+            cursor: not-allowed;
+        }
+
+        #loadingContainer {
+            width: 100%;
+            margin-top: 15px;
+            display: none;
+        }
+
+        #progressBar {
+            width: 100%;
+            height: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        #progressFill {
+            height: 100%;
+            width: 0%;
+            background-color: #4285f4;
+            border-radius: 5px;
+            transition: width 0.3s ease;
+        }
+
+        #tabsContainer {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tab-item {
+            position: relative;
+            width: 30px;
+            height: 30px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+
+        .tab-item img {
+            width: 16px;
+            height: 16px;
+        }
+
+        .tab-status {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-circle {
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top-color: #4285f4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .tab-success {
+            color: #0f9d58;
+            font-size: 18px;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-error {
+            color: #db4437;
+            font-size: 18px;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        #errorContainer {
+            width: 100%;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 4px;
+            display: none;
+        }
+
+        #historyContainer {
+            width: 100%;
+            margin-top: 15px;
+            display: none;
+        }
+
+        #historyHeader {
+            cursor: pointer;
+            padding: 5px;
+            font-size: 14px;
+            color: #4285f4;
+        }
+
+        #historyContent {
+            display: none;
+            width: 100%;
+            max-height: 150px;
+            overflow-y: auto;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+        
+        #settingsContainer {
+            width: 100%;
+            margin-top: 15px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+        
+        #settingsHeader {
+            cursor: pointer;
+            padding: 5px;
+            font-size: 14px;
+            color: #4285f4;
+        }
+        
+        #settingsContent {
+            display: none;
+            width: 100%;
+            padding: 10px 0;
+        }
+        
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .error-reporting-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #4285f4;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        
+        #reportErrorsBtn {
+            font-size: 12px;
+            padding: 5px 10px;
+            margin-top: 5px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        #confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
         }
     </style>
 </head>
@@ -50,6 +277,47 @@
         <h2>Refresh Em All</h2>
     </div>
     <button id="refreshAll">Refresh All Tabs</button>
+
+    <div id="loadingContainer">
+        <div id="progressBar">
+            <div id="progressFill"></div>
+        </div>
+        <div id="statusText">Refreshing tabs...</div>
+        <div id="tabsContainer"></div>
+    </div>
+
+    <div id="errorContainer">
+        <div id="errorSummary"></div>
+        <div id="errorDetails" style="margin-top: 5px; font-size: 12px;"></div>
+    </div>
+
+    <div id="historyContainer">
+        <div id="historyHeader">View Refresh History</div>
+        <div id="historyContent"></div>
+    </div>
+    
+    <div id="settingsContainer">
+        <div id="settingsHeader">Settings</div>
+        <div id="settingsContent">
+            <div class="settings-row">
+                <span>Error Reporting</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="errorReportingToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="error-reporting-info">
+                Help improve the extension by automatically sending anonymous error reports.
+                No personal data is collected.
+            </div>
+            <div id="pendingErrorsContainer" style="margin-top: 10px; display: none;">
+                <div>Pending error reports: <span id="pendingErrorCount">0</span></div>
+                <button id="reportErrorsBtn">Send Reports Now</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confetti"></div>
     <script src="popup.js"></script>
 </body>
 
