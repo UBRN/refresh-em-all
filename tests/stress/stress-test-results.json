@@ -1,19 +1,70 @@
 {
-  "startTime": "2025-04-14T00:23:34.079Z",
-  "endTime": "2025-04-14T00:23:35.157Z",
-  "iterations": 0,
-  "maxTabsReached": 0,
+  "startTime": "2025-04-14T01:11:33.177Z",
+  "endTime": "2025-04-14T01:17:58.531Z",
+  "iterations": 3,
+  "maxTabsReached": 5,
   "errors": [
     {
-      "iteration": 0,
-      "message": "Extension background page not found",
-      "stack": "Error: Extension background page not found\n    at runStressTest (/Users/utkubarin/Developer/refresh-em-all-1/tests/stress/stress-test.js:109:13)",
-      "timestamp": "2025-04-14T00:23:35.157Z"
+      "iteration": 1,
+      "tabCount": 5,
+      "message": "Waiting failed: 120000ms exceeded",
+      "details": null,
+      "stack": "TimeoutError: Waiting failed: 120000ms exceeded\n    at new WaitTask (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/common/WaitTask.js:48:34)\n    at IsolatedWorld.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Realm.js:25:26)\n    at CdpFrame.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Frame.js:587:43)\n    at CdpFrame.<anonymous> (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:109:27)\n    at CdpPage.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:1439:37)\n    at runStressTest (/Users/utkubarin/Developer/refresh-em-all-1/tests/stress/stress-test.js:205:25)",
+      "timestamp": "2025-04-14T01:13:47.828Z"
+    },
+    {
+      "iteration": 2,
+      "tabCount": 5,
+      "message": "Waiting failed: 120000ms exceeded",
+      "details": null,
+      "stack": "TimeoutError: Waiting failed: 120000ms exceeded\n    at new WaitTask (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/common/WaitTask.js:48:34)\n    at IsolatedWorld.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Realm.js:25:26)\n    at CdpFrame.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Frame.js:587:43)\n    at CdpFrame.<anonymous> (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:109:27)\n    at CdpPage.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:1439:37)\n    at runStressTest (/Users/utkubarin/Developer/refresh-em-all-1/tests/stress/stress-test.js:205:25)",
+      "timestamp": "2025-04-14T01:15:53.362Z"
+    },
+    {
+      "iteration": 3,
+      "tabCount": 5,
+      "message": "Waiting failed: 120000ms exceeded",
+      "details": null,
+      "stack": "TimeoutError: Waiting failed: 120000ms exceeded\n    at new WaitTask (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/common/WaitTask.js:48:34)\n    at IsolatedWorld.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Realm.js:25:26)\n    at CdpFrame.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Frame.js:587:43)\n    at CdpFrame.<anonymous> (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:109:27)\n    at CdpPage.waitForFunction (/Users/utkubarin/Developer/refresh-em-all-1/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:1439:37)\n    at runStressTest (/Users/utkubarin/Developer/refresh-em-all-1/tests/stress/stress-test.js:205:25)",
+      "timestamp": "2025-04-14T01:17:58.529Z"
     }
   ],
-  "memoryUsage": [],
+  "memoryUsage": [
+    {
+      "timestamp": "2025-04-14T01:11:35.044Z",
+      "rss": 50970624,
+      "heapTotal": 20627456,
+      "heapUsed": 13126040,
+      "external": 2277119,
+      "arrayBuffers": 31489,
+      "systemFree": 90537984,
+      "systemTotal": 19327352832
+    },
+    {
+      "timestamp": "2025-04-14T01:13:47.906Z",
+      "rss": 52396032,
+      "heapTotal": 18792448,
+      "heapUsed": 12643264,
+      "external": 2359500,
+      "arrayBuffers": 40485,
+      "systemFree": 424509440,
+      "systemTotal": 19327352832
+    },
+    {
+      "timestamp": "2025-04-14T01:15:53.428Z",
+      "rss": 53624832,
+      "heapTotal": 17743872,
+      "heapUsed": 11163096,
+      "external": 2303509,
+      "arrayBuffers": 44540,
+      "systemFree": 415301632,
+      "systemTotal": 19327352832
+    }
+  ],
   "operationTimings": [],
-  "lastError": {},
-  "success": false,
-  "crashPoint": "Catastrophic error"
+  "lastError": {
+    "name": "TimeoutError"
+  },
+  "success": true,
+  "crashPoint": "Repeated error: Waiting failed: 120000ms exceeded"
 }

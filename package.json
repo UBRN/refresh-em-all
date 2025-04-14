@@ -17,7 +17,10 @@
     "analyze-known-issue": "node tests/uuid-analyzer.js fbf7234f-c82b-4801-9981-5c5695a5633c",
     "analyze-verification": "node tests/analyze-verification-results.js",
     "debug-extension": "node tests/debug-extension-loading.js",
-    "verify": "node tests/verify.js"
+    "verify": "node tests/verify.js",
+    "extract-uuids": "node tests/extract-uuids.js",
+    "analyze-extracted": "node tests/uuid-analyzer.js --extracted extracted-uuids.json",
+    "uuid-analysis": "node tests/extract-uuids.js --analyze --include-synthetic background.js && node tests/uuid-analyzer.js --extracted extracted-uuids.json"
   },
   "author": "UBRN",
   "license": "MIT",

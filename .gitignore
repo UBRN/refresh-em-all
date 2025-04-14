@@ -12,35 +12,80 @@ build/
 *.crx
 *.pem
 
-# Environment variables
+# Environment variables and secrets
 .env
-.env.local
+.env.*
+*.env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.secret*
+*secret*
+*.key
+*.pem
+credentials.*
+*credentials*
 
-# Editor and IDE files
-.idea/
+# Developer-specific files
+.history/
 .vscode/
+.idea/
 *.swp
 *.swo
 .DS_Store
+Thumbs.db
 .editorconfig
 .project
-*.sublime-project
-*.sublime-workspace
+*.sublime-*
+.vim/
 
-# Logs
+# Personal development files
+*.dev.*
+dev.*
+local.*
+*.local.*
+*.personal.*
+personal.*
+*.private.*
+private.*
+notes.txt
+TODO.txt
+*.local.md
+local-*.md
+PRIVACY.md
+IMPROVEMENTS.md
+
+# Logs and debugging
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.debug/
+debug/
+*.debug
+chrome-user-data/
+browser-data/
 
-# Testing
+# Testing and coverage
 coverage/
 .nyc_output/
 .jest/
+test-results/
+*.lcov
+*.coverage
+tests/**/*.png
+tests/**/*.json
+tests/e2e/results/
+tests/stress/results/
+tests/stress/stress-test-results.json
+tests/verification-*.png
+tests/verification-results.json
+tests/extensions-page-screenshot.png
+tests/**/*-screenshot.png
+tests/results/
+tests/screenshots/
+tests/temp/
 
 # Operating System Files
 .DS_Store
@@ -50,16 +95,20 @@ coverage/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
 
 # Temporary files
 *.tmp
 *.temp
 .cache/
 tmp/
+.tmp/
 
 # Package files
 package-lock.json
 yarn.lock
+npm-shrinkwrap.json
 
 # Optional npm cache directory
 .npm
@@ -67,7 +116,17 @@ yarn.lock
 # Optional eslint cache
 .eslintcache
 
-# Generated extension files
-# Comment these out if you want to track generated files
+# Extension-specific files
+# Uncomment if you want to exclude generated assets
 # assets/icon-refresh-em-*.png
-# assets/icon-refresh-em-colorful-*.png 
+# assets/icon-refresh-em-colorful-*.png
+
+# Screenshot and testing artifacts
+tests/*.png
+tests/verification-*.png
+tests/verification-results.json
+tests/stress/stress-test-results.json
+tests/extensions-page-screenshot.png
+
+# Generated UUIDs file
+extracted-uuids.json 

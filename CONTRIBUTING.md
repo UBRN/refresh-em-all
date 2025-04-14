@@ -1,56 +1,61 @@
-# Contributing to Refresh Em All
+# Contributing Guidelines
 
-Thank you for your interest in contributing to this project! This document provides guidelines for contributing and explains the project structure.
+This document provides a high-level overview of the project structure and guidelines for contributors.
 
-## Repository Structure
+## Project Structure
 
-- `assets/`: Contains the extension icons in various sizes
-- `background.js`: Background script for the extension
-- `manifest.json`: Extension manifest file
-- `popup.html`: Extension popup UI
-- `popup.js`: JavaScript for the popup
-- `generate-icons.js`: Utility to generate icon sizes
-- `package.json`: NPM package configuration
+```
+refresh-em-all/
+├── assets/              # Extension icons
+├── tests/               # Test files and utilities
+│   ├── e2e/             # End-to-end tests
+│   ├── stress/          # Stress tests
+│   └── *.test.js        # Unit tests
+├── background.js        # Extension background script
+├── content-script.js    # Content script for tab state preservation
+├── manifest.json        # Extension manifest
+├── popup.html           # Extension popup interface
+├── popup.js             # Popup functionality
+├── IMPROVEMENTS.md      # Documentation of performance improvements
+└── package.json         # NPM configuration
+```
 
-## Development Workflow
+## Setup for Contributors
 
 1. Clone the repository
 2. Install dependencies: `npm install`
-3. Generate icon sizes: `npm run generate-icons`
-4. Test the extension locally by loading it as an unpacked extension in Chrome
+3. Run tests: `npm test`
 
-## .gitignore Explanation
+## Testing Guidelines
 
-Our `.gitignore` file follows best practices for Chrome extension and Node.js projects:
+The project includes several testing utilities:
 
-### Dependency Files
-- `node_modules/`: NPM packages (large, regenerable)
-- Log files from package managers
+- Unit tests: `npm test`
+- End-to-end tests: `npm run e2e`
+- Stress tests: `npm run stress-test`
+- Extension debugging: `npm run debug-extension`
 
-### Build Files
-- `dist/`, `build/`: Generated output directories
-- `*.zip`, `*.crx`, `*.pem`: Extension package files and private keys
+## Performance Considerations
 
-### Environment and Editor Files
-- `.env*`: Environment variables that may contain secrets
-- `.idea/`, `.vscode/`: Editor-specific settings
-- `.DS_Store`: macOS system files
+When contributing, be mindful of:
 
-### Generated Files
-- By default, we track the generated icon files to make it easier for contributors to get started without running the generation script
-- If you want to exclude them, uncomment the relevant lines in `.gitignore`
+- Memory usage when handling multiple tabs
+- Batch processing techniques for large operations
+- Error handling and recovery mechanisms
+
+## Privacy Guidelines
+
+- Do not add analytics or tracking code
+- Avoid including personal identifiers in comments or documentation
+- Keep error reporting minimal and focused on technical data
 
 ## Pull Request Process
 
-1. Create a new branch for your feature
-2. Make your changes
-3. Test your changes thoroughly
-4. Submit a pull request
+1. Create a branch for your changes
+2. Keep changes focused on a single feature or fix
+3. Include relevant tests
+4. Submit a pull request with a clear description
 
 ## Code Style
 
-Please follow the existing code style in the project.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
+Follow the existing conventions in the codebase. 

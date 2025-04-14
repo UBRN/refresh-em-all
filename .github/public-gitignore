@@ -1,0 +1,11 @@
+# Files to exclude from public repository
+PRIVACY.md
+IMPROVEMENTS.md
+extracted-uuids.json
+tests/stress/stress-test-results.json
+tests/verification-results.json
+tests/*.png
+tests/verification-*.png
+tests/stress/*.json
+tests/e2e/results/
+tests/screenshots/ 
