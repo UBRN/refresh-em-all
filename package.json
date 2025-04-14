@@ -4,16 +4,30 @@
   "description": "A lightweight browser extension to refresh all tabs in every window for Chromium-based browsers",
   "main": "background.js",
   "scripts": {
-    "generate-icons": "node generate-icons.js"
+    "generate-icons": "node generate-icons.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:debug": "node --expose-gc --inspect-brk ./node_modules/.bin/jest --runInBand",
+    "e2e": "node tests/e2e/run.js",
+    "stress-test": "node --expose-gc tests/stress/stress-test.js",
+    "stress-test:debug": "node --expose-gc --inspect-brk tests/stress/stress-test.js",
+    "analyze-uuid": "node tests/uuid-analyzer.js",
+    "analyze-stress": "node tests/uuid-analyzer.js --stress-results tests/stress/stress-test-results.json",
+    "analyze-known-issue": "node tests/uuid-analyzer.js fbf7234f-c82b-4801-9981-5c5695a5633c",
+    "analyze-verification": "node tests/analyze-verification-results.js",
+    "debug-extension": "node tests/debug-extension-loading.js",
+    "verify": "node tests/verify.js"
   },
   "author": "UBRN",
   "license": "MIT",
   "devDependencies": {
-    "@types/chrome": "^0.0.315",
-    "@types/jest": "^29.5.14",
-    "jest": "^27.5.1",
+    "@types/chrome": "^0.0.260",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
     "jest-chrome": "^0.8.0",
-    "puppeteer": "^24.6.1",
+    "jest-environment-jsdom": "^29.7.0",
+    "puppeteer": "^22.5.0",
     "sharp": "^0.32.1"
   }
 }

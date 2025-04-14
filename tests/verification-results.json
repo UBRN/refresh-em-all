@@ -1,0 +1,56 @@
+{
+  "startTime": "2025-04-14T01:10:34.770Z",
+  "endTime": "2025-04-14T01:11:19.637Z",
+  "systemInfo": {
+    "platform": "darwin",
+    "version": "Darwin Kernel Version 24.4.0: Wed Mar 19 21:17:32 PDT 2025; root:xnu-11417.101.15~1/RELEASE_ARM64_T6030",
+    "arch": "arm64",
+    "totalMemory": 19327352832,
+    "freeMemory": 81723392
+  },
+  "extensionInfo": {
+    "id": "noofciijelgngldjiadbhinapidfkfke",
+    "version": null
+  },
+  "refreshOperation": {
+    "success": true,
+    "tabsRefreshed": 0,
+    "errorCount": 0,
+    "operationDuration": 33467
+  },
+  "memoryUsage": [
+    {
+      "timestamp": "2025-04-14T01:10:34.771Z",
+      "rss": 58736640,
+      "heapTotal": 20627456,
+      "heapUsed": 12032424,
+      "external": 2264284,
+      "arrayBuffers": 18675,
+      "systemFree": 81723392
+    },
+    {
+      "timestamp": "2025-04-14T01:10:46.026Z",
+      "rss": 79478784,
+      "heapTotal": 54050816,
+      "heapUsed": 19849032,
+      "external": 4729443,
+      "arrayBuffers": 2483794,
+      "systemFree": 122634240
+    },
+    {
+      "timestamp": "2025-04-14T01:11:19.637Z",
+      "rss": 45318144,
+      "heapTotal": 16695296,
+      "heapUsed": 14036064,
+      "external": 2584235,
+      "arrayBuffers": 338586,
+      "systemFree": 96731136
+    }
+  ],
+  "errors": [
+    {
+      "message": "Refresh operation completed with errors",
+      "details": "No detailed error information available"
+    }
+  ]
+}

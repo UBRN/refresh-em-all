@@ -1,0 +1,19 @@
+{
+  "startTime": "2025-04-14T00:23:34.079Z",
+  "endTime": "2025-04-14T00:23:35.157Z",
+  "iterations": 0,
+  "maxTabsReached": 0,
+  "errors": [
+    {
+      "iteration": 0,
+      "message": "Extension background page not found",
+      "stack": "Error: Extension background page not found\n    at runStressTest (/Users/utkubarin/Developer/refresh-em-all-1/tests/stress/stress-test.js:109:13)",
+      "timestamp": "2025-04-14T00:23:35.157Z"
+    }
+  ],
+  "memoryUsage": [],
+  "operationTimings": [],
+  "lastError": {},
+  "success": false,
+  "crashPoint": "Catastrophic error"
+}
