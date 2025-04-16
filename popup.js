@@ -686,3 +686,109 @@ function preserveMediaState() {
     // Save state to sessionStorage
     sessionStorage.setItem('refreshEmAllMediaState', JSON.stringify(mediaStates));
 }
+
+/**
+ * Checks if DevTools might be causing a debugger pause
+ * and shows a notification if needed
+ */
+function checkForDebuggerIssue() {
+    // Only show this in development mode or if there's been a previous pause issue
+    chrome.storage.local.get(['debuggerPauseDetected'], (result) => {
+        if (result.debuggerPauseDetected) {
+            // Show the notification with instructions
+            showDebuggerPauseNotification();
+        }
+    });
+
+    // Listen for errors that might indicate a debugger pause
+    window.addEventListener('error', (event) => {
+        if (event.message && (
+            event.message.includes('debugger') || 
+            event.message.includes('pause') || 
+            event.message.includes('break')
+        )) {
+            // Mark that we've detected the issue
+            chrome.storage.local.set({debuggerPauseDetected: true});
+            showDebuggerPauseNotification();
+        }
+    });
+}
+
+/**
+ * Shows a notification about how to fix the debugger pause issue
+ */
+function showDebuggerPauseNotification() {
+    const notificationContainer = document.createElement('div');
+    notificationContainer.className = 'notification debugger-notification';
+    notificationContainer.innerHTML = `
+        <div class="notification-content">
+            <strong>Developer Tools Issue Detected</strong>
+            <p>If tabs get stuck with "Paused in debugger", please:</p>
+            <ol>
+                <li>Open Chrome DevTools (F12)</li>
+                <li>Go to Sources tab</li>
+                <li>Find the pause button at the bottom</li>
+                <li>Click it until it turns grey</li>
+            </ol>
+            <button class="notification-dismiss">Dismiss</button>
+        </div>
+    `;
+    
+    document.body.appendChild(notificationContainer);
+    
+    // Add styles if not already present
+    if (!document.getElementById('notification-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'notification-styles';
+        styles.textContent = `
+            .notification {
+                position: fixed;
+                bottom: 10px;
+                right: 10px;
+                background: #fff;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                z-index: 1000;
+                max-width: 300px;
+            }
+            .debugger-notification {
+                background-color: #f8f9fa;
+                border-left: 4px solid #3367d6;
+            }
+            .notification-content {
+                padding: 12px;
+            }
+            .notification-content p {
+                margin: 8px 0;
+            }
+            .notification-content ol {
+                margin: 8px 0;
+                padding-left: 20px;
+            }
+            .notification-dismiss {
+                background: #3367d6;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                cursor: pointer;
+                float: right;
+                margin-top: 8px;
+            }
+        `;
+        document.head.appendChild(styles);
+    }
+    
+    // Add dismiss functionality
+    const dismissButton = notificationContainer.querySelector('.notification-dismiss');
+    dismissButton.addEventListener('click', () => {
+        notificationContainer.remove();
+    });
+}
+
+// Call this at startup
+document.addEventListener('DOMContentLoaded', function() {
+    // Check for debugger issues
+    checkForDebuggerIssue();
+});

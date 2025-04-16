@@ -378,7 +378,55 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
         });
 }
 
-// Refresh a single tab with retry mechanism
+// Add this function to help with debugging - it prevents Chrome from pausing execution
+function disableDebuggerPause() {
+    try {
+        // This is executed in the browser's context to disable debugger functionality
+        if (window.chrome && window.chrome.debugger) {
+            // Attempt to disable any active debugging sessions
+            const tabId = chrome.devtools && chrome.devtools.inspectedWindow ? 
+                chrome.devtools.inspectedWindow.tabId : null;
+            
+            if (tabId) {
+                chrome.debugger.detach({tabId}, () => {
+                    if (chrome.runtime.lastError) {
+                        // Ignore errors, this is just a best-effort attempt
+                        console.log('Info: No active debugging sessions to detach');
+                    }
+                });
+            }
+        }
+        
+        // Override the debugger statement to prevent pausing
+        // This helps avoid the "Paused in debugger" issue
+        const originalDebugger = window.console.debug;
+        window.console.debug = function() {
+            // Simply log without triggering the debugger
+            console.log.apply(console, arguments);
+        };
+        
+        return true;
+    } catch (error) {
+        console.error('Error in disableDebuggerPause:', error);
+        return false;
+    }
+}
+
+// Inject this script into tabs that might have DevTools open to prevent pausing
+function preventDebuggerPause(tabId) {
+    try {
+        chrome.scripting.executeScript({
+            target: { tabId },
+            function: disableDebuggerPause
+        }).catch(() => {
+            // Ignore errors - this is just a best-effort attempt
+        });
+    } catch (error) {
+        // Ignore errors - some tabs may not allow script injection
+    }
+}
+
+// Modified refreshTab function to include debugger prevention
 async function refreshTab(tab, retryCount = 0) {
     if (!tab || !tab.id || tab.id === chrome.tabs.TAB_ID_NONE) {
         return false;
@@ -391,6 +439,9 @@ async function refreshTab(tab, retryCount = 0) {
             return true; // Count as success but skip refresh
         }
         
+        // Try to prevent debugger pausing
+        preventDebuggerPause(tab.id);
+        
         // Check if tab still exists
         return new Promise((resolve) => {
             chrome.tabs.get(tab.id, async (tabInfo) => {
@@ -400,7 +451,15 @@ async function refreshTab(tab, retryCount = 0) {
                     return;
                 }
                 
-                if (tab.discarded) {
+                // Check if tab is loading - if so, wait before refreshing
+                if (tabInfo.status === 'loading') {
+                    setTimeout(() => {
+                        refreshTab(tab, retryCount).then(resolve);
+                    }, 500);
+                    return;
+                }
+                
+                if (tabInfo.discarded) {
                     // Handle discarded tabs with more care
                     try {
                         await activateAndRefreshTab(tab, retryCount, resolve);
@@ -465,7 +524,7 @@ async function activateAndRefreshTab(tab, retryCount, resolve) {
                         resolveFn();
                     }
                 });
-            }, 300); // Increased delay for better stability
+            }, 500); // Increased delay for better stability
         });
     });
 }
@@ -604,27 +663,53 @@ function preserveMediaState() {
         const audios = document.querySelectorAll('audio');
         let mediaStates = {};
         
-        // Store video states
+        // Store video states - with special handling for YouTube
         videos.forEach((video, index) => {
-            if (video.src) {
-                mediaStates[`video_${index}`] = {
-                    src: video.src,
-                    currentTime: video.currentTime,
-                    paused: video.paused
-                };
-            }
+            // Check if the video element is visible and has dimensions
+            const isVisible = video.offsetWidth > 0 && video.offsetHeight > 0;
+            const isYouTube = window.location.hostname.includes('youtube.com');
+            
+            mediaStates[`video_${index}`] = {
+                src: video.src || (isYouTube ? 'youtube_video' : 'video_element'),
+                currentTime: video.currentTime,
+                paused: video.paused,
+                muted: video.muted,
+                volume: video.volume,
+                playbackRate: video.playbackRate,
+                isYouTube: isYouTube,
+                url: window.location.href,
+                isVisible: isVisible
+            };
         });
         
         // Store audio states
         audios.forEach((audio, index) => {
-            if (audio.src) {
-                mediaStates[`audio_${index}`] = {
-                    src: audio.src,
-                    currentTime: audio.currentTime,
-                    paused: audio.paused
-                };
-            }
+            // Capture audio state even if src is empty
+            mediaStates[`audio_${index}`] = {
+                src: audio.src || 'audio_element',
+                currentTime: audio.currentTime,
+                paused: audio.paused,
+                muted: audio.muted,
+                volume: audio.volume,
+                playbackRate: audio.playbackRate
+            };
         });
+        
+        // Enhanced YouTube-specific handling
+        if (window.location.hostname.includes('youtube.com')) {
+            const player = document.querySelector('.html5-video-player');
+            mediaStates['youtube_player_state'] = {
+                url: window.location.href,
+                paused: player ? (
+                    player.classList.contains('paused-mode') || 
+                    !player.classList.contains('playing-mode')
+                ) : true,
+                // Store additional attributes to better identify the YouTube player state
+                videoId: new URLSearchParams(window.location.search).get('v') || 
+                         window.location.pathname.split('/').pop(),
+                timestamp: Math.floor(Date.now() / 1000)
+            };
+        }
         
         // Save to sessionStorage if we have media elements
         if (Object.keys(mediaStates).length > 0) {
@@ -634,6 +719,7 @@ function preserveMediaState() {
         
         return { success: true, count: 0 };
     } catch (error) {
+        console.error("Error preserving media state:", error);
         return { success: false, error: error.message };
     }
 }

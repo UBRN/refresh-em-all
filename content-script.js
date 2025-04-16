@@ -38,26 +38,130 @@
                     const videos = document.querySelectorAll('video');
                     videos.forEach((video, index) => {
                         const savedState = mediaStates[`video_${index}`];
-                        if (savedState && video.src === savedState.src) {
-                            video.currentTime = savedState.currentTime;
+                        if (savedState) {
+                            // Special handling for YouTube
+                            const isYoutube = window.location.hostname.includes('youtube.com');
                             
-                            // If it was paused, keep it paused
-                            if (savedState.paused) {
-                                video.pause();
+                            // For YouTube or when source matches
+                            if ((isYoutube && savedState.isYouTube) || 
+                                video.src === savedState.src || 
+                                !video.src) {  // Handle srcless videos
+                                
+                                // Only restore if the video was visible before refresh
+                                // or if we're on YouTube (which has special handling)
+                                if (savedState.isVisible || isYoutube) {
+                                    // Set time position only if video has loaded metadata
+                                    const setCurrentTime = () => {
+                                        if (video.readyState >= 1) {
+                                            video.currentTime = savedState.currentTime;
+                                        } else {
+                                            // If metadata not loaded, wait and try again
+                                            video.addEventListener('loadedmetadata', () => {
+                                                video.currentTime = savedState.currentTime;
+                                            }, { once: true });
+                                        }
+                                    };
+                                    
+                                    setCurrentTime();
+                                    
+                                    // Set other properties if available
+                                    if (savedState.volume !== undefined) video.volume = savedState.volume;
+                                    if (savedState.muted !== undefined) video.muted = savedState.muted;
+                                    if (savedState.playbackRate !== undefined) video.playbackRate = savedState.playbackRate;
+                                    
+                                    // Force pause if it was paused before
+                                    if (savedState.paused) {
+                                        video.pause();
+                                        
+                                        // Add multiple pause events to prevent auto-play scripts
+                                        // This helps with sites that try to restart videos
+                                        const ensurePaused = () => {
+                                            if (!video.paused) video.pause();
+                                        };
+                                        
+                                        // Immediate pause
+                                        ensurePaused();
+                                        
+                                        // Continue checking for a short period
+                                        for (let i = 0; i < 5; i++) {
+                                            setTimeout(ensurePaused, 50 * i);
+                                        }
+                                        
+                                        // Also pause after any play event
+                                        video.addEventListener('play', function pauseHandler(e) {
+                                            video.pause();
+                                            // Remove after a while to avoid permanently breaking playback
+                                            setTimeout(() => {
+                                                video.removeEventListener('play', pauseHandler);
+                                            }, 2000);
+                                        });
+                                    }
+                                }
                             }
                         }
                     });
+                    
+                    // YouTube-specific handling with improved reliability
+                    if (window.location.hostname.includes('youtube.com') && mediaStates['youtube_player_state']) {
+                        const ytState = mediaStates['youtube_player_state'];
+                        
+                        // Verify we're on the same video
+                        const currentVideoId = new URLSearchParams(window.location.search).get('v') || 
+                                               window.location.pathname.split('/').pop();
+                        
+                        if (ytState.videoId === currentVideoId) {
+                            // Find the YouTube player
+                            const player = document.querySelector('.html5-video-player');
+                            if (player && ytState.paused) {
+                                // Try multiple approaches to pause the YouTube player
+                                const pausePlayer = () => {
+                                    // Try to pause through YouTube's own interface
+                                    const pauseButton = document.querySelector('.ytp-play-button');
+                                    if (pauseButton && player.classList.contains('playing-mode')) {
+                                        pauseButton.click();
+                                    }
+                                    
+                                    // Also try to pause the actual video element directly
+                                    const videoElement = player.querySelector('video');
+                                    if (videoElement && !videoElement.paused) {
+                                        videoElement.pause();
+                                    }
+                                };
+                                
+                                // Try immediately
+                                pausePlayer();
+                                
+                                // And also after a short delay to handle dynamic loading
+                                setTimeout(pausePlayer, 500);
+                                setTimeout(pausePlayer, 1000);
+                            }
+                        }
+                    }
                     
                     // Handle audios
                     const audios = document.querySelectorAll('audio');
                     audios.forEach((audio, index) => {
                         const savedState = mediaStates[`audio_${index}`];
-                        if (savedState && audio.src === savedState.src) {
+                        if (savedState) {
+                            // Set time position
                             audio.currentTime = savedState.currentTime;
                             
-                            // If it was paused, keep it paused
+                            // Set other properties if available
+                            if (savedState.volume !== undefined) audio.volume = savedState.volume;
+                            if (savedState.muted !== undefined) audio.muted = savedState.muted;
+                            if (savedState.playbackRate !== undefined) audio.playbackRate = savedState.playbackRate;
+                            
+                            // Force pause if it was paused before
                             if (savedState.paused) {
                                 audio.pause();
+                                
+                                // Similar to video, prevent auto-play
+                                audio.addEventListener('play', function pauseHandler(e) {
+                                    audio.pause();
+                                    setTimeout(() => {
+                                        audio.removeEventListener('play', pauseHandler);
+                                    }, 2000);
+                                });
                             }
                         }
                     });
@@ -79,6 +183,13 @@
             
             // Try to restore immediately for media elements already in the DOM
             restoreMedia();
+            
+            // Also attempt restoration after the page has fully loaded
+            if (document.readyState !== 'complete') {
+                window.addEventListener('load', () => {
+                    setTimeout(restoreMedia, 500); // Slight delay to allow dynamic content to load
+                }, { once: true });
+            }
             
             // Also set up a MutationObserver to handle dynamically loaded media elements
             const observer = new MutationObserver((mutations) => {
