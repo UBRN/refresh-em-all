@@ -28,7 +28,7 @@ self.addEventListener('error', (event) => {
         browserInfo: navigator.userAgent,
         extensionVersion: chrome.runtime.getManifest().version
     };
-    
+
     reportError('uncaught_error', errorDetails);
 });
 
@@ -41,7 +41,7 @@ self.addEventListener('unhandledrejection', (event) => {
         browserInfo: navigator.userAgent,
         extensionVersion: chrome.runtime.getManifest().version
     };
-    
+
     reportError('unhandled_promise_rejection', errorDetails);
 });
 
@@ -52,10 +52,10 @@ chrome.action.onClicked.addListener(() => {
         operationCancelled = true;
         return;
     }
-    
+
     // Start refresh operation
     startRefreshOperation();
-    
+
     chrome.tabs.query({}, (tabs) => {
         try {
             // Filter out invalid tabs
@@ -64,7 +64,7 @@ chrome.action.onClicked.addListener(() => {
             failedTabs = [];
             startTime = new Date();
             operationCancelled = false;
-            
+
             // Process tabs in batches for better performance
             refreshTabsInBatches(tabsToRefresh);
         } catch (error) {
@@ -80,12 +80,43 @@ chrome.action.onClicked.addListener(() => {
 
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'reportError') {
+    if (message.action === 'startRefresh') {
+        if (activeRefreshOperation) {
+            sendResponse({ success: false, message: 'Operation already in progress' });
+            return true;
+        }
+
+        startRefreshOperation();
+
+        chrome.tabs.query({}, (tabs) => {
+            try {
+                // Filter out invalid tabs
+                tabsToRefresh = tabs.filter(tab => !!tab.id && tab.id !== chrome.tabs.TAB_ID_NONE);
+                refreshedTabs = 0;
+                failedTabs = [];
+                startTime = new Date();
+                operationCancelled = false;
+
+                // Process tabs in batches for better performance
+                refreshTabsInBatches(tabsToRefresh);
+                sendResponse({ success: true });
+            } catch (error) {
+                reportError('refresh_operation_start_error', {
+                    message: error.message,
+                    stack: error.stack,
+                    timestamp: new Date().toISOString()
+                });
+                endRefreshOperation(false);
+            }
+        });
+        return true;
+    }
+    else if (message.action === 'reportError') {
         // Handle error reports from popup or content scripts
         reportError(message.errorType, message.errorDetails);
         sendResponse({ success: true });
         return true; // Indicates async response
-    } 
+    }
     else if (message.action === 'sendPendingErrorReports') {
         // Send pending error reports
         attemptToSendPendingErrorReports()
@@ -100,7 +131,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             progress: tabsToRefresh.length > 0 ? Math.round((refreshedTabs / tabsToRefresh.length) * 100) : 0,
             totalTabs: tabsToRefresh.length,
             refreshedTabs: refreshedTabs,
-            failedTabs: failedTabs.length
+            failedTabs: failedTabs.length,
+            currentTabs: tabsToRefresh // Optional: send info about tabs being processed if needed
         });
         return true;
     }
@@ -119,14 +151,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Function to report errors to the server
 function reportError(errorType, errorDetails) {
     if (!ERROR_REPORTING_ENABLED) return;
-    
+
     // Generate a UUID for this error
     const errorId = generateUuid();
-    
+
     // Get user consent for error reporting from storage
     chrome.storage.sync.get(['errorReportingConsent'], (result) => {
         const hasConsent = result.errorReportingConsent === true;
-        
+
         if (hasConsent) {
             // Add extension ID and browser info, but no personal identifiable information
             const reportData = {
@@ -135,7 +167,7 @@ function reportError(errorType, errorDetails) {
                 ...errorDetails,
                 extensionId: chrome.runtime.id
             };
-            
+
             // Attempt to send error to reporting service
             fetch(ERROR_REPORTING_ENDPOINT, {
                 method: 'POST',
@@ -152,13 +184,13 @@ function reportError(errorType, errorDetails) {
             storeErrorForLaterReporting(errorType, { ...errorDetails, errorId });
         }
     });
-    
+
     return errorId;
 }
 
 // Generate a UUID v4
 function generateUuid() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
@@ -173,12 +205,12 @@ function storeErrorForLaterReporting(errorType, errorDetails) {
             ...errorDetails,
             storedAt: new Date().toISOString()
         });
-        
+
         // Limit stored errors to prevent excessive storage use
         if (pendingReports.length > 50) {
             pendingReports.splice(0, pendingReports.length - 50);
         }
-        
+
         chrome.storage.local.set({ pendingErrorReports: pendingReports });
     });
 }
@@ -205,14 +237,14 @@ function logOperationError(operationDetails, errorDetails) {
         browserInfo: navigator.userAgent,
         extensionVersion: chrome.runtime.getManifest().version
     };
-    
+
     reportError('operation_error', errorReport);
 }
 
 // Function to start refresh operation
 function startRefreshOperation() {
     activeRefreshOperation = true;
-    
+
     // Update icon to indicate operation is in progress
     chrome.action.setIcon({
         path: {
@@ -222,7 +254,7 @@ function startRefreshOperation() {
             "128": "assets/icon-refresh-em-colorful-128.png"
         }
     });
-    
+
     // Update badge to show progress
     chrome.action.setBadgeBackgroundColor({ color: "#4285f4" });
     chrome.action.setBadgeText({ text: "0%" });
@@ -231,7 +263,7 @@ function startRefreshOperation() {
 // Function to end refresh operation
 function endRefreshOperation(success = true) {
     activeRefreshOperation = false;
-    
+
     // Reset icon
     chrome.action.setIcon({
         path: {
@@ -241,20 +273,20 @@ function endRefreshOperation(success = true) {
             "128": "assets/icon-refresh-em-128.png"
         }
     });
-    
+
     // Clear badge
     chrome.action.setBadgeText({ text: "" });
-    
+
     // Log operation details including any errors
     const operationDetails = {
-        startTime: startTime.toISOString(),
+        startTime: startTime ? startTime.toISOString() : new Date().toISOString(),
         endTime: new Date().toISOString(),
         totalTabs: tabsToRefresh.length,
         successfulTabs: refreshedTabs,
         failedCount: failedTabs.length,
         cancelled: operationCancelled
     };
-    
+
     if (failedTabs.length > 0) {
         logOperationError(operationDetails, {
             message: `Failed to refresh ${failedTabs.length} tab(s)`,
@@ -265,7 +297,7 @@ function endRefreshOperation(success = true) {
             }))
         });
     }
-    
+
     // Save the operation to history
     saveToHistory({
         timestamp: new Date().toISOString(),
@@ -277,6 +309,16 @@ function endRefreshOperation(success = true) {
             error: tab.error || 'Unknown error'
         }))
     });
+
+    // Broadcast completion to popup
+    chrome.runtime.sendMessage({
+        action: 'refreshComplete',
+        success: success,
+        details: operationDetails,
+        failedTabs: failedTabs
+    }).catch(() => {
+        // Popup might be closed, ignore error
+    });
 }
 
 // NEW: Process tabs in batches to avoid memory overload
@@ -284,36 +326,36 @@ function refreshTabsInBatches(tabs) {
     // Generate a unique operation ID for tracking
     const operationId = generateUuid();
     console.log(`Starting refresh operation ${operationId} with ${tabs.length} tabs`);
-    
+
     // Reduce batch size for extremely large tab counts to prevent memory issues
     const dynamicBatchSize = tabs.length > 50 ? 3 : (tabs.length > 20 ? 4 : MAX_TABS_PER_BATCH);
     const dynamicBatchInterval = tabs.length > 50 ? 1000 : BATCH_INTERVAL; // Longer interval for more tabs
-    
+
     let currentBatchIndex = 0;
-    
+
     // Clear any previous timeout references if they exist
     if (window.batchTimeoutId) {
         clearTimeout(window.batchTimeoutId);
     }
-    
+
     function processBatch() {
         if (operationCancelled) {
             console.log(`Operation ${operationId} cancelled at batch ${currentBatchIndex}`);
             endRefreshOperation(false);
             return;
         }
-        
+
         const startIdx = currentBatchIndex * dynamicBatchSize;
         const endIdx = Math.min(startIdx + dynamicBatchSize, tabs.length);
         const currentBatch = tabs.slice(startIdx, endIdx);
-        
+
         console.log(`Processing batch ${currentBatchIndex + 1}/${Math.ceil(tabs.length / dynamicBatchSize)}, tabs ${startIdx + 1}-${endIdx}`);
-        
+
         // Process this batch
         refreshTabsBatch(currentBatch, 0, () => {
             currentBatchIndex++;
             updateProgress(refreshedTabs, tabs.length);
-            
+
             // Memory management after each batch
             if (typeof gc === 'function') {
                 try {
@@ -322,7 +364,7 @@ function refreshTabsInBatches(tabs) {
                     // Ignore if not available
                 }
             }
-            
+
             // If more batches to process, schedule the next one
             if (currentBatchIndex * dynamicBatchSize < tabs.length) {
                 window.batchTimeoutId = setTimeout(processBatch, dynamicBatchInterval);
@@ -334,7 +376,7 @@ function refreshTabsInBatches(tabs) {
             }
         });
     }
-    
+
     // Start processing the first batch
     processBatch();
 }
@@ -345,20 +387,25 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
         onComplete();
         return;
     }
-    
+
     if (tabIndex >= batch.length) {
         onComplete();
         return;
     }
-    
+
     const tab = batch[tabIndex];
-    
+
     refreshTab(tab, 0)
         .then(success => {
             if (success) {
                 refreshedTabs++;
+                // Notify popup of success
+                chrome.runtime.sendMessage({
+                    action: 'tabSucceeded',
+                    tabId: tab.id
+                }).catch(() => { });
             }
-            
+
             // Process next tab in batch after a short delay
             setTimeout(() => {
                 refreshTabsBatch(batch, tabIndex + 1, onComplete);
@@ -371,7 +418,14 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
                 ...tab,
                 error: error.message || 'Unknown error'
             });
-            
+
+            // Notify popup of error
+            chrome.runtime.sendMessage({
+                action: 'tabFailed',
+                tabId: tab.id,
+                error: error.message || 'Unknown error'
+            }).catch(() => { });
+
             setTimeout(() => {
                 refreshTabsBatch(batch, tabIndex + 1, onComplete);
             }, TAB_PROCESSING_INTERVAL);
@@ -384,11 +438,11 @@ function disableDebuggerPause() {
         // This is executed in the browser's context to disable debugger functionality
         if (window.chrome && window.chrome.debugger) {
             // Attempt to disable any active debugging sessions
-            const tabId = chrome.devtools && chrome.devtools.inspectedWindow ? 
+            const tabId = chrome.devtools && chrome.devtools.inspectedWindow ?
                 chrome.devtools.inspectedWindow.tabId : null;
-            
+
             if (tabId) {
-                chrome.debugger.detach({tabId}, () => {
+                chrome.debugger.detach({ tabId }, () => {
                     if (chrome.runtime.lastError) {
                         // Ignore errors, this is just a best-effort attempt
                         console.log('Info: No active debugging sessions to detach');
@@ -396,15 +450,15 @@ function disableDebuggerPause() {
                 });
             }
         }
-        
+
         // Override the debugger statement to prevent pausing
         // This helps avoid the "Paused in debugger" issue
         const originalDebugger = window.console.debug;
-        window.console.debug = function() {
+        window.console.debug = function () {
             // Simply log without triggering the debugger
             console.log.apply(console, arguments);
         };
-        
+
         return true;
     } catch (error) {
         console.error('Error in disableDebuggerPause:', error);
@@ -431,17 +485,17 @@ async function refreshTab(tab, retryCount = 0) {
     if (!tab || !tab.id || tab.id === chrome.tabs.TAB_ID_NONE) {
         return false;
     }
-    
+
     try {
         // Skip browser UI tabs that can't be refreshed
-        if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || 
-                         tab.url.startsWith('about:') || tab.url.startsWith('chrome-extension://'))) {
+        if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') ||
+            tab.url.startsWith('about:') || tab.url.startsWith('chrome-extension://'))) {
             return true; // Count as success but skip refresh
         }
-        
+
         // Try to prevent debugger pausing
         preventDebuggerPause(tab.id);
-        
+
         // Check if tab still exists
         return new Promise((resolve) => {
             chrome.tabs.get(tab.id, async (tabInfo) => {
@@ -450,7 +504,7 @@ async function refreshTab(tab, retryCount = 0) {
                     resolve(true); // Count as success since we can't refresh it
                     return;
                 }
-                
+
                 // Check if tab is loading - if so, wait before refreshing
                 if (tabInfo.status === 'loading') {
                     setTimeout(() => {
@@ -458,7 +512,7 @@ async function refreshTab(tab, retryCount = 0) {
                     }, 500);
                     return;
                 }
-                
+
                 if (tabInfo.discarded) {
                     // Handle discarded tabs with more care
                     try {
@@ -502,7 +556,7 @@ async function activateAndRefreshTab(tab, retryCount, resolve) {
                     return;
                 }
             }
-            
+
             // Now reload it after a short delay to ensure tab is ready
             setTimeout(() => {
                 chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
@@ -599,13 +653,13 @@ function basicReload(tab, retryCount, resolve) {
 // Helper to handle refresh errors
 async function handleRefreshError(tab, error, retryCount) {
     console.error(`Error refreshing tab ${tab.id}:`, error);
-    
+
     if (retryCount < MAX_RETRIES) {
         // Retry with exponential backoff
         await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retryCount)));
         return refreshTab(tab, retryCount + 1);
     }
-    
+
     failedTabs.push({
         ...tab,
         error: error.message || 'Unknown error'
@@ -616,7 +670,7 @@ async function handleRefreshError(tab, error, retryCount) {
 // Helper to handle tab refresh errors
 function handleTabRefreshError(tab, error, retryCount, resolve) {
     console.error(`Error refreshing tab ${tab.id}:`, error);
-    
+
     if (retryCount < MAX_RETRIES) {
         // Retry with exponential backoff
         setTimeout(() => {
@@ -634,24 +688,35 @@ function handleTabRefreshError(tab, error, retryCount, resolve) {
 // Function to update progress
 function updateProgress(current, total) {
     if (!activeRefreshOperation) return;
-    
+
     const percent = Math.floor((current / total) * 100);
     chrome.action.setBadgeText({ text: percent + "%" });
+
+    // Broadcast progress to popup
+    chrome.runtime.sendMessage({
+        action: 'refreshProgress',
+        current,
+        total,
+        percent,
+        failed: failedTabs.length
+    }).catch(() => {
+        // Popup might be closed, ignore error
+    });
 }
 
 // Function to save operation to history
 function saveToHistory(operation) {
     chrome.storage.sync.get(['refreshHistory'], (result) => {
         const history = result.refreshHistory || [];
-        
+
         // Add newest operation at the beginning
         history.unshift(operation);
-        
+
         // Limit history to 20 entries
         if (history.length > 20) {
             history.pop();
         }
-        
+
         chrome.storage.sync.set({ refreshHistory: history });
     });
 }
@@ -662,13 +727,13 @@ function preserveMediaState() {
         const videos = document.querySelectorAll('video');
         const audios = document.querySelectorAll('audio');
         let mediaStates = {};
-        
+
         // Store video states - with special handling for YouTube
         videos.forEach((video, index) => {
             // Check if the video element is visible and has dimensions
             const isVisible = video.offsetWidth > 0 && video.offsetHeight > 0;
             const isYouTube = window.location.hostname.includes('youtube.com');
-            
+
             mediaStates[`video_${index}`] = {
                 src: video.src || (isYouTube ? 'youtube_video' : 'video_element'),
                 currentTime: video.currentTime,
@@ -681,7 +746,7 @@ function preserveMediaState() {
                 isVisible: isVisible
             };
         });
-        
+
         // Store audio states
         audios.forEach((audio, index) => {
             // Capture audio state even if src is empty
@@ -694,29 +759,29 @@ function preserveMediaState() {
                 playbackRate: audio.playbackRate
             };
         });
-        
+
         // Enhanced YouTube-specific handling
         if (window.location.hostname.includes('youtube.com')) {
             const player = document.querySelector('.html5-video-player');
             mediaStates['youtube_player_state'] = {
                 url: window.location.href,
                 paused: player ? (
-                    player.classList.contains('paused-mode') || 
+                    player.classList.contains('paused-mode') ||
                     !player.classList.contains('playing-mode')
                 ) : true,
                 // Store additional attributes to better identify the YouTube player state
-                videoId: new URLSearchParams(window.location.search).get('v') || 
-                         window.location.pathname.split('/').pop(),
+                videoId: new URLSearchParams(window.location.search).get('v') ||
+                    window.location.pathname.split('/').pop(),
                 timestamp: Math.floor(Date.now() / 1000)
             };
         }
-        
+
         // Save to sessionStorage if we have media elements
         if (Object.keys(mediaStates).length > 0) {
             sessionStorage.setItem('refreshEmAllMediaState', JSON.stringify(mediaStates));
             return { success: true, count: Object.keys(mediaStates).length };
         }
-        
+
         return { success: true, count: 0 };
     } catch (error) {
         console.error("Error preserving media state:", error);
@@ -729,24 +794,24 @@ async function attemptToSendPendingErrorReports() {
     return new Promise((resolve, reject) => {
         chrome.storage.local.get(['pendingErrorReports'], (result) => {
             const pendingReports = result.pendingErrorReports || [];
-            
+
             if (pendingReports.length === 0) {
                 resolve({ sent: 0 });
                 return;
             }
-            
+
             // Check user consent
             chrome.storage.sync.get(['errorReportingConsent'], (consentResult) => {
                 const hasConsent = consentResult.errorReportingConsent === true;
-                
+
                 if (!hasConsent) {
                     resolve({ sent: 0, reason: 'no-consent' });
                     return;
                 }
-                
+
                 // Send reports in batches
                 const batch = pendingReports.slice(0, 10);
-                const promises = batch.map(report => 
+                const promises = batch.map(report =>
                     fetch(ERROR_REPORTING_ENDPOINT, {
                         method: 'POST',
                         headers: {
@@ -759,19 +824,19 @@ async function attemptToSendPendingErrorReports() {
                         })
                     }).then(response => response.ok)
                 );
-                
+
                 Promise.allSettled(promises).then(results => {
                     // Count successful sends
                     const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
-                    
+
                     // Remove successful reports
                     const newPendingReports = [
                         ...pendingReports.slice(successCount)
                     ];
-                    
+
                     chrome.storage.local.set({ pendingErrorReports: newPendingReports }, () => {
-                        resolve({ 
-                            sent: successCount, 
+                        resolve({
+                            sent: successCount,
                             remaining: newPendingReports.length
                         });
                     });

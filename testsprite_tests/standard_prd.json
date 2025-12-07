@@ -1,0 +1,152 @@
+{
+  "meta": {
+    "project": "Refresh Em All",
+    "date": "2025-12-05",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "Refresh Em All is a lightweight and high-performance Chromium browser extension designed to refresh all open tabs across every window efficiently and safely. It uses smart batching, media state preservation, and comprehensive error handling to ensure a smooth bulk-refresh experience without crashing the browser or losing user context.",
+  "core_goals": [
+    "Enable users to refresh all tabs across all windows with minimal browser impact.",
+    "Preserve media playback states (position, volume, mute, playback rate) through refreshes.",
+    "Provide detailed UI feedback on progress, results, and errors.",
+    "Implement robust error handling including retry mechanisms and error reporting.",
+    "Ensure reliable operation for a wide range of users including power users, developers, and general users.",
+    "Maintain browser responsiveness and avoid crashes even with large numbers of open tabs.",
+    "Support a history log of recent refresh operations for transparency and diagnostics."
+  ],
+  "key_features": [
+    "Universal Refresh: Refresh all tabs across all browser windows, not just the current one.",
+    "Smart Batch Processing: Dynamically groups tabs into manageable batches with delays to prevent CPU spikes and browser crashes.",
+    "Media State Preservation: Captures and restores media playback states of video and audio elements.",
+    "Discarded Tab Handling: Detects and briefly activates discarded tabs to ensure proper refresh.",
+    "Robust Error Management: Captures refresh failures, applies exponential backoff retries, skips unrefreshable system pages, and reports errors.",
+    "User Interface with Popup Dashboard: Start button, linear progress bar, detailed tab status list with success/error indicators, confetti animation on completion.",
+    "Operation History Log: Records last 10 refresh operations with success rates and timestamps.",
+    "Error Reporting & Settings Management: User opt-in for error reporting and configurable settings saved locally.",
+    "Developer Features: Hidden stress test mode to run multiple refresh iterations and debugger detection with user warnings."
+  ],
+  "user_flow_summary": [
+    "User opens the extension popup and sees a Start button to refresh all tabs.",
+    "Upon starting, the extension queries all tabs in all windows and groups them into batches based on config and total tab count.",
+    "The extension processes each batch sequentially, refreshing tabs while preserving media states.",
+    "During refresh, the popup UI updates progress bar, status text, and individual tab statuses in real-time.",
+    "If errors occur, retries happen with exponential backoff; errors are logged and viewable in the UI.",
+    "After all batches complete successfully, a confetti animation plays and the operation is recorded in history.",
+    "User can view the history log with refresh statistics and details of each operation.",
+    "Settings allow toggling error reporting and configuring batch parameters.",
+    "Advanced users can activate hidden stress test mode via multiple clicks on the Settings header to run multiple refresh cycles automatically for QA purposes."
+  ],
+  "validation_criteria": [
+    "All open tabs across all windows must be refreshed successfully without crashing the browser.",
+    "Media playback state (position, volume, mute, playback rate) must be accurately preserved and restored in refreshed tabs when supported by the page.",
+    "Batch processing must prevent CPU spikes and maintain browser responsiveness during refresh.",
+    "Errors must be captured and retried with exponential backoff; user must be able to view detailed error reports in the UI.",
+    "Skipped tabs such as chrome:// pages must not attempt refresh and cause no errors.",
+    "The popup UI must remain responsive and display accurate progress information throughout the refresh cycle.",
+    "Operation history must correctly record and display the last 10 refresh operations with timestamps and success rates.",
+    "Stress test mode runs multiple refresh cycles autonomously and stops on error for debugging.",
+    "Unit, end-to-end, and stress tests must cover all features with passing results before release."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "JavaScript",
+      "Chrome Extension API",
+      "Jest",
+      "Puppeteer",
+      "HTML5",
+      "CSS"
+    ],
+    "features": [
+      {
+        "name": "Background Service Worker",
+        "description": "Handles tab refresh operations, manages batch processing, tracks operation state, and reports errors",
+        "files": [
+          "background.js"
+        ]
+      },
+      {
+        "name": "Popup UI",
+        "description": "User interface for triggering refresh, displaying progress, showing operation results, managing settings, and viewing history",
+        "files": [
+          "popup.js",
+          "popup.html"
+        ]
+      },
+      {
+        "name": "Content Script",
+        "description": "Runs on pages to preserve media playback states (video/audio), restore playback position and properties on page refresh",
+        "files": [
+          "content-script.js"
+        ]
+      },
+      {
+        "name": "Batch Processing Engine",
+        "description": "Processes tabs in batches to prevent browser overload with configurable batch sizes and intervals",
+        "files": [
+          "background.js"
+        ]
+      },
+      {
+        "name": "Error Handling & Reporting",
+        "description": "Captures errors from all scripts, stores them locally, and provides UI for reviewing and reporting errors",
+        "files": [
+          "background.js",
+          "popup.js",
+          "content-script.js"
+        ]
+      },
+      {
+        "name": "Media State Preservation",
+        "description": "Saves and restores media playback states including position, volume, mute status, and playback rate across page refreshes",
+        "files": [
+          "content-script.js",
+          "background.js"
+        ]
+      },
+      {
+        "name": "Settings Management",
+        "description": "Manages extension settings including error reporting toggle and persistence",
+        "files": [
+          "popup.js"
+        ]
+      },
+      {
+        "name": "Operation History",
+        "description": "Tracks and displays history of refresh operations with statistics and details",
+        "files": [
+          "popup.js"
+        ]
+      },
+      {
+        "name": "Test Suite",
+        "description": "Comprehensive unit tests for all major components and functionality",
+        "files": [
+          "tests/background.test.js",
+          "tests/popup.test.js",
+          "tests/content-script.test.js"
+        ]
+      },
+      {
+        "name": "E2E Testing",
+        "description": "End-to-end tests using Puppeteer for extension functionality verification",
+        "files": [
+          "tests/e2e/run.js"
+        ]
+      },
+      {
+        "name": "Stress Testing",
+        "description": "Performance and stability testing under high load conditions",
+        "files": [
+          "tests/stress/stress-test.js"
+        ]
+      },
+      {
+        "name": "Icon Generation",
+        "description": "Automated script to generate extension icons in various sizes",
+        "files": [
+          "generate-icons.js"
+        ]
+      }
+    ]
+  }
+}
