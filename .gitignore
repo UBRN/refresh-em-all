@@ -29,6 +29,7 @@ credentials.*
 # Developer-specific files
 .history/
 .vscode/
+.cursor/
 .idea/
 *.swp
 *.swo

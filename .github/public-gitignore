@@ -1,4 +1,5 @@
 # Files to exclude from public repository
+
 PRIVACY.md
 IMPROVEMENTS.md
 extracted-uuids.json
@@ -7,5 +8,7 @@ tests/verification-results.json
 tests/*.png
 tests/verification-*.png
 tests/stress/*.json
+tests/stress/*.png
 tests/e2e/results/
-tests/screenshots/ 
+tests/screenshots/
+.cursor
