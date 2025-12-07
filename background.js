@@ -59,15 +59,7 @@ chrome.action.onClicked.addListener(() => {
 
     chrome.tabs.query({}, (tabs) => {
         try {
-            // Filter out invalid tabs
-            tabsToRefresh = tabs.filter(tab => !!tab.id && tab.id !== chrome.tabs.TAB_ID_NONE);
-            refreshedTabs = 0;
-            failedTabs = [];
-            startTime = new Date();
-            operationCancelled = false;
-
-            // Process tabs in batches for better performance
-            refreshTabsInBatches(tabsToRefresh);
+            initializeAndStartRefresh(tabs);
         } catch (error) {
             reportError('refresh_operation_start_error', {
                 message: error.message,
@@ -91,16 +83,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         chrome.tabs.query({}, (tabs) => {
             try {
-                // Filter out invalid tabs
-                tabsToRefresh = tabs.filter(tab => !!tab.id && tab.id !== chrome.tabs.TAB_ID_NONE);
-                refreshedTabs = 0;
-                failedTabs = [];
-                startTime = new Date();
-                operationCancelled = false;
-
-                // Process tabs in batches for better performance
-                refreshTabsInBatches(tabsToRefresh);
-                sendResponse({ success: true });
+                initializeAndStartRefresh(tabs, sendResponse);
             } catch (error) {
                 reportError('refresh_operation_start_error', {
                     message: error.message,
@@ -148,6 +131,71 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 });
+
+// Prepare and start the refresh operation once tabs are available
+function initializeAndStartRefresh(tabs, sendResponse) {
+    if (chrome.runtime.lastError) {
+        handleRefreshStartFailure(chrome.runtime.lastError.message, sendResponse);
+        return;
+    }
+
+    if (!Array.isArray(tabs) || tabs.length === 0) {
+        handleRefreshStartFailure('No tabs available to refresh', sendResponse);
+        return;
+    }
+
+    // Filter out invalid tabs
+    tabsToRefresh = tabs.filter(tab => !!tab.id && tab.id !== chrome.tabs.TAB_ID_NONE);
+
+    if (tabsToRefresh.length === 0) {
+        handleRefreshStartFailure('No refreshable tabs found', sendResponse);
+        return;
+    }
+
+    refreshedTabs = 0;
+    failedTabs = [];
+    startTime = new Date();
+    operationCancelled = false;
+
+    // Let the popup initialize its UI with the tab list
+    chrome.runtime.sendMessage({
+        action: 'refreshStarted',
+        tabs: tabsToRefresh
+    }).catch(() => {
+        // Popup might be closed
+    });
+
+    // Process tabs in batches for better performance
+    refreshTabsInBatches(tabsToRefresh);
+
+    if (typeof sendResponse === 'function') {
+        sendResponse({ success: true });
+    }
+}
+
+function handleRefreshStartFailure(message, sendResponse) {
+    const errorMessage = message || 'Unable to start refresh operation';
+
+    tabsToRefresh = [];
+    refreshedTabs = 0;
+    failedTabs = [{
+        title: 'Unable to start refresh',
+        url: 'N/A',
+        error: errorMessage
+    }];
+    startTime = new Date();
+
+    reportError('refresh_operation_start_error', {
+        message: errorMessage,
+        timestamp: new Date().toISOString()
+    });
+
+    if (typeof sendResponse === 'function') {
+        sendResponse({ success: false, message: errorMessage });
+    }
+
+    endRefreshOperation(false);
+}
 
 // Function to report errors to the server
 function reportError(errorType, errorDetails) {
@@ -264,6 +312,7 @@ function startRefreshOperation() {
 // Function to end refresh operation
 function endRefreshOperation(success = true) {
     activeRefreshOperation = false;
+    const finalSuccess = success && !operationCancelled && failedTabs.length === 0;
 
     // Reset icon
     chrome.action.setIcon({
@@ -314,7 +363,7 @@ function endRefreshOperation(success = true) {
     // Broadcast completion to popup
     chrome.runtime.sendMessage({
         action: 'refreshComplete',
-        success: success,
+        success: finalSuccess,
         details: operationDetails,
         failedTabs: failedTabs
     }).catch(() => {
@@ -689,6 +738,11 @@ function handleTabRefreshError(tab, error, retryCount, resolve) {
 // Function to update progress
 function updateProgress(current, total) {
     if (!activeRefreshOperation) return;
+
+    if (!total) {
+        chrome.action.setBadgeText({ text: "" });
+        return;
+    }
 
     const percent = Math.floor((current / total) * 100);
     chrome.action.setBadgeText({ text: percent + "%" });

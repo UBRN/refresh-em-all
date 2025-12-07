@@ -140,16 +140,22 @@ function handleRefreshComplete(data) {
     activeRefreshOperation = false;
     toggleInputState(true);
 
-    const success = data.success;
+    const success = data && data.success !== undefined
+        ? data.success
+        : (data.failedTabs ? data.failedTabs.length === 0 : failedTabs.length === 0);
     const details = data.details || {};
 
     failedTabs = data.failedTabs || [];
 
+    const totalTabs = details.totalTabs ?? tabsToRefresh.length;
+    const failedCount = details.failedCount ?? failedTabs.length;
+    const successfulTabs = details.successfulTabs ?? Math.max(totalTabs - failedCount, 0);
+
     if (success && !stressTestMode) {
         showConfetti();
-        statusText.textContent = `All ${details.totalTabs} tabs refreshed successfully!`;
+        statusText.textContent = `All ${totalTabs} tabs refreshed successfully!`;
     } else if (!success) {
-        statusText.textContent = `Refreshed ${details.successfulTabs}/${details.totalTabs} tabs with ${details.failedCount} errors`;
+        statusText.textContent = `Refreshed ${successfulTabs}/${totalTabs} tabs with ${failedCount} errors`;
         showErrors();
     }
 
@@ -454,18 +460,37 @@ function updateTabStatus(tabElement, status) {
 function showErrors() {
     errorContainer.style.display = 'block';
 
-    errorSummary.textContent = `Failed to refresh ${failedTabs.length} tab${failedTabs.length > 1 ? 's' : ''}.`;
+    const errorCount = failedTabs.length;
+
+    if (errorCount === 0) {
+        errorSummary.textContent = 'Refresh failed before any tabs were processed.';
+        errorDetails.textContent = [
+            'Errors:',
+            '- No error details were returned. Try again from a normal tab.',
+            '',
+            'Troubleshooting tips:',
+            '- Chrome extensions cannot refresh certain system pages',
+            '- Check if your browser is in an offline mode',
+            '- Try closing and reopening the tab manually'
+        ].join('\n');
+        return;
+    }
+
+    errorSummary.textContent = `Failed to refresh ${errorCount} tab${errorCount > 1 ? 's' : ''}.`;
 
     let detailsText = 'Errors:';
     failedTabs.forEach((tab, index) => {
-        detailsText += `\n${index + 1}. "${tab.title}" (${tab.url}): ${tab.error}`;
+        const title = tab.title || 'Tab';
+        const url = tab.url || 'Unknown URL';
+        const error = tab.error || 'Unknown error';
+        detailsText += `\n${index + 1}. "${title}" (${url}): ${error}`;
     });
 
     // Add troubleshooting tips
     detailsText += '\n\nTroubleshooting tips:';
-    detailsText += '\n• Chrome extensions cannot refresh certain system pages';
-    detailsText += '\n• Check if your browser is in an offline mode';
-    detailsText += '\n• Try closing and reopening the tab manually';
+    detailsText += '\n- Chrome extensions cannot refresh certain system pages';
+    detailsText += '\n- Check if your browser is in an offline mode';
+    detailsText += '\n- Try closing and reopening the tab manually';
 
     errorDetails.textContent = detailsText;
 }
