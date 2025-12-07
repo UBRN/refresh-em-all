@@ -5,6 +5,7 @@ let refreshedTabs = 0;
 let failedTabs = [];
 let startTime;
 let operationCancelled = false;
+let batchTimeoutId = null;
 
 // Constants for tab processing
 const MAX_TABS_PER_BATCH = 5; // Process tabs in smaller batches
@@ -334,8 +335,8 @@ function refreshTabsInBatches(tabs) {
     let currentBatchIndex = 0;
 
     // Clear any previous timeout references if they exist
-    if (window.batchTimeoutId) {
-        clearTimeout(window.batchTimeoutId);
+    if (batchTimeoutId) {
+        clearTimeout(batchTimeoutId);
     }
 
     function processBatch() {
@@ -367,12 +368,12 @@ function refreshTabsInBatches(tabs) {
 
             // If more batches to process, schedule the next one
             if (currentBatchIndex * dynamicBatchSize < tabs.length) {
-                window.batchTimeoutId = setTimeout(processBatch, dynamicBatchInterval);
+                batchTimeoutId = setTimeout(processBatch, dynamicBatchInterval);
             } else {
                 // All batches processed, end operation
                 console.log(`Operation ${operationId} completed successfully`);
                 endRefreshOperation(true);
-                window.batchTimeoutId = null;
+                batchTimeoutId = null;
             }
         });
     }
