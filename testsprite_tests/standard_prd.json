@@ -4,48 +4,44 @@
     "date": "2025-12-05",
     "prepared_by": "Software Development Manager"
   },
-  "product_overview": "Refresh Em All is a lightweight and high-performance Chromium browser extension designed to refresh all open tabs across every window efficiently and safely. It uses smart batching, media state preservation, and comprehensive error handling to ensure a smooth bulk-refresh experience without crashing the browser or losing user context.",
+  "product_overview": "Refresh Em All is a high-performance Chromium browser extension designed to intelligently refresh all tabs across every open window with a focus on system stability, efficiency, and user control. It employs smart batching to avoid CPU spikes, preserves media playback states, and provides a rich UI for progress tracking, error handling, and historical analysis.",
   "core_goals": [
-    "Enable users to refresh all tabs across all windows with minimal browser impact.",
-    "Preserve media playback states (position, volume, mute, playback rate) through refreshes.",
-    "Provide detailed UI feedback on progress, results, and errors.",
-    "Implement robust error handling including retry mechanisms and error reporting.",
-    "Ensure reliable operation for a wide range of users including power users, developers, and general users.",
-    "Maintain browser responsiveness and avoid crashes even with large numbers of open tabs.",
-    "Support a history log of recent refresh operations for transparency and diagnostics."
+    "Provide a safe and reliable method to bulk-refresh browser tabs across all open windows.",
+    "Preserve media playback states to avoid disrupting user sessions during refresh.",
+    "Implement smart batch processing to reduce CPU load and prevent browser crashes.",
+    "Offer comprehensive error handling with reporting and retry mechanisms.",
+    "Deliver an intuitive UI that displays progress, errors, and refresh history.",
+    "Enable advanced developer and QA features such as stress testing and debugger detection."
   ],
   "key_features": [
-    "Universal Refresh: Refresh all tabs across all browser windows, not just the current one.",
-    "Smart Batch Processing: Dynamically groups tabs into manageable batches with delays to prevent CPU spikes and browser crashes.",
-    "Media State Preservation: Captures and restores media playback states of video and audio elements.",
-    "Discarded Tab Handling: Detects and briefly activates discarded tabs to ensure proper refresh.",
-    "Robust Error Management: Captures refresh failures, applies exponential backoff retries, skips unrefreshable system pages, and reports errors.",
-    "User Interface with Popup Dashboard: Start button, linear progress bar, detailed tab status list with success/error indicators, confetti animation on completion.",
-    "Operation History Log: Records last 10 refresh operations with success rates and timestamps.",
-    "Error Reporting & Settings Management: User opt-in for error reporting and configurable settings saved locally.",
-    "Developer Features: Hidden stress test mode to run multiple refresh iterations and debugger detection with user warnings."
+    "Universal Refresh: Refreshes chrome.tabs across all windows, not limited to the current window.",
+    "Smart Batch Processing: Groups tabs into manageable batches with dynamic sizing and enforced delays to optimize performance and responsiveness.",
+    "Media Preservation: Detects and saves playback states of video and audio elements before refresh, restoring them afterward.",
+    "Robust Error Handling: Captures refresh failures, applies exponential backoff retries, skips unsupported system pages, and logs errors locally.",
+    "User Interface: Popup dashboard with start button, progress bar, detailed tab status list, confetti animation on completion, history log of last 10 refresh operations, and opt-in error reporting.",
+    "Developer & QA Features: Hidden stress test mode for multiple refresh cycles and debugger detection to alert users when paused in developer tools."
   ],
   "user_flow_summary": [
-    "User opens the extension popup and sees a Start button to refresh all tabs.",
-    "Upon starting, the extension queries all tabs in all windows and groups them into batches based on config and total tab count.",
-    "The extension processes each batch sequentially, refreshing tabs while preserving media states.",
-    "During refresh, the popup UI updates progress bar, status text, and individual tab statuses in real-time.",
-    "If errors occur, retries happen with exponential backoff; errors are logged and viewable in the UI.",
-    "After all batches complete successfully, a confetti animation plays and the operation is recorded in history.",
-    "User can view the history log with refresh statistics and details of each operation.",
-    "Settings allow toggling error reporting and configuring batch parameters.",
-    "Advanced users can activate hidden stress test mode via multiple clicks on the Settings header to run multiple refresh cycles automatically for QA purposes."
+    "User opens the extension popup and views the dashboard.",
+    "User initiates a bulk tab refresh by clicking the Start button.",
+    "Background Service Worker retrieves all tabs across all windows.",
+    "Tabs are processed in smart batches with delays to prevent overload.",
+    "Content Scripts capture media playback states before each tab refresh.",
+    "Tabs are refreshed sequentially with error detection and retries on failure.",
+    "Popup UI updates in real-time showing progress, tab statuses, and error details.",
+    "On completion, a confetti animation celebrates success, and the operation is logged in history.",
+    "User can review past refresh operation logs and error reports within the popup.",
+    "Advanced users can enable hidden stress test mode via the Settings header and monitor for debugger pause states."
   ],
   "validation_criteria": [
-    "All open tabs across all windows must be refreshed successfully without crashing the browser.",
-    "Media playback state (position, volume, mute, playback rate) must be accurately preserved and restored in refreshed tabs when supported by the page.",
-    "Batch processing must prevent CPU spikes and maintain browser responsiveness during refresh.",
-    "Errors must be captured and retried with exponential backoff; user must be able to view detailed error reports in the UI.",
-    "Skipped tabs such as chrome:// pages must not attempt refresh and cause no errors.",
-    "The popup UI must remain responsive and display accurate progress information throughout the refresh cycle.",
-    "Operation history must correctly record and display the last 10 refresh operations with timestamps and success rates.",
-    "Stress test mode runs multiple refresh cycles autonomously and stops on error for debugging.",
-    "Unit, end-to-end, and stress tests must cover all features with passing results before release."
+    "Extension refreshes all tabs across all open windows without crashing the browser, even with 100+ tabs.",
+    "Media playback states (pause/play, timestamp, volume, mute, playback rate) are accurately saved and restored after refresh.",
+    "Smart batch processing respects configured sizes and intervals, dynamically adjusting for large tab counts.",
+    "Errors during refresh are captured, retried with exponential backoff, and properly reported in the UI when opted-in.",
+    "Popup UI remains responsive throughout the refresh process, accurately reflecting progress and statuses.",
+    "Refresh history accurately records timestamps, success rates, and details for the last 10 operations.",
+    "Stress test mode executes multiple refresh iterations without loss of state and stops on errors for debugging.",
+    "Debugger detection alerts users when the extension execution is paused by dev tools, with clear guidance to resolve."
   ],
   "code_summary": {
     "tech_stack": [

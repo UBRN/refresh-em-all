@@ -2,138 +2,138 @@
   {
     "id": "TC001",
     "title": "Refresh all tabs across all windows",
-    "description": "Verify that the extension refreshes all open tabs in all browser windows when the Start button is clicked.",
+    "description": "Verify that the extension refreshes all open tabs in every browser window when started.",
     "category": "functional",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Open multiple browser windows with multiple tabs in each."
+        "description": "Open multiple browser windows with multiple tabs each."
       },
       {
         "type": "action",
-        "description": "Open the extension popup."
-      },
-      {
-        "type": "action",
-        "description": "Click the Start button to refresh all tabs."
+        "description": "Open extension popup and click the Start button."
       },
       {
         "type": "assertion",
-        "description": "Verify all tabs in all windows receive a refresh command and reload successfully."
+        "description": "Confirm that all tabs across all windows have been refreshed successfully."
       },
       {
         "type": "assertion",
-        "description": "Confirm the browser remains responsive and does not crash during refresh."
+        "description": "Verify that the browser remains responsive with no crashes."
       }
     ]
   },
   {
     "id": "TC002",
-    "title": "Preserve media playback state through refresh",
-    "description": "Ensure video and audio media elements preserve playback position, volume, mute status, and playback rate when their tabs are refreshed.",
+    "title": "Media playback state preservation during refresh",
+    "description": "Ensure media playback states including position, volume, mute status, and playback rate are preserved and restored after tab refresh.",
     "category": "functional",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Open tabs with playing media (video/audio) set to specific playback positions, volume levels, mute status, and playback rate."
+        "description": "Open tabs with video and audio elements playing various media."
       },
       {
         "type": "action",
-        "description": "Trigger refresh of all tabs via the Start button."
+        "description": "Modify media playback states (seek to a position, adjust volume, mute/unmute, change playback rate)."
+      },
+      {
+        "type": "action",
+        "description": "Trigger the refresh for all tabs."
       },
       {
         "type": "assertion",
-        "description": "Verify media elements resume playback at the same position, with the same volume, mute status, and playback rate after refresh."
+        "description": "Verify media playback states are restored to the same position, volume, mute status, and playback rate after refresh."
       }
     ]
   },
   {
     "id": "TC003",
-    "title": "Batch processing prevents CPU spikes and crashes",
-    "description": "Test that tabs are refreshed in batches with delays, preventing CPU overload and browser crashes when many tabs are open.",
+    "title": "Smart batch processing for tab refresh",
+    "description": "Validate that tabs are grouped into batches with delays to prevent CPU spikes and maintain browser responsiveness.",
     "category": "functional",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Open a very large number of tabs (>100) across multiple windows."
+        "description": "Open a very large number of tabs across multiple browser windows."
       },
       {
         "type": "action",
-        "description": "Start the refresh process."
+        "description": "Start the refresh process via the extension popup."
       },
       {
         "type": "assertion",
-        "description": "Verify tabs are refreshed in batches respecting configured batch size and delay."
+        "description": "Observe batch processing occurs sequentially with configured breaks between batches."
       },
       {
         "type": "assertion",
-        "description": "Monitor CPU usage to confirm no spikes causing browser hang or crash."
+        "description": "Verify browser remains responsive and does not crash during the entire refresh operation."
       }
     ]
   },
   {
     "id": "TC004",
-    "title": "Detect and briefly activate discarded tabs before refreshing",
-    "description": "Verify that tabs marked as discarded are first activated briefly to enable proper refresh.",
+    "title": "Handling of discarded tabs before refresh",
+    "description": "Confirm that discarded tabs are detected and briefly activated before refreshing to ensure proper refresh.",
     "category": "functional",
     "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Open tabs in a discarded state (background tabs not loaded)."
+        "description": "Open tabs including some that are discarded (inactive) by the browser."
       },
       {
         "type": "action",
-        "description": "Initiate the refresh process."
+        "description": "Start the refresh operation on all tabs."
       },
       {
         "type": "assertion",
-        "description": "Confirm discarded tabs are briefly activated before refresh commands are issued."
+        "description": "Verify discarded tabs are activated briefly before being refreshed."
       },
       {
         "type": "assertion",
-        "description": "Check these tabs refresh successfully and resume to previous media state if applicable."
+        "description": "Confirm those tabs refresh successfully and media states are preserved if applicable."
       }
     ]
   },
   {
     "id": "TC005",
-    "title": "Skip refresh for unrefreshable system pages",
-    "description": "Ensure tabs pointing to chrome:// and other system pages are detected and skipped without errors.",
+    "title": "Error detection and exponential backoff retry mechanism",
+    "description": "Test that tab refresh failures are captured, retried with exponential backoff, and errors logged and reported.",
     "category": "error handling",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Open tabs with URLs like chrome://extensions and about:blank."
+        "description": "Simulate tab refresh failures on random tabs (e.g., by blocking reload)."
       },
       {
         "type": "action",
-        "description": "Trigger refresh for all tabs."
+        "description": "Start refresh operation and monitor retry attempts with increasing delays."
       },
       {
         "type": "assertion",
-        "description": "Verify system pages are skipped during refresh."
+        "description": "Verify retries occur using exponential backoff timing."
       },
       {
         "type": "assertion",
-        "description": "Confirm no errors occur related to these tabs and the process continues."
+        "description": "Confirm errors are logged and user can view detailed error reports in the popup UI."
       }
     ]
   },
   {
     "id": "TC006",
-    "title": "Exponential backoff on refresh failures with retries",
-    "description": "Validate that refresh failures trigger retries with exponential backoff delays up to a maximum retry count.",
-    "category": "error handling",
+    "title": "Skipping and handling of unrefreshable system pages",
+    "description": "Ensure that tabs with system URLs (e.g., chrome://) are skipped during refresh and cause no errors.",
+    "category": "functional",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Simulate refresh failures on selected tabs (e.g., mock network failures)."
+        "description": "Open browser system pages and normal tabs."
       },
       {
         "type": "action",
@@ -141,240 +141,252 @@
       },
       {
         "type": "assertion",
-        "description": "Verify retries occur with increasing delays (exponential backoff)."
+        "description": "Verify refresh attempts skip system tabs such as chrome:// pages."
       },
       {
         "type": "assertion",
-        "description": "Confirm tabs that ultimately fail are logged as errors and shown in the UI."
-      },
-      {
-        "type": "assertion",
-        "description": "Ensure retries stop after reaching the maximum retry limit."
+        "description": "Confirm no errors or failures are reported for skipped tabs."
       }
     ]
   },
   {
     "id": "TC007",
-    "title": "Real-time UI progress updates during refresh",
-    "description": "Check that the popup UI updates the linear progress bar, status text, and individual tab statuses dynamically during the refresh process.",
+    "title": "Popup UI responsiveness and progress feedback",
+    "description": "Check that the popup UI updates in real-time with progress bar, status text, individual tab status indicators, and plays confetti on success.",
     "category": "ui",
-    "priority": "Medium",
+    "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Open the extension popup."
-      },
-      {
-        "type": "action",
-        "description": "Start refreshing all tabs."
+        "description": "Start the refresh operation from the popup UI."
       },
       {
         "type": "assertion",
-        "description": "Observe that the linear progress bar increments as batches complete."
+        "description": "Verify the linear progress bar updates correctly according to progress."
       },
       {
         "type": "assertion",
-        "description": "Verify status text updates to reflect current batch and overall progress."
+        "description": "Verify detailed tab statuses show success or error for each tab."
       },
       {
         "type": "assertion",
-        "description": "Confirm each tab status displays success or error indicator in real-time."
+        "description": "Confirm the confetti animation plays after all batches complete successfully."
       }
     ]
   },
   {
     "id": "TC008",
-    "title": "Confetti animation upon successful completion",
-    "description": "Verify that when all batches complete successfully, the confetti animation plays on the popup UI.",
-    "category": "ui",
-    "priority": "Low",
+    "title": "Operation history log records and display",
+    "description": "Validate that the last 10 refresh operations are recorded with timestamps, success rates, and details, and can be viewed in the UI.",
+    "category": "functional",
+    "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Complete a successful refresh of all tabs without errors."
+        "description": "Perform more than 10 refresh operations successfully."
+      },
+      {
+        "type": "action",
+        "description": "Open the history log in the extension popup."
       },
       {
         "type": "assertion",
-        "description": "Confirm a confetti animation is displayed on the popup upon completion."
+        "description": "Verify only the latest 10 operation records are listed."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm each record includes a timestamp, success rate, and clickable details."
       }
     ]
   },
   {
     "id": "TC009",
-    "title": "Operation history correctly records refresh operations",
-    "description": "Verify the operation history log records and displays the last 10 refresh operations with timestamps and success rates.",
+    "title": "Settings management and persistence",
+    "description": "Test toggling error reporting and changing batch parameters in settings and verify that settings are saved locally and applied correctly.",
     "category": "functional",
     "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Perform multiple refresh operations exceeding 10 in number."
+        "description": "Open extension settings in the popup."
       },
       {
         "type": "action",
-        "description": "Open the history log section in the UI."
+        "description": "Toggle error reporting on and off."
+      },
+      {
+        "type": "action",
+        "description": "Change batch size and delay parameters."
+      },
+      {
+        "type": "action",
+        "description": "Close and reopen the popup."
       },
       {
         "type": "assertion",
-        "description": "Validate that only the last 10 operations are retained."
-      },
-      {
-        "type": "assertion",
-        "description": "Check each entry includes accurate timestamps and success/error statistics."
+        "description": "Verify the settings persist and apply correctly during subsequent refresh operations."
       }
     ]
   },
   {
     "id": "TC010",
-    "title": "Settings management: toggle error reporting",
-    "description": "Test that the user can enable or disable error reporting via settings and the setting persists between sessions.",
+    "title": "Stress test mode activation and operation",
+    "description": "Verify that advanced users can activate the hidden stress test mode via multiple clicks, which runs multiple refresh cycles automatically and stops on error.",
     "category": "functional",
     "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Open the Settings UI."
-      },
-      {
-        "type": "action",
-        "description": "Toggle the error reporting setting on."
-      },
-      {
-        "type": "action",
-        "description": "Close and reopen the extension popup."
+        "description": "In the extension popup, click multiple times rapidly on the Settings header."
       },
       {
         "type": "assertion",
-        "description": "Verify error reporting setting remains on."
+        "description": "Confirm stress test mode is activated with relevant UI indication."
       },
       {
         "type": "action",
-        "description": "Toggle the error reporting setting off and repeat the persistence check."
+        "description": "Observe multiple consecutive refresh cycles running autonomously."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the process stops immediately on encountering any error."
       }
     ]
   },
   {
     "id": "TC011",
-    "title": "User can view detailed error reports in UI",
-    "description": "Validate that users can view logs of refresh errors and details about each error in the popup's UI.",
+    "title": "Developer debugger detection and user warning",
+    "description": "Check that the extension detects developer debugger and displays appropriate user warning in the UI.",
     "category": "ui",
-    "priority": "Medium",
+    "priority": "Low",
     "steps": [
       {
         "type": "action",
-        "description": "Simulate errors during tab refreshes."
+        "description": "Open developer tools debugger in the browser while the extension is active."
       },
       {
         "type": "action",
-        "description": "Open the popup UI and navigate to the error reporting section."
+        "description": "Open the extension popup."
       },
       {
         "type": "assertion",
-        "description": "Verify detailed error messages for failed tabs are listed."
-      },
-      {
-        "type": "assertion",
-        "description": "Check timestamps and retry attempts are visible."
+        "description": "Verify a warning message is displayed alerting the user about debugger detection."
       }
     ]
   },
   {
     "id": "TC012",
-    "title": "Stress test mode runs multiple refresh cycles autonomously",
-    "description": "Confirm hidden stress test mode executes multiple refresh cycles automatically and stops on detecting errors.",
+    "title": "Extension startup and initialization validation",
+    "description": "Ensure the background service worker and content scripts initialize correctly on browser start and the extension is ready for user interaction.",
     "category": "functional",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Activate stress test mode by clicking the Settings header multiple times."
+        "description": "Restart the browser or reload the extension."
       },
       {
         "type": "assertion",
-        "description": "Verify multiple refresh cycles run back-to-back without user intervention."
+        "description": "Verify background service worker starts without errors."
       },
       {
         "type": "assertion",
-        "description": "Simulate an error during one cycle and confirm the stress test mode stops and reports the error for debugging."
+        "description": "Verify content scripts are injected into pages with media elements."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the popup UI opens and displays the Start button correctly."
       }
     ]
   },
   {
     "id": "TC013",
-    "title": "Debugger detection with user warning",
-    "description": "Ensure that when a debugger is attached, the extension detects it and presents a user warning.",
+    "title": "Error reporting opt-in functionality",
+    "description": "Validate that user opt-in for error reporting is respected and error data is only sent when enabled.",
     "category": "security",
-    "priority": "Low",
+    "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Attach a JavaScript debugger to the extension."
+        "description": "Toggle error reporting setting off."
       },
       {
         "type": "action",
-        "description": "Open the extension popup UI."
+        "description": "Trigger errors by simulating tab refresh failures."
       },
       {
         "type": "assertion",
-        "description": "Confirm the UI displays a warning message indicating debugger detection."
+        "description": "Verify no error data is sent or reported remotely."
+      },
+      {
+        "type": "action",
+        "description": "Toggle error reporting on."
+      },
+      {
+        "type": "action",
+        "description": "Trigger errors again."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error data is captured and reported."
       }
     ]
   },
   {
     "id": "TC014",
-    "title": "UI responsiveness with large number of tabs",
-    "description": "Verify that the popup UI remains responsive and updates properly even when refreshing a large number of tabs.",
+    "title": "UI display of error details and user interaction",
+    "description": "Check that errors captured during refresh operations are presented clearly in the UI and user can interact with details and dismiss them.",
     "category": "ui",
-    "priority": "High",
+    "priority": "Medium",
     "steps": [
       {
         "type": "action",
-        "description": "Open a large number of tabs (50+)."
+        "description": "Simulate tab refresh errors."
       },
       {
         "type": "action",
-        "description": "Start the refresh all operation."
+        "description": "Open the popup UI and navigate to the error report section."
       },
       {
         "type": "assertion",
-        "description": "Ensure the UI progress bar, status indicators, and tab lists update without lag."
+        "description": "Verify errors are listed with relevant details (tab title, error message, retry count)."
+      },
+      {
+        "type": "action",
+        "description": "User attempts to dismiss individual error entries."
       },
       {
         "type": "assertion",
-        "description": "Verify no UI freezes or crashes occur during the refresh process."
+        "description": "Confirm error entries are removed from the list and no longer displayed."
       }
     ]
   },
   {
     "id": "TC015",
-    "title": "Error reporting opt-in respects user privacy",
-    "description": "Validate that error reports are only sent if the user has explicitly opted in via settings.",
-    "category": "security",
+    "title": "Performance and stability under high load",
+    "description": "Stress test the extension performance and stability by running refresh cycles with extremely high tab counts repeatedly.",
+    "category": "functional",
     "priority": "High",
     "steps": [
       {
         "type": "action",
-        "description": "Set error reporting toggle OFF."
+        "description": "Open hundreds of tabs across multiple windows including media-heavy pages."
       },
       {
         "type": "action",
-        "description": "Trigger a tab refresh that produces an error."
+        "description": "Activate stress test mode to run multiple refresh iterations automatically."
       },
       {
         "type": "assertion",
-        "description": "Confirm no error data is sent or reported externally."
-      },
-      {
-        "type": "action",
-        "description": "Enable error reporting toggle ON."
-      },
-      {
-        "type": "action",
-        "description": "Trigger another error during refresh."
+        "description": "Monitor CPU and memory usage to confirm no CPU spikes or memory leaks."
       },
       {
         "type": "assertion",
-        "description": "Validate error information is sent/reported according to implementation."
+        "description": "Verify no crashes or browser slowdown occur."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm all refresh cycles complete successfully or stop promptly on error."
       }
     ]
   }
