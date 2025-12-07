@@ -1,6 +1,6 @@
 {
   "name": "refresh-em-all",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A lightweight browser extension to refresh all tabs in every window for Chromium-based browsers",
   "main": "background.js",
   "scripts": {

@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Refresh Em All",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Refresh all tabs in every window for Chromium-based browsers",
     "permissions": [
         "tabs",
@@ -32,15 +32,25 @@
     },
     "content_scripts": [
         {
-            "matches": ["<all_urls>"],
-            "js": ["content-script.js"],
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content-script.js"
+            ],
             "run_at": "document_idle"
         }
     ],
     "web_accessible_resources": [
         {
-            "resources": ["assets/*", "favicon.png", "favicon.svg"],
-            "matches": ["<all_urls>"]
+            "resources": [
+                "assets/*",
+                "favicon.png",
+                "favicon.svg"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
         }
     ]
 }
