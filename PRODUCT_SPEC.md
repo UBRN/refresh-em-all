@@ -19,7 +19,7 @@ To provide the most reliable and safe method for bulk-refreshing browser tabs, e
   - Automatically groups tabs into manageable batches (e.g., 3-5 tabs) to prevent CPU spikes.
   - Dynamically adjusts batch size based on total tab count (fewer concurrent refreshes for 50+ tabs).
   - Enforces delays between batches to allow Chrome's garbage collector to run.
-- **Discarded Tab Handling**: Detects tabs that have been discarded (sleeping) by Chrome to save memory. It briefly activates them before refreshing to ensure content is actually reloaded.
+- **Discarded Tab Handling**: Detects tabs that have been discarded (sleeping) by Chrome and reloads them without changing the user's active tab.
 - **Sequential Execution**: Processes the queue sequentially to maintain browser responsiveness.
 
 ### 3.2 State Preservation
@@ -42,8 +42,8 @@ To provide the most reliable and safe method for bulk-refreshing browser tabs, e
   - **Visual Feedback**: Confetti animation upon successful completion of all tabs.
 - **History Log**: Keeps a local record of the last 10 refresh operations, detailing success rates and timestamps.
 - **Error Reporting**:
-  - User-opt-in reporting for unhandled exceptions.
-  - Detailed view of specific tab errors in the UI.
+  - Detailed local view of specific tab errors in the UI.
+  - No browsing data or telemetry is sent to external services.
 
 ### 3.5 Developer & QA Features
 - **Stress Test Mode** (Hidden):
@@ -58,7 +58,7 @@ To provide the most reliable and safe method for bulk-refreshing browser tabs, e
   - `tabs`: To query and manipulate tabs.
   - `scripting`: To inject state-preservation scripts.
   - `storage`: To save history and media states.
-- **Local Processing**: All logic runs client-side. No user data is sent to external servers unless error reporting is explicitly enabled.
+- **Local Processing**: All logic runs client-side. No user data or telemetry is sent to external servers.
 
 ## 5. Non-Functional Requirements
 - **Performance**: Must not cause browser "Aw, Snap!" crashes even with 100+ tabs.

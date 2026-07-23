@@ -40,17 +40,5 @@
             ],
             "run_at": "document_idle"
         }
-    ],
-    "web_accessible_resources": [
-        {
-            "resources": [
-                "assets/*",
-                "favicon.png",
-                "favicon.svg"
-            ],
-            "matches": [
-                "<all_urls>"
-            ]
-        }
     ]
 }

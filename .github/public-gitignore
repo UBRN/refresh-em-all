@@ -1,6 +1,5 @@
 # Files to exclude from public repository
 
-PRIVACY.md
 IMPROVEMENTS.md
 extracted-uuids.json
 tests/stress/stress-test-results.json

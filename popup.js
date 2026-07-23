@@ -1,5 +1,5 @@
-// DOM Elements
-let refreshButton = document.getElementById('refreshAll');
+const refreshButton = document.getElementById('refreshAll');
+const cancelButton = document.getElementById('cancelRefresh');
 const loadingContainer = document.getElementById('loadingContainer');
 const progressBar = document.getElementById('progressFill');
 const statusText = document.getElementById('statusText');
@@ -13,732 +13,403 @@ const historyContent = document.getElementById('historyContent');
 const confettiElement = document.getElementById('confetti');
 const settingsHeader = document.getElementById('settingsHeader');
 const settingsContent = document.getElementById('settingsContent');
-const errorReportingToggle = document.getElementById('errorReportingToggle');
-const pendingErrorsContainer = document.getElementById('pendingErrorsContainer');
-const pendingErrorCount = document.getElementById('pendingErrorCount');
-const reportErrorsBtn = document.getElementById('reportErrorsBtn');
 
-// Error reporting constants
-const ERROR_REPORTING_ENDPOINT = "https://your-error-reporting-endpoint.com/api/errors";
-
-// State variables
 let activeRefreshOperation = false;
 let tabsToRefresh = [];
+let processedTabs = 0;
 let refreshedTabs = 0;
 let failedTabs = [];
-let startTime;
+let skippedTabs = 0;
 let stressTestMode = false;
+let stressTestRunning = false;
 let stressTestIterations = 0;
-let maxStressTestIterations = 50; // Maximum number of iterations for stress testing
+let maxStressTestIterations = 50;
 
-// Initialize displays
 initializeHistory();
-initializeSettings();
-updatePendingErrorReportsCount();
+restoreOperationStatus();
 
-// Error and exception tracking
-window.addEventListener('error', (event) => {
-    const errorDetails = {
-        message: event.message,
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno,
-        error: event.error ? event.error.stack : null,
-        timestamp: new Date().toISOString(),
-        context: 'popup'
-    };
-
-    chrome.runtime.sendMessage({
-        action: 'reportError',
-        errorType: 'popup_error',
-        errorDetails
-    });
-});
-
-// Button click event listener
 refreshButton.addEventListener('click', () => {
     if (activeRefreshOperation) return;
 
-    // Send message to background to start refresh
-    chrome.runtime.sendMessage({ action: 'startRefresh' }, (response) => {
-        if (chrome.runtime.lastError) {
-            console.error(chrome.runtime.lastError);
-            return;
-        }
+    if (stressTestMode && !stressTestRunning) {
+        startStressTest();
+        return;
+    }
 
-        if (response && !response.success) {
-            console.log('Refresh start failed:', response.message);
+    requestRefresh();
+});
+
+cancelButton.addEventListener('click', () => {
+    if (!activeRefreshOperation) return;
+
+    cancelButton.disabled = true;
+    statusText.textContent = 'Cancelling refresh…';
+    chrome.runtime.sendMessage({ action: 'cancelOperation' }, (response) => {
+        if (chrome.runtime.lastError || !response?.success) {
+            cancelButton.disabled = false;
+            statusText.textContent = 'Unable to cancel the current refresh.';
         }
     });
-
-    // We don't start local logic here, we wait for 'refreshStarted' or 'refreshProgress' events
-    // or we can optimistically set UI state if we assume success.
-    // However, it's better to wait for background confirmation or events.
 });
 
-// Listen for messages from background
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message) => {
     if (message.action === 'refreshStarted') {
-        const tabs = message.tabs || [];
-        initializeRefreshUI(tabs);
-    }
-    else if (message.action === 'refreshProgress') {
+        initializeRefreshUI(message.tabs || []);
+    } else if (message.action === 'refreshProgress') {
         updateProgressUI(message);
-    }
-    else if (message.action === 'refreshComplete') {
+    } else if (message.action === 'refreshComplete') {
         handleRefreshComplete(message);
-    }
-    else if (message.action === 'tabSucceeded') {
-        const tabElement = document.getElementById(`tab-${message.tabId}`);
-        updateTabStatus(tabElement, 'success');
-    }
-    else if (message.action === 'tabFailed') {
-        const tabElement = document.getElementById(`tab-${message.tabId}`);
-        updateTabStatus(tabElement, 'error');
+    } else if (message.action === 'tabSucceeded') {
+        updateTabStatus(message.tabId, 'success');
+    } else if (message.action === 'tabFailed') {
+        updateTabStatus(message.tabId, 'error');
+    } else if (message.action === 'tabSkipped') {
+        updateTabStatus(message.tabId, 'skipped');
     }
 });
 
-function initializeRefreshUI(tabs) {
+function requestRefresh() {
     activeRefreshOperation = true;
-    toggleInputState(false);
+    toggleOperationControls(true);
+    loadingContainer.style.display = 'block';
+    errorContainer.style.display = 'none';
+    statusText.textContent = stressTestRunning
+        ? `Stress test ${stressTestIterations}/${maxStressTestIterations}: starting…`
+        : 'Starting refresh…';
 
+    chrome.runtime.sendMessage({ action: 'startRefresh' }, (response) => {
+        const errorMessage = chrome.runtime.lastError?.message || response?.message;
+        if (errorMessage || !response?.success) {
+            activeRefreshOperation = false;
+            toggleOperationControls(false);
+            statusText.textContent = `Unable to start refresh: ${errorMessage || 'Unknown error'}`;
+            showOperationError('Refresh could not start', errorMessage || 'Unknown error');
+            finishStressTest(false);
+        }
+    });
+}
+
+function initializeRefreshUI(tabs, statuses = {}) {
+    activeRefreshOperation = true;
     tabsToRefresh = tabs;
+    processedTabs = 0;
     refreshedTabs = 0;
     failedTabs = [];
-    startTime = new Date();
+    skippedTabs = 0;
 
-    // Show loading container and initialize UI
+    toggleOperationControls(true);
     loadingContainer.style.display = 'block';
     progressBar.style.width = '0%';
-    statusText.textContent = `Refreshing 0/${tabs.length} tabs...`;
+    progressBar.parentElement?.setAttribute('aria-valuenow', '0');
+    statusText.textContent = stressTestRunning
+        ? `Stress test ${stressTestIterations}/${maxStressTestIterations}: refreshing 0/${tabs.length}…`
+        : `Processed 0/${tabs.length} tabs…`;
     errorContainer.style.display = 'none';
 
-    // Create tab indicators
     createTabIndicators(tabs);
+    applyTabStatuses(statuses);
 }
 
 function updateProgressUI(data) {
     if (!activeRefreshOperation) return;
 
-    refreshedTabs = data.current; // Actually current means processed? background says 'current' param in updateProgress is 'refreshedTabs'. 
-    // Wait, background sending: current (refreshed), total, percent.
+    processedTabs = Number(data.current) || 0;
+    refreshedTabs = Number(data.successful) || 0;
+    skippedTabs = Number(data.skipped) || 0;
+    const failedCount = Number(data.failed) || 0;
+    const percent = Number(data.percent) || 0;
 
-    const percent = data.percent;
     progressBar.style.width = `${percent}%`;
-    statusText.textContent = `Refreshing ${data.current}/${data.total} tabs...`;
-
-    // We don't know exactly WHICH tab finished from 'refreshProgress' event in background.js current implementation
-    // unless we update background to send that info.
-    // But we can update the list if we tracked it?
-    // Background doesn't send WHICH tab succeeded in "refreshProgress".
-    // It sends 'failedTabs' count. 
-    // This is a limitation. The previous popup logic updated each tab's icon.
-    // If we want to keep that feature, background needs to send "tabComplete" events.
+    progressBar.parentElement?.setAttribute('aria-valuenow', String(percent));
+    const prefix = stressTestRunning
+        ? `Stress test ${stressTestIterations}/${maxStressTestIterations}: `
+        : '';
+    statusText.textContent = `${prefix}processed ${processedTabs}/${data.total} — ${refreshedTabs} refreshed, ${failedCount} failed, ${skippedTabs} skipped`;
 }
 
 function handleRefreshComplete(data) {
     activeRefreshOperation = false;
-    toggleInputState(true);
+    toggleOperationControls(false);
 
-    const success = data && data.success !== undefined
-        ? data.success
-        : (data.failedTabs ? data.failedTabs.length === 0 : failedTabs.length === 0);
     const details = data.details || {};
-
+    const totalTabs = Number(details.totalTabs) || tabsToRefresh.length;
+    const successfulCount = Number(details.successfulTabs) || 0;
+    const failedCount = Number(details.failedCount) || 0;
+    const skippedCount = Number(details.skippedCount) || 0;
+    const cancelled = details.cancelled === true;
     failedTabs = data.failedTabs || [];
+    refreshedTabs = successfulCount;
+    skippedTabs = skippedCount;
+    processedTabs = Number(details.processedTabs) || successfulCount + failedCount + skippedCount;
 
-    const totalTabs = details.totalTabs ?? tabsToRefresh.length;
-    const failedCount = details.failedCount ?? failedTabs.length;
-    const successfulTabs = details.successfulTabs ?? Math.max(totalTabs - failedCount, 0);
+    const finalPercent = totalTabs > 0 ? Math.round((processedTabs / totalTabs) * 100) : 0;
+    progressBar.style.width = `${finalPercent}%`;
+    progressBar.parentElement?.setAttribute('aria-valuenow', String(finalPercent));
 
-    if (success && !stressTestMode) {
-        showConfetti();
-        statusText.textContent = `All ${totalTabs} tabs refreshed successfully!`;
-    } else if (!success) {
-        statusText.textContent = `Refreshed ${successfulTabs}/${totalTabs} tabs with ${failedCount} errors`;
+    if (cancelled) {
+        statusText.textContent = `Refresh cancelled after ${processedTabs}/${totalTabs} tabs.`;
+    } else if (failedCount > 0) {
+        statusText.textContent = `Processed ${processedTabs}/${totalTabs}: ${successfulCount} refreshed, ${failedCount} failed, ${skippedCount} skipped.`;
         showErrors();
+    } else if (skippedCount > 0) {
+        statusText.textContent = `Refreshed ${successfulCount} tabs; skipped ${skippedCount} restricted tabs.`;
+    } else {
+        statusText.textContent = `All ${successfulCount} tabs refreshed successfully!`;
+        if (!stressTestRunning) showConfetti();
     }
 
-    // Update history locally? Background already saved it.
-    // We should reload history display.
     initializeHistory();
 
-    // Show history container
-    historyContainer.style.display = 'block';
-
-    // Continue stress test if in stress test mode
-    if (stressTestMode) {
-        continueStressTest();
+    if (stressTestRunning) {
+        continueStressTest(!cancelled && failedCount === 0);
     }
 }
 
-function toggleInputState(enabled) {
-    refreshButton.disabled = !enabled;
-}
+function restoreOperationStatus() {
+    chrome.runtime.sendMessage({ action: 'getOperationStatus' }, (state) => {
+        if (chrome.runtime.lastError || !state) return;
 
-// Toggle history display
-historyHeader.addEventListener('click', () => {
-    historyContent.style.display = historyContent.style.display === 'none' ? 'block' : 'none';
-});
-
-// Toggle settings display
-settingsHeader.addEventListener('click', () => {
-    settingsContent.style.display = settingsContent.style.display === 'none' ? 'block' : 'none';
-});
-
-// Error reporting toggle
-errorReportingToggle.addEventListener('change', () => {
-    chrome.storage.sync.set({
-        errorReportingConsent: errorReportingToggle.checked
-    });
-
-    updatePendingErrorReportsCount();
-});
-
-// Send pending error reports button
-reportErrorsBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ action: 'sendPendingErrorReports' }, (response) => {
-        if (response && response.success) {
-            updatePendingErrorReportsCount();
-        }
-    });
-});
-
-// Double-click on settings header enables stress test mode (hidden feature for developers)
-let settingsHeaderClickCount = 0;
-let settingsHeaderClickTimer;
-settingsHeader.addEventListener('click', () => {
-    settingsHeaderClickCount++;
-
-    if (settingsHeaderClickCount === 5) {
-        enableStressTestMode();
-        settingsHeaderClickCount = 0;
-        clearTimeout(settingsHeaderClickTimer);
-    } else {
-        clearTimeout(settingsHeaderClickTimer);
-        settingsHeaderClickTimer = setTimeout(() => {
-            settingsHeaderClickCount = 0;
-        }, 1000);
-    }
-});
-
-// Function to enable stress test mode
-function enableStressTestMode() {
-    if (confirm('Enable Stress Test Mode? This will repeatedly refresh all tabs until an error occurs or the maximum iterations are reached.')) {
-        stressTestMode = true;
-        stressTestIterations = 0;
-
-        // Change button text to indicate stress test mode
-        refreshButton.textContent = 'Start Stress Test';
-        refreshButton.style.backgroundColor = '#db4437';
-
-        // Store original click handler
-        const originalClickHandler = refreshButton.onclick;
-
-        // Change button behavior for stress test
-        refreshButton.removeEventListener('click', originalClickHandler);
-        // We will just change text/style, the click will trigger startStressTest which calls startRefresh
-        refreshButton.onclick = startStressTest;
-    }
-}
-
-// Stress test function
-function startStressTest() {
-    if (activeRefreshOperation) return;
-
-    // Show stress test warning
-    const iterations = prompt('Enter maximum number of iterations (1-100):', '50');
-    if (iterations === null) return;
-
-    maxStressTestIterations = Math.min(Math.max(parseInt(iterations) || 50, 1), 100);
-
-    // Start the stress test
-    statusText.textContent = `Stress Test: Iteration 1/${maxStressTestIterations}`;
-    runStressTestIteration();
-}
-
-// Run a single stress test iteration
-function runStressTestIteration() {
-    stressTestIterations++;
-    statusText.textContent = `Stress Test: Iteration ${stressTestIterations}/${maxStressTestIterations}`;
-
-    // Start refresh operation via background
-    chrome.runtime.sendMessage({ action: 'startRefresh' }, (response) => {
-        // UI initialization will happen in response to 'refreshStarted'
-    });
-}
-
-// Function to continue or stop stress test
-function continueStressTest() {
-    // Check if we should continue
-    if (stressTestMode && stressTestIterations < maxStressTestIterations && failedTabs.length === 0) {
-        // Continue after a short delay
-        setTimeout(runStressTestIteration, 2000);
-    } else {
-        // End stress test
-        stressTestMode = false;
-        refreshButton.textContent = 'Refresh All Tabs';
-        refreshButton.style.backgroundColor = '#4285f4';
-
-        // Show results
-        if (failedTabs.length > 0) {
-            statusText.textContent = `Stress Test Failed on Iteration ${stressTestIterations}/${maxStressTestIterations}`;
-        } else {
-            statusText.textContent = `Stress Test Completed: ${stressTestIterations} iterations`;
-        }
-
-        // Reset button behavior
-        refreshButton.removeEventListener('click', startStressTest);
-        // Re-add the original click handler by cloning and replacing the button
-        const newButton = refreshButton.cloneNode(true);
-        refreshButton.parentNode.replaceChild(newButton, refreshButton);
-        // Update our reference and attach the original event listener
-        refreshButton = newButton;
-        refreshButton.addEventListener('click', () => {
-            if (activeRefreshOperation) return;
-
-            startRefreshOperation();
-
-            chrome.tabs.query({}, (tabs) => {
-                tabsToRefresh = tabs.filter(tab => !!tab.id);
-                refreshedTabs = 0;
-                failedTabs = [];
-                startTime = new Date();
-
-                // Show loading container and initialize UI
-                loadingContainer.style.display = 'block';
-                progressBar.style.width = '0%';
-                statusText.textContent = `Refreshing 0/${tabsToRefresh.length} tabs...`;
-                errorContainer.style.display = 'none';
-
-                // Create tab indicators
-                createTabIndicators(tabsToRefresh);
-
-                // Start refreshing tabs one by one
-                refreshTabsSequentially(tabsToRefresh);
+        if (state.active) {
+            initializeRefreshUI(state.currentTabs || [], state.tabStatuses || {});
+            updateProgressUI({
+                current: state.processedTabs,
+                total: state.totalTabs,
+                percent: state.progress,
+                successful: state.refreshedTabs,
+                failed: state.failedTabs,
+                skipped: state.skippedTabs
             });
-        });
-    }
-}
-
-// Function to initialize settings
-function initializeSettings() {
-    chrome.storage.sync.get(['errorReportingConsent'], (result) => {
-        errorReportingToggle.checked = result.errorReportingConsent === true;
-    });
-}
-
-// Function to update the pending error reports count
-function updatePendingErrorReportsCount() {
-    chrome.storage.local.get(['pendingErrorReports'], (result) => {
-        const pendingReports = result.pendingErrorReports || [];
-
-        if (pendingReports.length > 0 && errorReportingToggle.checked) {
-            pendingErrorsContainer.style.display = 'block';
-            pendingErrorCount.textContent = pendingReports.length;
-        } else {
-            pendingErrorsContainer.style.display = 'none';
+        } else if (state.interrupted) {
+            loadingContainer.style.display = 'block';
+            progressBar.style.width = `${Number(state.progress) || 0}%`;
+            statusText.textContent = state.message || 'The previous refresh was interrupted.';
+            showOperationError('Refresh interrupted', 'Start a new refresh to continue.');
         }
     });
 }
 
-// Function to start the refresh operation
-function startRefreshOperation() {
-    activeRefreshOperation = true;
-    refreshButton.disabled = true;
+function toggleOperationControls(active) {
+    refreshButton.disabled = active;
+    cancelButton.disabled = false;
+    cancelButton.style.display = active ? 'inline-block' : 'none';
 }
 
-// Function to end the refresh operation
-function endRefreshOperation(success) {
-    activeRefreshOperation = false;
-    refreshButton.disabled = false;
-
-    if (success && !stressTestMode) {
-        showConfetti();
-    }
-
-    // Save operation to history
-    saveToHistory({
-        timestamp: startTime,
-        totalTabs: tabsToRefresh.length,
-        successfulTabs: refreshedTabs,
-        failedTabs: failedTabs
-    });
-
-    // Show history container
-    historyContainer.style.display = 'block';
-
-    // Continue stress test if in stress test mode
-    if (stressTestMode) {
-        continueStressTest();
-    }
-}
-
-// Function to create visual indicators for each tab
 function createTabIndicators(tabs) {
-    tabsContainer.innerHTML = '';
+    tabsContainer.textContent = '';
 
-    tabs.forEach((tab, index) => {
+    tabs.forEach((tab) => {
         const tabElement = document.createElement('div');
         tabElement.className = 'tab-item';
         tabElement.id = `tab-${tab.id}`;
         tabElement.title = tab.title || 'Tab';
+        tabElement.setAttribute('aria-label', `${tab.title || 'Tab'}: pending`);
 
-        // Add favicon if available
         if (tab.favIconUrl) {
-            const img = document.createElement('img');
-            img.src = tab.favIconUrl;
-            img.onerror = () => {
-                img.style.display = 'none';
+            const image = document.createElement('img');
+            image.src = tab.favIconUrl;
+            image.alt = '';
+            image.onerror = () => {
+                image.style.display = 'none';
             };
-            tabElement.appendChild(img);
+            tabElement.appendChild(image);
         }
 
-        // Add status indicators
-        const statusDiv = document.createElement('div');
-        statusDiv.className = 'tab-status';
+        const status = document.createElement('div');
+        status.className = 'tab-status';
 
-        const loadingCircle = document.createElement('div');
-        loadingCircle.className = 'loading-circle';
+        const loading = document.createElement('div');
+        loading.className = 'loading-circle';
+        const success = document.createElement('div');
+        success.className = 'tab-success';
+        success.textContent = '✓';
+        const error = document.createElement('div');
+        error.className = 'tab-error';
+        error.textContent = '✗';
+        const skipped = document.createElement('div');
+        skipped.className = 'tab-skipped';
+        skipped.textContent = '–';
 
-        const successIcon = document.createElement('div');
-        successIcon.className = 'tab-success';
-        successIcon.innerHTML = '✓';
-
-        const errorIcon = document.createElement('div');
-        errorIcon.className = 'tab-error';
-        errorIcon.innerHTML = '✗';
-
-        statusDiv.appendChild(loadingCircle);
-        statusDiv.appendChild(successIcon);
-        statusDiv.appendChild(errorIcon);
-
-        tabElement.appendChild(statusDiv);
+        status.append(loading, success, error, skipped);
+        tabElement.appendChild(status);
         tabsContainer.appendChild(tabElement);
     });
 }
 
-// Deleted refreshTabsSequentially, reportRefreshError, refreshTab, preserveMediaState because functionality moved to background.js
-// But wait, createTabIndicators uses 'tabsToRefresh'.
-// And updateTabStatus is used.
-// If background doesn't send per-tab updates, we can't update individual tab icons (green check/red X).
-// I should update background.js to send 'tabSuccess'/'tabFailure' events?
-// For now, I will leave these functions deleted and accept that per-tab status might not update live, 
-// OR I will simply rely on the 'refreshProgress' to update the bar, and 'refreshComplete' to update errors.
-// The user spec says: "Granular tab list showing status indicators (Loading, Success ✓, Error ✗) for every individual tab."
-// So I MUST update background.js to support this. I cannot delete this without breaking the spec.
-
-
-// Function to update the progress bar and status text
-function updateProgress(current, total) {
-    const percentage = Math.min(100, Math.round((current / total) * 100));
-    progressBar.style.width = `${percentage}%`;
-    statusText.textContent = `Refreshing ${refreshedTabs}/${total} tabs...`;
+function applyTabStatuses(statuses) {
+    Object.entries(statuses).forEach(([tabId, status]) => {
+        if (status !== 'pending') updateTabStatus(tabId, status);
+    });
 }
 
-// Function to update the status of a tab indicator
-function updateTabStatus(tabElement, status) {
+function updateTabStatus(tabId, status) {
+    const tabElement = document.getElementById(`tab-${tabId}`);
     if (!tabElement) return;
 
-    const statusDiv = tabElement.querySelector('.tab-status');
-    const loadingCircle = statusDiv.querySelector('.loading-circle');
-    const successIcon = statusDiv.querySelector('.tab-success');
-    const errorIcon = statusDiv.querySelector('.tab-error');
+    tabElement.querySelectorAll('.loading-circle, .tab-success, .tab-error, .tab-skipped')
+        .forEach(element => {
+            element.style.display = 'none';
+        });
 
-    loadingCircle.style.display = 'none';
-
-    if (status === 'success') {
-        successIcon.style.display = 'block';
-        errorIcon.style.display = 'none';
-    } else if (status === 'error') {
-        successIcon.style.display = 'none';
-        errorIcon.style.display = 'block';
-    }
+    const statusElement = tabElement.querySelector(`.tab-${status}`);
+    if (statusElement) statusElement.style.display = 'block';
+    tabElement.setAttribute('aria-label', `${tabElement.title}: ${status}`);
 }
 
-// Function to show error summary and details
 function showErrors() {
     errorContainer.style.display = 'block';
+    errorSummary.textContent = `Failed to refresh ${failedTabs.length} tab${failedTabs.length === 1 ? '' : 's'}.`;
 
-    const errorCount = failedTabs.length;
-
-    if (errorCount === 0) {
-        errorSummary.textContent = 'Refresh failed before any tabs were processed.';
-        errorDetails.textContent = [
-            'Errors:',
-            '- No error details were returned. Try again from a normal tab.',
-            '',
-            'Troubleshooting tips:',
-            '- Chrome extensions cannot refresh certain system pages',
-            '- Check if your browser is in an offline mode',
-            '- Try closing and reopening the tab manually'
-        ].join('\n');
+    if (failedTabs.length === 0) {
+        errorDetails.textContent = 'No tab-specific error details were returned.';
         return;
     }
 
-    errorSummary.textContent = `Failed to refresh ${errorCount} tab${errorCount > 1 ? 's' : ''}.`;
-
-    let detailsText = 'Errors:';
-    failedTabs.forEach((tab, index) => {
+    errorDetails.textContent = failedTabs.map((tab, index) => {
         const title = tab.title || 'Tab';
-        const url = tab.url || 'Unknown URL';
         const error = tab.error || 'Unknown error';
-        detailsText += `\n${index + 1}. "${title}" (${url}): ${error}`;
-    });
-
-    // Add troubleshooting tips
-    detailsText += '\n\nTroubleshooting tips:';
-    detailsText += '\n- Chrome extensions cannot refresh certain system pages';
-    detailsText += '\n- Check if your browser is in an offline mode';
-    detailsText += '\n- Try closing and reopening the tab manually';
-
-    errorDetails.textContent = detailsText;
+        return `${index + 1}. ${title}: ${error}`;
+    }).join('\n');
 }
 
-// Function to create and show confetti animation
-function showConfetti() {
-    confettiElement.style.display = 'block';
+function showOperationError(summary, details) {
+    errorContainer.style.display = 'block';
+    errorSummary.textContent = summary;
+    errorDetails.textContent = details;
+}
 
-    const colors = ['#4285f4', '#0f9d58', '#f4b400', '#db4437'];
-    const confettiCount = 100;
+historyHeader.addEventListener('click', () => {
+    const expanded = historyContent.style.display !== 'none';
+    historyContent.style.display = expanded ? 'none' : 'block';
+    historyHeader.setAttribute('aria-expanded', String(!expanded));
+});
 
-    for (let i = 0; i < confettiCount; i++) {
-        createConfettiPiece(colors[Math.floor(Math.random() * colors.length)]);
+settingsHeader.addEventListener('click', () => {
+    const expanded = settingsContent.style.display !== 'none';
+    settingsContent.style.display = expanded ? 'none' : 'block';
+    settingsHeader.setAttribute('aria-expanded', String(!expanded));
+    trackStressTestActivation();
+});
+
+let settingsHeaderClickCount = 0;
+let settingsHeaderClickTimer;
+
+function trackStressTestActivation() {
+    settingsHeaderClickCount++;
+    clearTimeout(settingsHeaderClickTimer);
+
+    if (settingsHeaderClickCount === 5) {
+        settingsHeaderClickCount = 0;
+        enableStressTestMode();
+        return;
     }
 
-    // Hide confetti after animation
-    setTimeout(() => {
-        confettiElement.style.display = 'none';
-        confettiElement.innerHTML = '';
-    }, 3000);
+    settingsHeaderClickTimer = setTimeout(() => {
+        settingsHeaderClickCount = 0;
+    }, 1500);
 }
 
-// Function to create a single confetti piece
-function createConfettiPiece(color) {
-    const confetti = document.createElement('div');
-    confetti.style.position = 'absolute';
-    confetti.style.width = '10px';
-    confetti.style.height = '10px';
-    confetti.style.backgroundColor = color;
-    confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
-    confetti.style.left = Math.random() * 100 + '%';
-    confetti.style.top = -20 + 'px';
-    confetti.style.opacity = Math.random() + 0.5;
-    confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+function enableStressTestMode() {
+    if (!confirm('Enable Stress Test Mode? This repeatedly refreshes all tabs until an error occurs or the iteration limit is reached.')) return;
 
-    // Animation
-    confetti.style.animation = `fall ${Math.random() * 3 + 2}s linear forwards`;
+    stressTestMode = true;
+    stressTestRunning = false;
+    stressTestIterations = 0;
+    refreshButton.textContent = 'Start Stress Test';
+    refreshButton.style.backgroundColor = '#db4437';
+}
 
-    // Add keyframes for fall animation
-    const styleSheet = document.styleSheets[0];
-    if (!document.querySelector('style#confetti-style')) {
-        const style = document.createElement('style');
-        style.id = 'confetti-style';
-        style.textContent = `
-            @keyframes fall {
-                to {
-                    top: 100%;
-                    transform: rotate(${Math.random() * 360 + 720}deg);
-                }
-            }
-        `;
-        document.head.appendChild(style);
+function startStressTest() {
+    const iterations = prompt('Enter maximum number of iterations (1-100):', '50');
+    if (iterations === null) return;
+
+    maxStressTestIterations = Math.min(Math.max(Number.parseInt(iterations, 10) || 50, 1), 100);
+    stressTestRunning = true;
+    stressTestIterations = 0;
+    runStressTestIteration();
+}
+
+function runStressTestIteration() {
+    if (!stressTestRunning) return;
+    stressTestIterations++;
+    requestRefresh();
+}
+
+function continueStressTest(iterationSucceeded) {
+    if (iterationSucceeded && stressTestIterations < maxStressTestIterations) {
+        setTimeout(runStressTestIteration, 2000);
+        return;
     }
 
-    confettiElement.appendChild(confetti);
+    finishStressTest(iterationSucceeded);
 }
 
-// History management functions
+function finishStressTest(success) {
+    if (!stressTestMode && !stressTestRunning) return;
+
+    const completedIterations = stressTestIterations;
+    stressTestRunning = false;
+    stressTestMode = false;
+    refreshButton.textContent = 'Refresh All Tabs';
+    refreshButton.style.backgroundColor = '#4285f4';
+
+    if (completedIterations > 0) {
+        statusText.textContent = success
+            ? `Stress test completed: ${completedIterations} iteration${completedIterations === 1 ? '' : 's'}.`
+            : `Stress test stopped after iteration ${completedIterations}.`;
+    }
+}
+
 function initializeHistory() {
-    chrome.storage.sync.get(['refreshHistory'], (result) => {
-        if (result.refreshHistory && result.refreshHistory.length > 0) {
-            historyContainer.style.display = 'block';
-            updateHistoryDisplay(result.refreshHistory);
-        }
-    });
-}
-
-function saveToHistory(operation) {
-    chrome.storage.sync.get(['refreshHistory'], (result) => {
-        let history = result.refreshHistory || [];
-
-        // Add new operation to history
-        history.unshift({
-            timestamp: operation.timestamp.toISOString(),
-            totalTabs: operation.totalTabs,
-            successfulTabs: operation.successfulTabs,
-            failedTabs: operation.failedTabs,
-        });
-
-        // Limit history to 10 entries
-        if (history.length > 10) {
-            history = history.slice(0, 10);
-        }
-
-        // Save to storage
-        chrome.storage.sync.set({ refreshHistory: history }, () => {
-            updateHistoryDisplay(history);
-        });
+    chrome.storage.local.get(['refreshHistory'], (result) => {
+        const history = Array.isArray(result.refreshHistory) ? result.refreshHistory : [];
+        historyContainer.style.display = history.length > 0 ? 'block' : 'none';
+        updateHistoryDisplay(history);
     });
 }
 
 function updateHistoryDisplay(history) {
-    historyContent.innerHTML = '';
+    historyContent.textContent = '';
 
     history.forEach((item, index) => {
         const entry = document.createElement('div');
-        entry.style.borderBottom = index < history.length - 1 ? '1px solid #eee' : 'none';
-        entry.style.padding = '5px 0';
+        entry.className = 'history-entry';
+        if (index < history.length - 1) entry.style.borderBottom = '1px solid #eee';
 
-        const date = new Date(item.timestamp);
-        const formattedDate = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+        const date = document.createElement('div');
+        const parsedDate = new Date(item.timestamp);
+        date.textContent = Number.isNaN(parsedDate.getTime())
+            ? 'Unknown date'
+            : `${parsedDate.toLocaleDateString()} ${parsedDate.toLocaleTimeString()}`;
 
-        const statusText = item.failedTabs.length === 0
-            ? `<span style="color: #0f9d58;">All tabs refreshed successfully</span>`
-            : `<span style="color: #db4437;">${item.failedTabs.length} tabs failed</span>`;
+        const failedCount = Number(item.failedCount)
+            || (Array.isArray(item.failedTabs) ? item.failedTabs.length : 0);
+        const skippedCount = Number(item.skippedCount) || 0;
+        const summary = document.createElement('div');
+        summary.textContent = item.cancelled
+            ? `Cancelled: ${item.successfulTabs || 0}/${item.totalTabs || 0} refreshed`
+            : `${item.successfulTabs || 0}/${item.totalTabs || 0} refreshed, ${failedCount} failed, ${skippedCount} skipped`;
+        summary.className = failedCount > 0 ? 'history-failure' : 'history-success';
 
-        entry.innerHTML = `
-            <div>${formattedDate}</div>
-            <div>Refreshed ${item.successfulTabs}/${item.totalTabs} tabs - ${statusText}</div>
-        `;
-
-        // Add error details if there were failures
-        if (item.failedTabs.length > 0) {
-            const detailsButton = document.createElement('button');
-            detailsButton.textContent = 'Show details';
-            detailsButton.style.fontSize = '11px';
-            detailsButton.style.padding = '2px 5px';
-            detailsButton.style.marginTop = '3px';
-
-            const detailsContent = document.createElement('div');
-            detailsContent.style.display = 'none';
-            detailsContent.style.fontSize = '11px';
-            detailsContent.style.marginTop = '5px';
-            detailsContent.style.marginLeft = '10px';
-
-            let detailsText = '';
-            item.failedTabs.forEach((tab, i) => {
-                detailsText += `${i + 1}. "${tab.title}" - ${tab.error}<br>`;
-            });
-            detailsContent.innerHTML = detailsText;
-
-            detailsButton.addEventListener('click', () => {
-                detailsContent.style.display = detailsContent.style.display === 'none' ? 'block' : 'none';
-                detailsButton.textContent = detailsContent.style.display === 'none' ? 'Show details' : 'Hide details';
-            });
-
-            entry.appendChild(detailsButton);
-            entry.appendChild(detailsContent);
-        }
-
+        entry.append(date, summary);
         historyContent.appendChild(entry);
     });
 }
 
-// preserveMediaState removed as it is handled in background.js
+function showConfetti() {
+    confettiElement.style.display = 'block';
+    const colors = ['#4285f4', '#0f9d58', '#f4b400', '#db4437'];
 
-/**
- * Checks if DevTools might be causing a debugger pause
- * and shows a notification if needed
- */
-function checkForDebuggerIssue() {
-    // Only show this in development mode or if there's been a previous pause issue
-    chrome.storage.local.get(['debuggerPauseDetected'], (result) => {
-        if (result.debuggerPauseDetected) {
-            // Show the notification with instructions
-            showDebuggerPauseNotification();
-        }
-    });
-
-    // Listen for errors that might indicate a debugger pause
-    window.addEventListener('error', (event) => {
-        if (event.message && (
-            event.message.includes('debugger') ||
-            event.message.includes('pause') ||
-            event.message.includes('break')
-        )) {
-            // Mark that we've detected the issue
-            chrome.storage.local.set({ debuggerPauseDetected: true });
-            showDebuggerPauseNotification();
-        }
-    });
-}
-
-/**
- * Shows a notification about how to fix the debugger pause issue
- */
-function showDebuggerPauseNotification() {
-    const notificationContainer = document.createElement('div');
-    notificationContainer.className = 'notification debugger-notification';
-    notificationContainer.innerHTML = `
-        <div class="notification-content">
-            <strong>Developer Tools Issue Detected</strong>
-            <p>If tabs get stuck with "Paused in debugger", please:</p>
-            <ol>
-                <li>Open Chrome DevTools (F12)</li>
-                <li>Go to Sources tab</li>
-                <li>Find the pause button at the bottom</li>
-                <li>Click it until it turns grey</li>
-            </ol>
-            <button class="notification-dismiss">Dismiss</button>
-        </div>
-    `;
-
-    document.body.appendChild(notificationContainer);
-
-    // Add styles if not already present
-    if (!document.getElementById('notification-styles')) {
-        const styles = document.createElement('style');
-        styles.id = 'notification-styles';
-        styles.textContent = `
-            .notification {
-                position: fixed;
-                bottom: 10px;
-                right: 10px;
-                background: #fff;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                z-index: 1000;
-                max-width: 300px;
-            }
-            .debugger-notification {
-                background-color: #f8f9fa;
-                border-left: 4px solid #3367d6;
-            }
-            .notification-content {
-                padding: 12px;
-            }
-            .notification-content p {
-                margin: 8px 0;
-            }
-            .notification-content ol {
-                margin: 8px 0;
-                padding-left: 20px;
-            }
-            .notification-dismiss {
-                background: #3367d6;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 3px;
-                cursor: pointer;
-                float: right;
-                margin-top: 8px;
-            }
-        `;
-        document.head.appendChild(styles);
+    for (let index = 0; index < 60; index++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti-piece';
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.left = `${Math.random() * 100}%`;
+        confetti.style.animationDuration = `${Math.random() * 2 + 2}s`;
+        confettiElement.appendChild(confetti);
     }
 
-    // Add dismiss functionality
-    const dismissButton = notificationContainer.querySelector('.notification-dismiss');
-    dismissButton.addEventListener('click', () => {
-        notificationContainer.remove();
-    });
+    setTimeout(() => {
+        confettiElement.style.display = 'none';
+        confettiElement.textContent = '';
+    }, 3000);
 }
-
-// Call this at startup
-document.addEventListener('DOMContentLoaded', function () {
-    // Check for debugger issues
-    checkForDebuggerIssue();
-});

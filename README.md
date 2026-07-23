@@ -22,6 +22,7 @@ This extension provides a simple way to refresh multiple tabs at once, with a fo
 - Handles dormant/discarded tabs
 - Error reporting and recovery
 - Batch processing to prevent browser overload
+- Clear refreshed, failed, and skipped tab counts
 
 ## Installation
 
@@ -41,7 +42,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
 This extension:
 - Does not collect or transmit personal data
 - Processes all operations locally
-- Contains minimal error analytics (disabled by default)
+- Stores only sanitized refresh counts in local extension storage
+- Does not include telemetry or external error reporting
+
+See the full [Privacy Policy](PRIVACY.md).
 
 ## License
 

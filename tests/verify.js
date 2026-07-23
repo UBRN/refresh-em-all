@@ -318,10 +318,10 @@ async function verifyExtension() {
         console.log(`Poll ${i+1}/${maxPolls}: ${currentStatus.statusText} (loading: ${currentStatus.loadingVisible}, error: ${currentStatus.errorVisible}, confetti: ${currentStatus.confettiVisible})`);
         
         // Check if operation is complete
-        const isComplete = !currentStatus.loadingVisible &&
-                          (currentStatus.statusText.includes('refreshed successfully') || 
-                           currentStatus.statusText.includes('with errors') ||
-                           currentStatus.confettiVisible);
+        const isComplete = currentStatus.statusText.includes('refreshed successfully')
+                          || currentStatus.statusText.includes('restricted tabs')
+                          || currentStatus.statusText.includes('failed')
+                          || currentStatus.confettiVisible;
         
         if (isComplete) {
           console.log('Operation appears to be complete!');
@@ -354,11 +354,13 @@ async function verifyExtension() {
         const confetti = document.getElementById('confetti');
         
         // Check for success indication in the UI
-        const isSuccess = confetti && confetti.style.display !== 'none' || 
-                         (statusElement && statusElement.textContent.includes('successfully'));
+        const statusText = statusElement ? statusElement.textContent : '';
+        const isSuccess = (confetti && confetti.style.display !== 'none')
+                         || statusText.includes('successfully')
+                         || (statusText.includes('skipped') && !statusText.includes('failed'));
         
         return {
-          statusText: statusElement ? statusElement.textContent : '',
+          statusText,
           loadingVisible: loadingContainer ? loadingContainer.style.display !== 'none' : false,
           hasErrors: errorContainer ? errorContainer.style.display !== 'none' : false,
           errorDetails: errorDetailsElement ? errorDetailsElement.textContent : '',
@@ -440,6 +442,10 @@ async function verifyExtension() {
     if (browser) {
       await browser.close();
     }
+
+    if (!results.refreshOperation.success || results.errors.length > 0) {
+      process.exitCode = 1;
+    }
   }
 }
 
@@ -454,4 +460,4 @@ verifyExtension().catch(error => {
   saveResults();
   console.error('Unhandled error:', error);
   process.exit(1);
-}); 
+});

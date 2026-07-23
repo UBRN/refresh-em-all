@@ -2,9 +2,13 @@
 let activeRefreshOperation = false;
 let tabsToRefresh = [];
 let refreshedTabs = 0;
+let processedTabs = 0;
 let failedTabs = [];
+let skippedTabs = [];
+let tabStatuses = {};
 let startTime;
 let operationCancelled = false;
+let operationFinalized = false;
 let batchTimeoutId = null;
 
 // Constants for tab processing
@@ -12,10 +16,8 @@ const MAX_TABS_PER_BATCH = 5; // Process tabs in smaller batches
 const TAB_PROCESSING_INTERVAL = 150; // ms between tab refreshes
 const MAX_RETRIES = 2; // Number of retries for failed tab refreshes
 const BATCH_INTERVAL = 500; // ms between batches
-
-// Constants for error reporting
-const ERROR_REPORTING_ENDPOINT = "https://your-error-reporting-endpoint.com/api/errors";
-const ERROR_REPORTING_ENABLED = true; // Can be toggled in settings
+const MAX_LOADING_WAIT_MS = 10000;
+const MAX_TAB_REFRESH_MS = 30000;
 
 // Setup error handling for uncaught errors
 self.addEventListener('error', (event) => {
@@ -44,31 +46,6 @@ self.addEventListener('unhandledrejection', (event) => {
     };
 
     reportError('unhandled_promise_rejection', errorDetails);
-});
-
-// Listen for the toolbar icon click
-chrome.action.onClicked.addListener(() => {
-    if (activeRefreshOperation) {
-        // If operation is already running, cancel it
-        operationCancelled = true;
-        return;
-    }
-
-    // Start refresh operation
-    startRefreshOperation();
-
-    chrome.tabs.query({}, (tabs) => {
-        try {
-            initializeAndStartRefresh(tabs);
-        } catch (error) {
-            reportError('refresh_operation_start_error', {
-                message: error.message,
-                stack: error.stack,
-                timestamp: new Date().toISOString()
-            });
-            endRefreshOperation(false);
-        }
-    });
 });
 
 // Listen for messages from popup or content scripts
@@ -102,22 +79,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; // Indicates async response
     }
     else if (message.action === 'sendPendingErrorReports') {
-        // Send pending error reports
-        attemptToSendPendingErrorReports()
-            .then(() => sendResponse({ success: true }))
-            .catch(() => sendResponse({ success: false }));
-        return true; // Indicates async response
+        sendResponse({ success: false, message: 'Error reporting is disabled' });
+        return true;
     }
     else if (message.action === 'getOperationStatus') {
-        // Return current operation status
-        sendResponse({
-            active: activeRefreshOperation,
-            progress: tabsToRefresh.length > 0 ? Math.round((refreshedTabs / tabsToRefresh.length) * 100) : 0,
-            totalTabs: tabsToRefresh.length,
-            refreshedTabs: refreshedTabs,
-            failedTabs: failedTabs.length,
-            currentTabs: tabsToRefresh // Optional: send info about tabs being processed if needed
-        });
+        if (!activeRefreshOperation && chrome.storage.session) {
+            chrome.storage.session.get(['refreshOperationState'], (result) => {
+                const storedState = result.refreshOperationState;
+
+                if (storedState && storedState.active) {
+                    const interruptedState = {
+                        ...storedState,
+                        active: false,
+                        interrupted: true,
+                        message: 'The previous refresh was interrupted. Please start it again.',
+                        lastUpdated: new Date().toISOString()
+                    };
+                    chrome.storage.session.set({ refreshOperationState: interruptedState });
+                    sendResponse(interruptedState);
+                    return;
+                }
+
+                sendResponse(storedState || getOperationSnapshot());
+            });
+            return true;
+        }
+
+        sendResponse(getOperationSnapshot());
         return true;
     }
     else if (message.action === 'cancelOperation') {
@@ -132,6 +120,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
+function getOperationSnapshot() {
+    const totalTabs = tabsToRefresh.length;
+    return {
+        active: activeRefreshOperation,
+        interrupted: false,
+        progress: totalTabs > 0 ? Math.round((processedTabs / totalTabs) * 100) : 0,
+        totalTabs,
+        processedTabs,
+        refreshedTabs,
+        failedTabs: failedTabs.length,
+        failedTabDetails: failedTabs,
+        skippedTabs: skippedTabs.length,
+        currentTabs: tabsToRefresh,
+        tabStatuses,
+        cancelled: operationCancelled,
+        lastUpdated: new Date().toISOString()
+    };
+}
+
+function persistOperationState() {
+    if (!chrome.storage.session) return;
+    chrome.storage.session.set({ refreshOperationState: getOperationSnapshot() }, () => {
+        void chrome.runtime.lastError;
+    });
+}
+
+function clearPersistedOperationState() {
+    if (!chrome.storage.session) return;
+    chrome.storage.session.remove(['refreshOperationState'], () => {
+        void chrome.runtime.lastError;
+    });
+}
+
 // Prepare and start the refresh operation once tabs are available
 function initializeAndStartRefresh(tabs, sendResponse) {
     if (chrome.runtime.lastError) {
@@ -145,7 +166,7 @@ function initializeAndStartRefresh(tabs, sendResponse) {
     }
 
     // Filter out invalid tabs
-    tabsToRefresh = tabs.filter(tab => !!tab.id && tab.id !== chrome.tabs.TAB_ID_NONE);
+    tabsToRefresh = tabs.filter(tab => Number.isInteger(tab.id) && tab.id !== chrome.tabs.TAB_ID_NONE);
 
     if (tabsToRefresh.length === 0) {
         handleRefreshStartFailure('No refreshable tabs found', sendResponse);
@@ -153,9 +174,14 @@ function initializeAndStartRefresh(tabs, sendResponse) {
     }
 
     refreshedTabs = 0;
+    processedTabs = 0;
     failedTabs = [];
+    skippedTabs = [];
+    tabStatuses = Object.fromEntries(tabsToRefresh.map(tab => [tab.id, 'pending']));
     startTime = new Date();
     operationCancelled = false;
+    operationFinalized = false;
+    persistOperationState();
 
     // Let the popup initialize its UI with the tab list
     chrome.runtime.sendMessage({
@@ -178,6 +204,9 @@ function handleRefreshStartFailure(message, sendResponse) {
 
     tabsToRefresh = [];
     refreshedTabs = 0;
+    processedTabs = 0;
+    skippedTabs = [];
+    tabStatuses = {};
     failedTabs = [{
         title: 'Unable to start refresh',
         url: 'N/A',
@@ -197,44 +226,14 @@ function handleRefreshStartFailure(message, sendResponse) {
     endRefreshOperation(false);
 }
 
-// Function to report errors to the server
+// Error reporting is intentionally local-only until a real, privacy-reviewed
+// reporting service and disclosure are available.
 function reportError(errorType, errorDetails) {
-    if (!ERROR_REPORTING_ENABLED) return;
-
-    // Generate a UUID for this error
-    const errorId = generateUuid();
-
-    // Get user consent for error reporting from storage
-    chrome.storage.sync.get(['errorReportingConsent'], (result) => {
-        const hasConsent = result.errorReportingConsent === true;
-
-        if (hasConsent) {
-            // Add extension ID and browser info, but no personal identifiable information
-            const reportData = {
-                errorId,
-                errorType,
-                ...errorDetails,
-                extensionId: chrome.runtime.id
-            };
-
-            // Attempt to send error to reporting service
-            fetch(ERROR_REPORTING_ENDPOINT, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(reportData)
-            }).catch(err => {
-                // If we can't report the error, store it locally for later reporting
-                storeErrorForLaterReporting(errorType, { ...errorDetails, errorId });
-            });
-        } else {
-            // Store error locally without reporting
-            storeErrorForLaterReporting(errorType, { ...errorDetails, errorId });
-        }
-    });
-
-    return errorId;
+    const message = errorDetails && errorDetails.message
+        ? errorDetails.message
+        : 'Unexpected extension error';
+    console.error(`[Refresh Em All] ${errorType}: ${message}`);
+    return null;
 }
 
 // Generate a UUID v4
@@ -245,54 +244,40 @@ function generateUuid() {
     });
 }
 
-// Store errors locally if they can't be reported immediately
-function storeErrorForLaterReporting(errorType, errorDetails) {
-    chrome.storage.local.get(['pendingErrorReports'], (result) => {
-        const pendingReports = result.pendingErrorReports || [];
-        pendingReports.push({
-            errorType,
-            ...errorDetails,
-            storedAt: new Date().toISOString()
+// Remove legacy telemetry data and move history out of Chrome Sync.
+chrome.storage.local.remove(['pendingErrorReports']);
+migrateHistoryToLocalStorage();
+
+function migrateHistoryToLocalStorage() {
+    chrome.storage.sync.get(['refreshHistory', 'errorReportingConsent'], (syncResult) => {
+        const oldHistory = Array.isArray(syncResult.refreshHistory)
+            ? syncResult.refreshHistory
+            : [];
+
+        chrome.storage.local.get(['refreshHistory'], (localResult) => {
+            if (!Array.isArray(localResult.refreshHistory) && oldHistory.length > 0) {
+                const sanitizedHistory = oldHistory.slice(0, 10).map(item => ({
+                    timestamp: item.timestamp,
+                    totalTabs: Number(item.totalTabs) || 0,
+                    successfulTabs: Number(item.successfulTabs) || 0,
+                    failedCount: Array.isArray(item.failedTabs)
+                        ? item.failedTabs.length
+                        : (Number(item.failedCount) || 0),
+                    skippedCount: Number(item.skippedCount) || 0,
+                    cancelled: item.cancelled === true
+                }));
+                chrome.storage.local.set({ refreshHistory: sanitizedHistory });
+            }
+
+            chrome.storage.sync.remove(['refreshHistory', 'errorReportingConsent']);
         });
-
-        // Limit stored errors to prevent excessive storage use
-        if (pendingReports.length > 50) {
-            pendingReports.splice(0, pendingReports.length - 50);
-        }
-
-        chrome.storage.local.set({ pendingErrorReports: pendingReports });
     });
-}
-
-// Attempt to send pending error reports when extension is online
-chrome.runtime.onStartup.addListener(() => {
-    attemptToSendPendingErrorReports();
-});
-
-// Also try periodically during runtime
-setInterval(() => {
-    attemptToSendPendingErrorReports().catch(() => {
-        // Silently handle failures
-    });
-}, 30 * 60 * 1000); // Every 30 minutes
-
-// Log refresh operation failures to error reporting system
-function logOperationError(operationDetails, errorDetails) {
-    const errorReport = {
-        operationType: 'tab_refresh',
-        timestamp: new Date().toISOString(),
-        operationDetails,
-        errorDetails,
-        browserInfo: navigator.userAgent,
-        extensionVersion: chrome.runtime.getManifest().version
-    };
-
-    reportError('operation_error', errorReport);
 }
 
 // Function to start refresh operation
 function startRefreshOperation() {
     activeRefreshOperation = true;
+    operationFinalized = false;
 
     // Update icon to indicate operation is in progress
     chrome.action.setIcon({
@@ -311,6 +296,8 @@ function startRefreshOperation() {
 
 // Function to end refresh operation
 function endRefreshOperation(success = true) {
+    if (operationFinalized) return;
+    operationFinalized = true;
     activeRefreshOperation = false;
     const finalSuccess = success && !operationCancelled && failedTabs.length === 0;
 
@@ -332,42 +319,33 @@ function endRefreshOperation(success = true) {
         startTime: startTime ? startTime.toISOString() : new Date().toISOString(),
         endTime: new Date().toISOString(),
         totalTabs: tabsToRefresh.length,
+        processedTabs,
         successfulTabs: refreshedTabs,
         failedCount: failedTabs.length,
+        skippedCount: skippedTabs.length,
         cancelled: operationCancelled
     };
 
-    if (failedTabs.length > 0) {
-        logOperationError(operationDetails, {
-            message: `Failed to refresh ${failedTabs.length} tab(s)`,
-            tabs: failedTabs.map(tab => ({
-                title: tab.title,
-                url: tab.url,
-                error: tab.error
-            }))
-        });
-    }
-
-    // Save the operation to history
-    saveToHistory({
+    const historyEntry = {
         timestamp: new Date().toISOString(),
         totalTabs: tabsToRefresh.length,
         successfulTabs: refreshedTabs,
-        failedTabs: failedTabs.map(tab => ({
-            title: tab.title || 'Unknown',
-            url: tab.url || 'Unknown',
-            error: tab.error || 'Unknown error'
-        }))
-    });
+        failedCount: failedTabs.length,
+        skippedCount: skippedTabs.length,
+        cancelled: operationCancelled
+    };
 
-    // Broadcast completion to popup
-    chrome.runtime.sendMessage({
-        action: 'refreshComplete',
-        success: finalSuccess,
-        details: operationDetails,
-        failedTabs: failedTabs
-    }).catch(() => {
-        // Popup might be closed, ignore error
+    clearPersistedOperationState();
+    saveToHistory(historyEntry, () => {
+        // Broadcast completion after history is durable so an open popup can reload it.
+        chrome.runtime.sendMessage({
+            action: 'refreshComplete',
+            success: finalSuccess,
+            details: operationDetails,
+            failedTabs: failedTabs
+        }).catch(() => {
+            // Popup might be closed, ignore error
+        });
     });
 }
 
@@ -403,8 +381,14 @@ function refreshTabsInBatches(tabs) {
 
         // Process this batch
         refreshTabsBatch(currentBatch, 0, () => {
+            if (operationCancelled) {
+                console.log(`Operation ${operationId} cancelled at batch ${currentBatchIndex}`);
+                endRefreshOperation(false);
+                batchTimeoutId = null;
+                return;
+            }
+
             currentBatchIndex++;
-            updateProgress(refreshedTabs, tabs.length);
 
             // Memory management after each batch
             if (typeof gc === 'function') {
@@ -420,7 +404,7 @@ function refreshTabsInBatches(tabs) {
                 batchTimeoutId = setTimeout(processBatch, dynamicBatchInterval);
             } else {
                 // All batches processed, end operation
-                console.log(`Operation ${operationId} completed successfully`);
+                console.log(`Operation ${operationId} completed`);
                 endRefreshOperation(true);
                 batchTimeoutId = null;
             }
@@ -445,16 +429,37 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
 
     const tab = batch[tabIndex];
 
-    refreshTab(tab, 0)
-        .then(success => {
-            if (success) {
+    refreshTabWithTimeout(tab)
+        .then(result => {
+            processedTabs++;
+
+            if (result === true) {
                 refreshedTabs++;
-                // Notify popup of success
+                tabStatuses[tab.id] = 'success';
                 chrome.runtime.sendMessage({
                     action: 'tabSucceeded',
                     tabId: tab.id
                 }).catch(() => { });
+            } else if (result === 'skipped') {
+                skippedTabs.push(tab.id);
+                tabStatuses[tab.id] = 'skipped';
+                chrome.runtime.sendMessage({
+                    action: 'tabSkipped',
+                    tabId: tab.id
+                }).catch(() => { });
+            } else {
+                const failure = failedTabs.find(item => item.id === tab.id);
+                const errorMessage = failure?.error || 'Unable to refresh this tab';
+                tabStatuses[tab.id] = 'error';
+                chrome.runtime.sendMessage({
+                    action: 'tabFailed',
+                    tabId: tab.id,
+                    error: errorMessage
+                }).catch(() => { });
             }
+
+            persistOperationState();
+            updateProgress(processedTabs, tabsToRefresh.length);
 
             // Process next tab in batch after a short delay
             setTimeout(() => {
@@ -464,17 +469,19 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
         .catch(error => {
             // Log error and continue with next tab
             console.error(`Error refreshing tab ${tab.id}:`, error);
-            failedTabs.push({
-                ...tab,
-                error: error.message || 'Unknown error'
-            });
+            const failure = recordTabFailure(tab, error.message || 'Unknown error');
+            processedTabs++;
+            tabStatuses[tab.id] = 'error';
 
             // Notify popup of error
             chrome.runtime.sendMessage({
                 action: 'tabFailed',
                 tabId: tab.id,
-                error: error.message || 'Unknown error'
+                error: failure.error
             }).catch(() => { });
+
+            persistOperationState();
+            updateProgress(processedTabs, tabsToRefresh.length);
 
             setTimeout(() => {
                 refreshTabsBatch(batch, tabIndex + 1, onComplete);
@@ -482,98 +489,71 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
         });
 }
 
-// Add this function to help with debugging - it prevents Chrome from pausing execution
-function disableDebuggerPause() {
-    try {
-        // This is executed in the browser's context to disable debugger functionality
-        if (window.chrome && window.chrome.debugger) {
-            // Attempt to disable any active debugging sessions
-            const tabId = chrome.devtools && chrome.devtools.inspectedWindow ?
-                chrome.devtools.inspectedWindow.tabId : null;
+function refreshTabWithTimeout(tab) {
+    return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new Error(`Timed out refreshing tab after ${MAX_TAB_REFRESH_MS / 1000} seconds`));
+        }, MAX_TAB_REFRESH_MS);
 
-            if (tabId) {
-                chrome.debugger.detach({ tabId }, () => {
-                    if (chrome.runtime.lastError) {
-                        // Ignore errors, this is just a best-effort attempt
-                        console.log('Info: No active debugging sessions to detach');
-                    }
-                });
-            }
-        }
-
-        // Override the debugger statement to prevent pausing
-        // This helps avoid the "Paused in debugger" issue
-        const originalDebugger = window.console.debug;
-        window.console.debug = function () {
-            // Simply log without triggering the debugger
-            console.log.apply(console, arguments);
-        };
-
-        return true;
-    } catch (error) {
-        console.error('Error in disableDebuggerPause:', error);
-        return false;
-    }
+        refreshTab(tab, 0)
+            .then(result => {
+                clearTimeout(timeoutId);
+                resolve(result);
+            })
+            .catch(error => {
+                clearTimeout(timeoutId);
+                reject(error);
+            });
+    });
 }
 
-// Inject this script into tabs that might have DevTools open to prevent pausing
-function preventDebuggerPause(tabId) {
-    try {
-        chrome.scripting.executeScript({
-            target: { tabId },
-            function: disableDebuggerPause
-        }).catch(() => {
-            // Ignore errors - this is just a best-effort attempt
-        });
-    } catch (error) {
-        // Ignore errors - some tabs may not allow script injection
-    }
+function recordTabFailure(tab, error) {
+    const existingFailure = failedTabs.find(item => item.id === tab.id);
+    if (existingFailure) return existingFailure;
+
+    const failure = {
+        ...tab,
+        error: error || 'Unknown error'
+    };
+    failedTabs.push(failure);
+    return failure;
 }
 
-// Modified refreshTab function to include debugger prevention
-async function refreshTab(tab, retryCount = 0) {
-    if (!tab || !tab.id || tab.id === chrome.tabs.TAB_ID_NONE) {
-        return false;
+async function refreshTab(tab, retryCount = 0, loadingWaitStartedAt = Date.now()) {
+    if (!tab || !Number.isInteger(tab.id) || tab.id === chrome.tabs.TAB_ID_NONE) {
+        return 'skipped';
     }
 
     try {
         // Skip browser UI tabs that can't be refreshed
-        if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') ||
-            tab.url.startsWith('about:') || tab.url.startsWith('chrome-extension://'))) {
-            return true; // Count as success but skip refresh
+        if (isRestrictedTabUrl(tab.url)) {
+            return 'skipped';
         }
-
-        // Try to prevent debugger pausing
-        preventDebuggerPause(tab.id);
 
         // Check if tab still exists
         return new Promise((resolve) => {
-            chrome.tabs.get(tab.id, async (tabInfo) => {
+            chrome.tabs.get(tab.id, (tabInfo) => {
                 if (chrome.runtime.lastError || !tabInfo) {
                     // Tab doesn't exist anymore
-                    resolve(true); // Count as success since we can't refresh it
+                    resolve('skipped');
                     return;
                 }
 
-                // Check if tab is loading - if so, wait before refreshing
-                if (tabInfo.status === 'loading') {
+                // Give already-loading tabs a bounded chance to settle.
+                if (tabInfo.status === 'loading' && Date.now() - loadingWaitStartedAt < MAX_LOADING_WAIT_MS) {
                     setTimeout(() => {
-                        refreshTab(tab, retryCount).then(resolve);
+                        refreshTab(tab, retryCount, loadingWaitStartedAt).then(resolve);
                     }, 500);
                     return;
                 }
 
                 if (tabInfo.discarded) {
-                    // Handle discarded tabs with more care
-                    try {
-                        await activateAndRefreshTab(tab, retryCount, resolve);
-                    } catch (error) {
-                        handleTabRefreshError(tab, error, retryCount, resolve);
-                    }
+                    // Reload discarded tabs without changing the user's active tab.
+                    basicReload(tab, retryCount, resolve);
                 } else {
                     // Handle normal (non-discarded) tab
                     try {
-                        await preserveStateAndRefreshTab(tab, retryCount, resolve);
+                        preserveStateAndRefreshTab(tab, retryCount, resolve);
                     } catch (error) {
                         handleTabRefreshError(tab, error, retryCount, resolve);
                     }
@@ -585,97 +565,57 @@ async function refreshTab(tab, retryCount = 0) {
     }
 }
 
-// Helper function to activate and refresh a discarded tab
-async function activateAndRefreshTab(tab, retryCount, resolve) {
-    return new Promise((resolveFn) => {
-        // Make the tab active first
-        chrome.tabs.update(tab.id, { active: true }, () => {
-            if (chrome.runtime.lastError) {
-                if (retryCount < MAX_RETRIES) {
-                    // Retry with backoff
-                    setTimeout(() => {
-                        refreshTab(tab, retryCount + 1).then(resolve);
-                    }, 500 * (retryCount + 1));
-                    return;
-                } else {
-                    failedTabs.push({
-                        ...tab,
-                        error: chrome.runtime.lastError.message || 'Failed to activate tab'
-                    });
-                    resolve(false);
-                    return;
-                }
+function isRestrictedTabUrl(url) {
+    if (!url) return false;
+
+    return [
+        'about:',
+        'chrome:',
+        'chrome-extension:',
+        'chrome-search:',
+        'chrome-untrusted:',
+        'devtools:',
+        'edge:'
+    ].some(protocol => url.startsWith(protocol));
+}
+
+// Helper function to preserve state and refresh a normal tab
+function preserveStateAndRefreshTab(tab, retryCount, resolve) {
+    // Try to save media state before refreshing, but handle errors gracefully.
+    try {
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: preserveMediaState
+        }, () => {
+            const error = chrome.runtime.lastError;
+            if (error) {
+                basicReload(tab, retryCount, resolve);
+                return;
             }
 
-            // Now reload it after a short delay to ensure tab is ready
             setTimeout(() => {
                 chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
                     if (chrome.runtime.lastError) {
                         if (retryCount < MAX_RETRIES) {
-                            // Retry with backoff
                             setTimeout(() => {
                                 refreshTab(tab, retryCount + 1).then(resolve);
                             }, 500 * (retryCount + 1));
                         } else {
-                            failedTabs.push({
-                                ...tab,
-                                error: chrome.runtime.lastError.message || 'Failed to reload tab'
-                            });
+                            recordTabFailure(
+                                tab,
+                                chrome.runtime.lastError.message || 'Failed to reload tab'
+                            );
                             resolve(false);
                         }
                     } else {
                         resolve(true);
-                        resolveFn();
                     }
                 });
-            }, 500); // Increased delay for better stability
+            }, 100);
         });
-    });
-}
-
-// Helper function to preserve state and refresh a normal tab
-async function preserveStateAndRefreshTab(tab, retryCount, resolve) {
-    return new Promise((resolveFn) => {
-        // Try to save media state before refreshing, but handle errors gracefully
-        try {
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                function: preserveMediaState
-            }, (results) => {
-                const error = chrome.runtime.lastError;
-                if (error) {
-                    // If we can't inject script, just reload without preserving state
-                    basicReload(tab, retryCount, resolve);
-                } else {
-                    // Script executed successfully, now reload the tab
-                    setTimeout(() => {
-                        chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
-                            if (chrome.runtime.lastError) {
-                                if (retryCount < MAX_RETRIES) {
-                                    // Retry with backoff
-                                    setTimeout(() => {
-                                        refreshTab(tab, retryCount + 1).then(resolve);
-                                    }, 500 * (retryCount + 1));
-                                } else {
-                                    failedTabs.push({
-                                        ...tab,
-                                        error: chrome.runtime.lastError.message || 'Failed to reload tab'
-                                    });
-                                    resolve(false);
-                                }
-                            } else {
-                                resolve(true);
-                                resolveFn();
-                            }
-                        });
-                    }, 100);
-                }
-            });
-        } catch (error) {
-            // Fallback to basic reload if script execution throws an error
-            basicReload(tab, retryCount, resolve);
-        }
-    });
+    } catch (error) {
+        basicReload(tab, retryCount, resolve);
+    }
 }
 
 // Basic reload without trying to preserve state
@@ -688,10 +628,7 @@ function basicReload(tab, retryCount, resolve) {
                     refreshTab(tab, retryCount + 1).then(resolve);
                 }, 500 * (retryCount + 1));
             } else {
-                failedTabs.push({
-                    ...tab,
-                    error: chrome.runtime.lastError.message || 'Failed to reload tab'
-                });
+                recordTabFailure(tab, chrome.runtime.lastError.message || 'Failed to reload tab');
                 resolve(false);
             }
         } else {
@@ -710,10 +647,7 @@ async function handleRefreshError(tab, error, retryCount) {
         return refreshTab(tab, retryCount + 1);
     }
 
-    failedTabs.push({
-        ...tab,
-        error: error.message || 'Unknown error'
-    });
+    recordTabFailure(tab, error.message || 'Unknown error');
     return false;
 }
 
@@ -727,10 +661,7 @@ function handleTabRefreshError(tab, error, retryCount, resolve) {
             refreshTab(tab, retryCount + 1).then(resolve);
         }, 500 * Math.pow(2, retryCount));
     } else {
-        failedTabs.push({
-            ...tab,
-            error: error.message || 'Unknown error during refresh'
-        });
+        recordTabFailure(tab, error.message || 'Unknown error during refresh');
         resolve(false);
     }
 }
@@ -753,26 +684,25 @@ function updateProgress(current, total) {
         current,
         total,
         percent,
-        failed: failedTabs.length
+        successful: refreshedTabs,
+        failed: failedTabs.length,
+        skipped: skippedTabs.length
     }).catch(() => {
         // Popup might be closed, ignore error
     });
 }
 
 // Function to save operation to history
-function saveToHistory(operation) {
-    chrome.storage.sync.get(['refreshHistory'], (result) => {
+function saveToHistory(operation, onSaved = () => {}) {
+    chrome.storage.local.get(['refreshHistory'], (result) => {
         const history = result.refreshHistory || [];
 
         // Add newest operation at the beginning
         history.unshift(operation);
 
-        // Limit history to 20 entries
-        if (history.length > 20) {
-            history.pop();
-        }
+        const limitedHistory = history.slice(0, 10);
 
-        chrome.storage.sync.set({ refreshHistory: history });
+        chrome.storage.local.set({ refreshHistory: limitedHistory }, onSaved);
     });
 }
 
@@ -785,8 +715,6 @@ function preserveMediaState() {
 
         // Store video states - with special handling for YouTube
         videos.forEach((video, index) => {
-            // Check if the video element is visible and has dimensions
-            const isVisible = video.offsetWidth > 0 && video.offsetHeight > 0;
             const isYouTube = window.location.hostname.includes('youtube.com');
 
             mediaStates[`video_${index}`] = {
@@ -796,9 +724,7 @@ function preserveMediaState() {
                 muted: video.muted,
                 volume: video.volume,
                 playbackRate: video.playbackRate,
-                isYouTube: isYouTube,
-                url: window.location.href,
-                isVisible: isVisible
+                isYouTube: isYouTube
             };
         });
 
@@ -819,7 +745,6 @@ function preserveMediaState() {
         if (window.location.hostname.includes('youtube.com')) {
             const player = document.querySelector('.html5-video-player');
             mediaStates['youtube_player_state'] = {
-                url: window.location.href,
                 paused: player ? (
                     player.classList.contains('paused-mode') ||
                     !player.classList.contains('playing-mode')
@@ -842,63 +767,4 @@ function preserveMediaState() {
         console.error("Error preserving media state:", error);
         return { success: false, error: error.message };
     }
-}
-
-// Attempt to send pending error reports
-async function attemptToSendPendingErrorReports() {
-    return new Promise((resolve, reject) => {
-        chrome.storage.local.get(['pendingErrorReports'], (result) => {
-            const pendingReports = result.pendingErrorReports || [];
-
-            if (pendingReports.length === 0) {
-                resolve({ sent: 0 });
-                return;
-            }
-
-            // Check user consent
-            chrome.storage.sync.get(['errorReportingConsent'], (consentResult) => {
-                const hasConsent = consentResult.errorReportingConsent === true;
-
-                if (!hasConsent) {
-                    resolve({ sent: 0, reason: 'no-consent' });
-                    return;
-                }
-
-                // Send reports in batches
-                const batch = pendingReports.slice(0, 10);
-                const promises = batch.map(report =>
-                    fetch(ERROR_REPORTING_ENDPOINT, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            ...report,
-                            extensionId: chrome.runtime.id,
-                            reportedAt: new Date().toISOString()
-                        })
-                    }).then(response => response.ok)
-                );
-
-                Promise.allSettled(promises).then(results => {
-                    // Count successful sends
-                    const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
-
-                    // Remove successful reports
-                    const newPendingReports = [
-                        ...pendingReports.slice(successCount)
-                    ];
-
-                    chrome.storage.local.set({ pendingErrorReports: newPendingReports }, () => {
-                        resolve({
-                            sent: successCount,
-                            remaining: newPendingReports.length
-                        });
-                    });
-                }).catch(error => {
-                    reject(error);
-                });
-            });
-        });
-    });
 }
