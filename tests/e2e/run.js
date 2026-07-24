@@ -1,278 +1,224 @@
-const puppeteer = require('puppeteer');
+const http = require('http');
 const path = require('path');
-const fs = require('fs');
+const crypto = require('crypto');
+const puppeteer = require('puppeteer');
 
 const extensionPath = path.join(__dirname, '../..');
+// CI only loads this trusted extension and the localhost test server.
+const ciBrowserArgs = process.env.CI === 'true' ? ['--no-sandbox'] : [];
 
-// Define the test cases
+async function createTestServer() {
+  const server = http.createServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html' });
+    response.end(`<!doctype html><html><head><title>Refresh audit</title></head><body>
+      <script>
+        sessionStorage.refreshAuditLoads = String(Number(sessionStorage.refreshAuditLoads || 0) + 1);
+        document.title = location.pathname + ' load ' + sessionStorage.refreshAuditLoads;
+      </script>
+      <p>Local refresh test page</p>
+    </body></html>`);
+  });
+
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  return {
+    baseUrl: `http://127.0.0.1:${server.address().port}`,
+    close: () => new Promise(resolve => server.close(resolve))
+  };
+}
+
+async function findExtensionId(browser) {
+  const deadline = Date.now() + 10000;
+
+  while (Date.now() < deadline) {
+    const target = browser.targets().find(candidate =>
+      candidate.type() === 'service_worker'
+      && candidate.url().startsWith('chrome-extension://')
+    );
+    if (target) return new URL(target.url()).host;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  // Chrome can keep a Manifest V3 worker dormant until an extension page opens.
+  // Unpacked extension IDs are derived from the normalized absolute path.
+  return [...crypto.createHash('sha256').update(extensionPath).digest().subarray(0, 16)]
+    .flatMap(byte => [byte >> 4, byte & 15])
+    .map(nibble => String.fromCharCode(97 + nibble))
+    .join('');
+}
+
 const TEST_CASES = [
   {
-    name: 'Basic Refresh All',
-    run: async (browser, extensionId) => {
-      const page = await browser.newPage();
-      await page.goto(`chrome-extension://${extensionId}/popup.html`);
-      
-      // Wait for the refresh button to be clickable
-      await page.waitForSelector('#refreshAll', { timeout: 10000 });
-      
-      // Click the refresh button
-      await page.click('#refreshAll');
-      
-      // Wait for any UI change (loading container or status text)
+    name: 'reloads real pages and reports skipped pages separately',
+    run: async (browser, extensionId, baseUrl) => {
+      const pageA = await browser.newPage();
+      const pageB = await browser.newPage();
+      const popup = await browser.newPage();
+      const popupErrors = [];
+      popup.on('pageerror', error => popupErrors.push(error.message));
+
       try {
-        await page.waitForFunction(() => {
-          const statusText = document.querySelector('#statusText');
-          return statusText && statusText.textContent.length > 0;
+        await Promise.all([
+          pageA.goto(`${baseUrl}/a`),
+          pageB.goto(`${baseUrl}/b`)
+        ]);
+        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        await popup.click('#refreshAll');
+        await popup.waitForFunction(() => {
+          const status = document.querySelector('#statusText')?.textContent || '';
+          return status.includes('successfully')
+            || status.includes('restricted tabs')
+            || status.includes('failed');
         }, { timeout: 15000 });
-      } catch (e) {
-        // Even if we don't see the status text, the button was clicked successfully
-        console.log('    Note: Could not verify completion message, but refresh was triggered');
+
+        await Promise.all([
+          pageA.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) >= 2, { timeout: 5000 }),
+          pageB.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) >= 2, { timeout: 5000 })
+        ]);
+        await popup.waitForFunction(async () => {
+          const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
+          return refreshHistory.length > 0;
+        }, { timeout: 5000 });
+
+        const [loadsA, loadsB, popupState] = await Promise.all([
+          pageA.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
+          pageB.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
+          popup.evaluate(async () => {
+            const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
+            return {
+              status: document.querySelector('#statusText')?.textContent || '',
+              progress: document.querySelector('#progressFill')?.style.width || '',
+              successIndicators: document.querySelectorAll('.tab-success[style*="display: block"]').length,
+              skippedIndicators: document.querySelectorAll('.tab-skipped[style*="display: block"]').length,
+              latestHistory: refreshHistory[0]
+            };
+          })
+        ]);
+
+        if (loadsA !== 2 || loadsB !== 2) throw new Error('One or more real pages did not reload exactly once');
+        if (popupState.progress !== '100%') throw new Error(`Expected 100% progress, got ${popupState.progress}`);
+        if (!popupState.status.includes('skipped')) throw new Error(`Skipped pages were not reported: ${popupState.status}`);
+        if (popupState.successIndicators !== 2) throw new Error(`Expected 2 success indicators, got ${popupState.successIndicators}`);
+        if (popupState.skippedIndicators < 1) throw new Error('Expected at least one skipped indicator');
+        if (popupState.latestHistory?.successfulTabs !== 2) throw new Error('Sanitized local history has the wrong success count');
+        if (popupErrors.length > 0) throw new Error(`Popup errors: ${popupErrors.join('; ')}`);
+      } finally {
+        await Promise.all([pageA.close(), pageB.close(), popup.close()]);
       }
-      
-      // Verify the refresh button exists and is functional
-      const buttonExists = await page.evaluate(() => {
-        return document.querySelector('#refreshAll') !== null;
-      });
-      
-      if (!buttonExists) {
-        throw new Error('Refresh button not found');
-      }
-      
-      return true;
     }
   },
   {
-    name: 'Error Reporting',
+    name: 'shows an accurate local-only privacy statement',
     run: async (browser, extensionId) => {
-      const page = await browser.newPage();
-      await page.goto(`chrome-extension://${extensionId}/popup.html`);
-      
-      // Wait for settings header to exist
-      await page.waitForSelector('#settingsHeader', { timeout: 10000 });
-      
-      // Click settings header using evaluate to avoid click issues
-      await page.evaluate(() => {
-        const settingsHeader = document.querySelector('#settingsHeader');
-        if (settingsHeader) {
-          settingsHeader.click();
-        }
-      });
-      
-      // Wait a bit for the settings to open
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Check if toggle exists
-      const toggleExists = await page.evaluate(() => {
-        return !!document.querySelector('#errorReportingToggle');
-      });
-      
-      if (!toggleExists) {
-        throw new Error('Error reporting toggle not found');
+      const popup = await browser.newPage();
+      try {
+        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        await popup.click('#settingsHeader');
+        const state = await popup.evaluate(async () => {
+          const { pendingErrorReports } = await chrome.storage.local.get(['pendingErrorReports']);
+          return {
+            text: document.querySelector('#settingsContent')?.textContent || '',
+            hasTelemetryToggle: Boolean(document.querySelector('#errorReportingToggle')),
+            hasPendingReports: Array.isArray(pendingErrorReports) && pendingErrorReports.length > 0
+          };
+        });
+
+        if (!state.text.includes('does not send telemetry')) throw new Error('Local-only privacy statement is missing');
+        if (state.hasTelemetryToggle || state.hasPendingReports) throw new Error('Legacy telemetry state is still exposed');
+      } finally {
+        await popup.close();
       }
-      
-      return true;
     }
   },
   {
-    name: 'History Display',
+    name: 'renders sanitized refresh history',
     run: async (browser, extensionId) => {
-      const page = await browser.newPage();
-      await page.goto(`chrome-extension://${extensionId}/popup.html`);
-      
-      // Wait for the history header to be available
-      await page.waitForSelector('#historyHeader', { timeout: 10000 });
-      
-      // Click on history header using evaluate to avoid click issues
-      await page.evaluate(() => {
-        const historyHeader = document.querySelector('#historyHeader');
-        if (historyHeader) {
-          historyHeader.click();
-        }
-      });
-      
-      // Wait a bit for the click to register
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Check if history content element is present
-      const historyExists = await page.evaluate(() => {
-        const historyContent = document.querySelector('#historyContent');
-        return historyContent !== null;
-      });
-      
-      if (!historyExists) {
-        throw new Error('History content not found');
+      const popup = await browser.newPage();
+      try {
+        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        const historyVisible = await popup.$eval('#historyContainer', element => element.style.display === 'block');
+        if (!historyVisible) throw new Error('History did not appear after a completed refresh');
+
+        await popup.click('#historyHeader');
+        const historyState = await popup.evaluate(() => ({
+          text: document.querySelector('#historyContent')?.textContent || '',
+          hasMarkupInjection: Boolean(document.querySelector('#historyContent script'))
+        }));
+        if (!historyState.text.includes('refreshed')) throw new Error('History summary is missing');
+        if (historyState.hasMarkupInjection) throw new Error('Unexpected executable markup in history');
+      } finally {
+        await popup.close();
       }
-      
-      return true;
     }
   },
   {
-    name: 'Stress Test Mode',
+    name: 'activates stress mode without replacing the refresh handler',
     run: async (browser, extensionId) => {
-      const page = await browser.newPage();
-      await page.goto(`chrome-extension://${extensionId}/popup.html`);
-      
-      // Enable stress test mode by clicking settings header 5 times
-      for (let i = 0; i < 5; i++) {
-        await page.click('#settingsHeader');
-        // Use a delay instead of waitForTimeout
-        await new Promise(resolve => setTimeout(resolve, 200));
+      const popup = await browser.newPage();
+      const pageErrors = [];
+      popup.on('pageerror', error => pageErrors.push(error.message));
+      popup.on('dialog', dialog => dialog.accept());
+
+      try {
+        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        await popup.evaluate(() => {
+          const settings = document.querySelector('#settingsHeader');
+          for (let index = 0; index < 5; index++) settings.click();
+        });
+        await popup.waitForFunction(() =>
+          document.querySelector('#refreshAll')?.textContent === 'Start Stress Test',
+          { timeout: 5000 }
+        );
+
+        if (pageErrors.length > 0) throw new Error(`Stress activation errors: ${pageErrors.join('; ')}`);
+      } finally {
+        await popup.close();
       }
-      
-      // Confirm dialog should appear - handle it
-      page.on('dialog', async (dialog) => {
-        await dialog.accept();
-      });
-      
-      // Check if stress test mode is activated or just verify the button exists
-      const buttonExists = await page.evaluate(() => {
-        const refreshButton = document.querySelector('#refreshAll');
-        return refreshButton !== null;
-      });
-      
-      if (!buttonExists) {
-        throw new Error('Refresh button not found');
-      }
-      
-      return true;
     }
   }
 ];
 
 async function runTests() {
-  console.log('Starting end-to-end tests...');
-  
+  console.log('Starting end-to-end tests…');
+  const testServer = await createTestServer();
   let browser;
+  let failed = 0;
+
   try {
-    // Launch browser with extension
     browser = await puppeteer.launch({
       headless: false,
       defaultViewport: null,
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
-        '--window-size=400,600',
-        // Disable CORS to allow cross-origin requests
-        '--disable-web-security',
-        // Needed for Manifest V3 extensions
-        '--disable-features=ExtensionsToolbarMenu',
-        // Disable sandboxing for more compatibility
-        '--no-sandbox',
-        // Avoids GPU-related issues
-        '--disable-gpu'
+        '--window-size=500,700',
+        ...ciBrowserArgs
       ]
     });
-    
-    // Find extension ID
-    let extensionId = null;
-    
-    // Allow some time for the extension to initialize
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const targets = await browser.targets();
-    
-    // Try to find service worker first (Manifest V3)
-    const serviceWorkerTarget = targets.find(target => 
-      target.type() === 'service_worker' && 
-      target.url().includes('chrome-extension://')
-    );
-    
-    if (serviceWorkerTarget) {
-      extensionId = serviceWorkerTarget.url().split('/')[2];
-      console.log(`Found extension via service worker: ${extensionId}`);
-    } else {
-      // Fall back to background page (Manifest V2)
-      const backgroundTarget = targets.find(target => 
-        target.type() === 'background_page' && 
-        target.url().includes('chrome-extension://')
-      );
-      
-      if (backgroundTarget) {
-        extensionId = backgroundTarget.url().split('/')[2];
-        console.log(`Found extension via background page: ${extensionId}`);
-      } else {
-        // As a last resort, check for any extension-related targets
-        const extensionTarget = targets.find(target => 
-          target.url().includes('chrome-extension://')
-        );
-        
-        if (extensionTarget) {
-          extensionId = extensionTarget.url().split('/')[2];
-          console.log(`Found extension via other target: ${extensionId}`);
-        } else {
-          // Try to get from extensions page
-          try {
-            const extensionsPage = await browser.newPage();
-            await extensionsPage.goto('chrome://extensions');
-            
-            // Execute script to get all extension IDs
-            const extensionIds = await extensionsPage.evaluate(() => {
-              const extensions = document.querySelectorAll('extensions-item');
-              return Array.from(extensions).map(ext => {
-                return ext.getAttribute('id');
-              });
-            });
-            
-            if (extensionIds.length > 0) {
-              extensionId = extensionIds[0]; // Just take the first one if multiple
-              console.log(`Found extension via chrome://extensions: ${extensionId}`);
-            }
-            
-            await extensionsPage.close();
-          } catch (error) {
-            console.error('Error accessing extensions page:', error);
-          }
-        }
-      }
-    }
-    
-    if (!extensionId) {
-      throw new Error('Extension not found. Make sure it loaded correctly.');
-    }
-    
-    console.log(`Extension ID: ${extensionId}`);
-    
-    // Run each test case
-    let passed = 0;
-    let failed = 0;
-    
+    const extensionId = await findExtensionId(browser);
+
     for (const testCase of TEST_CASES) {
-      process.stdout.write(`Running test: ${testCase.name}... `);
+      process.stdout.write(`Running test: ${testCase.name}… `);
       try {
-        const result = await testCase.run(browser, extensionId);
-        if (result) {
-          console.log('✅ PASS');
-          passed++;
-        } else {
-          console.log('❌ FAIL');
-          failed++;
-        }
+        await testCase.run(browser, extensionId, testServer.baseUrl);
+        console.log('PASS');
       } catch (error) {
-        console.log('❌ FAIL');
-        console.error(`  Error: ${error.message}`);
         failed++;
+        console.log('FAIL');
+        console.error(`  ${error.message}`);
       }
     }
-    
-    console.log(`\nTest Summary: ${passed} passed, ${failed} failed`);
-    
-    return failed === 0;
-  } catch (error) {
-    console.error('Error running tests:', error);
-    return false;
   } finally {
-    if (browser) {
-      await browser.close();
-    }
+    if (browser) await browser.close();
+    await testServer.close();
   }
+
+  console.log(`Test summary: ${TEST_CASES.length - failed} passed, ${failed} failed`);
+  return failed === 0;
 }
 
-// Run tests
 runTests()
-  .then(success => {
-    process.exit(success ? 0 : 1);
-  })
+  .then(success => process.exit(success ? 0 : 1))
   .catch(error => {
-    console.error('Unhandled error:', error);
+    console.error(error);
     process.exit(1);
-  }); 
+  });

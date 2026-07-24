@@ -1,5 +1,7 @@
 # TestSprite Testing Setup & Results
 
+> Historical report from December 2025. It does not describe the current test suite or release readiness. See `TESTING.md` for current verified results.
+
 ## Quick Summary
 
 ✅ **All 17 unit tests passed** for the Refresh Em All browser extension

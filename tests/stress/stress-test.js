@@ -306,8 +306,7 @@ async function runStressTest() {
       }
     }
     
-    // Test completed successfully
-    results.success = true;
+    results.success = results.errors.length === 0 && !results.crashPoint;
     
   } catch (error) {
     // Catastrophic error
@@ -332,6 +331,8 @@ async function runStressTest() {
         console.error('Error closing browser:', e.message);
       }
     }
+
+    if (!results.success) process.exitCode = 1;
   }
 }
 
@@ -389,4 +390,4 @@ runStressTest().catch(error => {
   console.error('Fatal error in stress test:', error);
   logResults();
   process.exit(1);
-}); 
+});

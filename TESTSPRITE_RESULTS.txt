@@ -1,3 +1,6 @@
+HISTORICAL REPORT (DECEMBER 2025) - NOT CURRENT RELEASE EVIDENCE
+See TESTING.md for the current verified test results.
+
 ================================================================================
                     TESTSPRITE TEST RESULTS - REFRESH EM ALL
 ================================================================================

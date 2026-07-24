@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
     <title>Refresh Em All</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="alternate icon" href="favicon.png" type="image/png">
@@ -49,6 +50,16 @@
         button:disabled {
             background-color: #a9a9a9;
             cursor: not-allowed;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        #cancelRefresh {
+            display: none;
+            background-color: #5f6368;
         }
 
         #loadingContainer {
@@ -135,6 +146,13 @@
             animation: fadeIn 0.5s ease;
         }
 
+        .tab-skipped {
+            color: #5f6368;
+            font-size: 20px;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
         #errorContainer {
             width: 100%;
             margin-top: 15px;
@@ -151,10 +169,7 @@
         }
 
         #historyHeader {
-            cursor: pointer;
-            padding: 5px;
-            font-size: 14px;
-            color: #4285f4;
+            margin: 0;
         }
 
         #historyContent {
@@ -165,89 +180,62 @@
             border-top: 1px solid #ddd;
             padding-top: 10px;
         }
-        
+
         #settingsContainer {
             width: 100%;
             margin-top: 15px;
             border-top: 1px solid #ddd;
             padding-top: 10px;
         }
-        
+
         #settingsHeader {
-            cursor: pointer;
-            padding: 5px;
-            font-size: 14px;
-            color: #4285f4;
+            margin: 0;
         }
-        
+
         #settingsContent {
             display: none;
             width: 100%;
             padding: 10px 0;
         }
-        
-        .settings-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        
-        .error-reporting-info {
+
+        .privacy-info {
             font-size: 12px;
             color: #666;
             margin-top: 5px;
         }
-        
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 40px;
-            height: 20px;
-        }
-        
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        
-        .slider {
-            position: absolute;
+
+        .section-header {
+            appearance: none;
+            width: 100%;
+            padding: 5px;
+            border: 0;
+            background: transparent;
+            color: #4285f4;
+            text-align: left;
+            font-size: 14px;
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
+            overflow: visible;
         }
-        
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 14px;
-            width: 14px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
+
+        .section-header:hover {
+            background: #f5f7fa;
         }
-        
-        input:checked + .slider {
-            background-color: #4285f4;
+
+        #errorDetails {
+            white-space: pre-wrap;
         }
-        
-        input:checked + .slider:before {
-            transform: translateX(20px);
-        }
-        
-        #reportErrorsBtn {
+
+        .history-entry {
+            padding: 5px 0;
             font-size: 12px;
-            padding: 5px 10px;
-            margin-top: 5px;
+        }
+
+        .history-success {
+            color: #0f9d58;
+        }
+
+        .history-failure {
+            color: #db4437;
         }
 
         @keyframes spin {
@@ -270,6 +258,21 @@
             z-index: 1000;
             display: none;
         }
+
+        .confetti-piece {
+            position: absolute;
+            top: -20px;
+            width: 8px;
+            height: 12px;
+            animation: fall 3s linear forwards;
+        }
+
+        @keyframes fall {
+            to {
+                top: 100%;
+                transform: rotate(720deg);
+            }
+        }
     </style>
 </head>
 
@@ -278,13 +281,16 @@
         <img src="assets/icon-refresh-em-colorful-32.png" alt="Refresh Em All Icon" />
         <h2>Refresh Em All</h2>
     </div>
-    <button id="refreshAll">Refresh All Tabs</button>
+    <div class="action-buttons">
+        <button id="refreshAll">Refresh All Tabs</button>
+        <button id="cancelRefresh">Cancel</button>
+    </div>
 
     <div id="loadingContainer">
-        <div id="progressBar">
+        <div id="progressBar" role="progressbar" aria-label="Refresh progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="progressFill"></div>
         </div>
-        <div id="statusText">Refreshing tabs...</div>
+        <div id="statusText" aria-live="polite">Refreshing tabs...</div>
         <div id="tabsContainer"></div>
     </div>
 
@@ -294,27 +300,15 @@
     </div>
 
     <div id="historyContainer">
-        <div id="historyHeader">View Refresh History</div>
+        <button id="historyHeader" class="section-header" type="button" aria-expanded="false" aria-controls="historyContent">View Refresh History</button>
         <div id="historyContent"></div>
     </div>
-    
+
     <div id="settingsContainer">
-        <div id="settingsHeader">Settings</div>
+        <button id="settingsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="settingsContent">Settings</button>
         <div id="settingsContent">
-            <div class="settings-row">
-                <span>Error Reporting</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="errorReportingToggle">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="error-reporting-info">
-                Help improve the extension by automatically sending anonymous error reports.
-                No personal data is collected.
-            </div>
-            <div id="pendingErrorsContainer" style="margin-top: 10px; display: none;">
-                <div>Pending error reports: <span id="pendingErrorCount">0</span></div>
-                <button id="reportErrorsBtn">Send Reports Now</button>
+            <div class="privacy-info">
+                Refresh Em All processes refresh state locally. It does not send telemetry or browsing data to external servers.
             </div>
         </div>
     </div>

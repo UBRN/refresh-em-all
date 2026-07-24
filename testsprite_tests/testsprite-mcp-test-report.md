@@ -1,5 +1,7 @@
 # TestSprite Test Report - Refresh Em All
 
+> Historical report from December 2025. It does not describe the current test suite or release readiness. See `TESTING.md` for current verified results.
+
 **Project**: Refresh Em All  
 **Date**: December 7, 2025  
 **Test Scope**: Frontend + Unit Tests  
