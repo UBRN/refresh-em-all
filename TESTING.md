@@ -82,9 +82,9 @@ sites still require the manual autoplay-policy checks below.
 
 ## Continuous integration
 
-GitHub Actions runs unit/integration and browser E2E tests on pull requests and
-changes to `main`. The 50-tab reliability test runs weekly and can also be started
-manually from the Actions page.
+GitHub Actions runs unit/integration, browser E2E, and 50-tab reliability tests
+on pull requests. The same workflow runs on changes to `main`, weekly, and when
+started manually from the Actions page.
 
 ## Verification and stress tests
 

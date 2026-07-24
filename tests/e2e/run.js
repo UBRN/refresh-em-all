@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const puppeteer = require('puppeteer');
 
 const extensionPath = path.join(__dirname, '../..');
+// CI only loads this trusted extension and the localhost test server.
+const ciBrowserArgs = process.env.CI === 'true' ? ['--no-sandbox'] : [];
 
 async function createTestServer() {
   const server = http.createServer((request, response) => {
@@ -188,7 +190,8 @@ async function runTests() {
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
-        '--window-size=500,700'
+        '--window-size=500,700',
+        ...ciBrowserArgs
       ]
     });
     const extensionId = await findExtensionId(browser);

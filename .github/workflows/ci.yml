@@ -49,8 +49,7 @@ jobs:
         run: xvfb-run --auto-servernum npm run e2e
 
   reliability:
-    name: Scheduled 50-tab reliability test
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: 50-tab reliability test
     needs: unit
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -7,6 +7,8 @@ const extensionPath = path.join(__dirname, '../..');
 const TAB_COUNT = 50;
 const TABS_PER_WINDOW = TAB_COUNT / 2;
 const TEST_TIMEOUT_MS = 120000;
+// CI only loads this trusted extension and the localhost test server.
+const ciBrowserArgs = process.env.CI === 'true' ? ['--no-sandbox'] : [];
 
 function createTone() {
   const sampleRate = 8000;
@@ -291,7 +293,8 @@ async function run() {
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
         '--autoplay-policy=no-user-gesture-required',
-        '--window-size=500,700'
+        '--window-size=500,700',
+        ...ciBrowserArgs
       ]
     });
     const extensionId = await findExtensionId(browser);
