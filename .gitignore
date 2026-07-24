@@ -106,7 +106,6 @@ tmp/
 .tmp/
 
 # Package files
-package-lock.json
 yarn.lock
 npm-shrinkwrap.json
 

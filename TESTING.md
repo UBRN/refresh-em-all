@@ -4,6 +4,7 @@
 
 - Unit/integration tests: **16/16 passing**
 - Browser E2E tests: **4/4 passing**
+- Reliability test: **50 tabs across 2 windows, including paused and playing media**
 - Statement coverage: **65.47%**
 - Line coverage: **67.72%**
 
@@ -24,6 +25,7 @@ npm test
 npm run test:watch
 npm run test:coverage
 npm run e2e
+npm run e2e:reliability
 npm run verify
 npm run stress-test
 ```
@@ -67,6 +69,23 @@ The browser suite starts a localhost-only test server and loads the unpacked ext
 5. Refresh history renders safely.
 6. Stress mode activates without popup JavaScript errors.
 
+## Reliability coverage
+
+`npm run e2e:reliability` starts 50 localhost tabs split evenly across two real
+Chrome windows. It verifies that every page reloads exactly once, the operation
+reaches 100% with accurate history counts, and paused and playing audio retain
+their playback position, volume, mute state, and playback rate.
+
+The test uses a generated local audio file and disables Chrome's user-gesture
+requirement for autoplay so playback restoration is deterministic. Real streaming
+sites still require the manual autoplay-policy checks below.
+
+## Continuous integration
+
+GitHub Actions runs unit/integration and browser E2E tests on pull requests and
+changes to `main`. The 50-tab reliability test runs weekly and can also be started
+manually from the Actions page.
+
 ## Verification and stress tests
 
 `npm run verify` exercises a larger browser flow and writes diagnostic screenshots/results under `tests/`.
@@ -77,5 +96,5 @@ The browser suite starts a localhost-only test server and loads the unpacked ext
 
 - Playback restoration on YouTube and streaming sites, including autoplay-policy behavior
 - Multiple browser windows with discarded tabs
-- 50–100 tab responsiveness on representative user hardware
+- 100-tab responsiveness on representative user hardware
 - Chrome, Edge, and Brave compatibility

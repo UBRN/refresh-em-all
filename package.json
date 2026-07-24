@@ -10,6 +10,7 @@
     "test:coverage": "jest --coverage",
     "test:debug": "node --expose-gc --inspect-brk ./node_modules/.bin/jest --runInBand",
     "e2e": "node tests/e2e/run.js",
+    "e2e:reliability": "node tests/e2e/reliability.js",
     "stress-test": "node --expose-gc tests/stress/stress-test.js",
     "stress-test:debug": "node --expose-gc --inspect-brk tests/stress/stress-test.js",
     "analyze-uuid": "node tests/uuid-analyzer.js",

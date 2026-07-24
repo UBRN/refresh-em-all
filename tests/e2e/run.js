@@ -1,5 +1,6 @@
 const http = require('http');
 const path = require('path');
+const crypto = require('crypto');
 const puppeteer = require('puppeteer');
 
 const extensionPath = path.join(__dirname, '../..');
@@ -24,13 +25,23 @@ async function createTestServer() {
 }
 
 async function findExtensionId(browser) {
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  const target = browser.targets().find(candidate =>
-    candidate.type() === 'service_worker'
-    && candidate.url().startsWith('chrome-extension://')
-  );
-  if (!target) throw new Error('Extension service worker not found');
-  return new URL(target.url()).host;
+  const deadline = Date.now() + 10000;
+
+  while (Date.now() < deadline) {
+    const target = browser.targets().find(candidate =>
+      candidate.type() === 'service_worker'
+      && candidate.url().startsWith('chrome-extension://')
+    );
+    if (target) return new URL(target.url()).host;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  // Chrome can keep a Manifest V3 worker dormant until an extension page opens.
+  // Unpacked extension IDs are derived from the normalized absolute path.
+  return [...crypto.createHash('sha256').update(extensionPath).digest().subarray(0, 16)]
+    .flatMap(byte => [byte >> 4, byte & 15])
+    .map(nibble => String.fromCharCode(97 + nibble))
+    .join('');
 }
 
 const TEST_CASES = [
