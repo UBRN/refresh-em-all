@@ -1,45 +1,90 @@
 # Privacy Policy
 
-## Overview
+Effective date: July 25, 2026
 
-Refresh Em All is a browser extension designed to refresh tabs while respecting your privacy. We believe in transparency and minimal data collection.
+Refresh Em All refreshes open tabs and attempts to preserve supported audio and
+video playback state. The extension performs this work locally in Chrome. The
+developer does not receive the tab, page, media, refresh, or error information
+described below.
 
-## Data Collection
+## Information handled by the extension
 
-**We do not collect any personal data.** Specifically:
+To perform a refresh, Chrome provides the extension with information about open
+tabs. A tab record can include its tab and window identifiers, URL, title,
+favicon URL, loading status, discarded status, audible state, and other tab
+metadata supplied by the Chrome Tabs API. Refresh Em All uses this information
+to identify refreshable tabs, avoid restricted browser pages, refresh tabs, and
+show progress in the popup.
 
-- No user identification information is collected
-- No browsing history is stored
-- No analytics or tracking scripts are included
-- No data is sent to external servers
+Before reloading an accessible page, the extension checks its video and audio
+elements. It may temporarily handle the media source URL, current playback
+position, paused or playing state, muted state, volume, and playback rate. On
+YouTube pages it may also handle the current video identifier and the time at
+which state was captured. The extension does not read arbitrary page text or
+form contents for this feature.
 
-## Local Storage
+## Local storage and retention
 
-The extension stores the following information locally on your device:
+Refresh Em All uses the following browser-managed storage:
 
-- Your refresh preferences and settings
-- Temporary tab state information during refresh operations
-- Sanitized refresh counts used for the local history view
+- `chrome.storage.session` temporarily holds the active refresh-operation
+  snapshot. This can include the current tab records, progress, per-tab status,
+  and local failure details. The extension removes this snapshot when an
+  operation finishes. If Chrome interrupts the operation, the snapshot is used
+  only to report that interruption and remains session-scoped.
+- `chrome.storage.local` holds at most ten refresh-history summaries. Each
+  summary contains a timestamp, tab totals, successful, failed, and skipped
+  counts, and whether the operation was cancelled. History summaries do not
+  contain tab URLs or titles.
+- The relevant page's `sessionStorage` temporarily holds media state under the
+  `refreshEmAllMediaState` key so it can survive that page's reload. The bundled
+  content script removes the entry when it reads it. If it cannot be consumed,
+  the entry remains limited to that page's session and origin and expires with
+  the page session.
 
-This data never leaves your browser through Refresh Em All.
+Current versions do not write refresh information to Chrome Sync. To clean up
+data created by older versions, the extension checks for legacy refresh history
+and error-reporting consent in `chrome.storage.sync`, copies at most ten
+sanitized history summaries to local storage when needed, and removes the
+legacy sync keys. It also removes any legacy pending-error-report data from
+local extension storage.
 
-## Error Reporting
+## Error handling, analytics, and transmission
 
-Refresh Em All does not include external error reporting or telemetry. Tab-specific errors are shown only in the open popup and are not retained in refresh history.
+Errors are handled locally through the extension popup and browser developer
+console. Refresh Em All does not send error reports, telemetry, analytics,
+browsing activity, tab information, or media state to the developer or to an
+analytics or advertising service. It has no developer-operated data endpoint.
 
-## Permissions
+The popup can display a favicon URL supplied by Chrome for an open tab. Chrome
+may load or reuse that icon from the site that provides it; Refresh Em All does
+not attach its stored refresh, media, or error information to that request.
 
-The extension requests only the minimum permissions required for functionality:
+Refresh Em All does not sell user data, share it for advertising, use it for
+creditworthiness or lending, or use it to build profiles. No developer or third
+party is given access to the locally handled data.
 
-- `tabs`: To access and refresh tabs
-- `storage`: To save your preferences locally
-- `scripting`: To execute scripts needed for preserving tab state during refresh
-- Website access (`<all_urls>`): To capture and restore media playback state when you explicitly start a refresh. Page content is not retained or transmitted.
+## Remote code
 
-## Changes to Privacy Policy
+Refresh Em All does not execute remote code. All JavaScript executed by the
+extension, including code used to preserve and restore media state, is included
+in the installed extension package.
 
-Any changes to this privacy policy will be documented in the extension's update notes and in this document.
+## Deletion
+
+Removing Refresh Em All removes storage controlled by the extension. Media
+entries in page `sessionStorage` are temporary, scoped to the relevant page
+session and origin, and are normally removed immediately after they are read
+following a reload.
+
+## Chrome Web Store Limited Use
+
+The use of information received from Chrome APIs adheres to the Chrome Web
+Store User Data Policy, including the Limited Use requirements. Refresh Em All
+uses that information only to provide its single purpose: refreshing the user's
+open tabs and preserving supported media playback state during that refresh.
 
 ## Contact
 
-If you have questions about privacy in this extension, please file an issue in the project repository.
+For privacy questions, file an issue in the
+[Refresh Em All repository](https://github.com/UBRN/refresh-em-all/issues).

@@ -45,10 +45,9 @@ to verify an existing archive without rebuilding it.
 ## Privacy
 
 This extension:
-- Does not collect or transmit personal data
-- Processes all operations locally
-- Stores only sanitized refresh counts in local extension storage
-- Does not include telemetry or external error reporting
+- Processes tab information and supported media playback state locally
+- Keeps transient operation state and up to ten refresh summaries in Chrome storage
+- Handles errors locally and sends no browsing data, analytics, telemetry, or error reports
 
 See the full [Privacy Policy](PRIVACY.md).
 
