@@ -1,0 +1,182 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-package:
+    name: Validate and package extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
+      checksum_name: ${{ steps.package.outputs.checksum_name }}
+      version: ${{ steps.package.outputs.version }}
+      zip_name: ${{ steps.package.outputs.zip_name }}
+    steps:
+      - name: Check out the triggering commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Verify release tag and version metadata
+        if: github.event_name == 'push'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/package-extension.js --check-metadata --expected-tag="$RELEASE_TAG"
+
+      - name: Run unit and integration tests
+        run: npm test -- --runInBand
+
+      - name: Run essential E2E and smoke tests
+        run: xvfb-run --auto-servernum npm run e2e
+
+      - name: Run packaged-extension smoke test
+        run: xvfb-run --auto-servernum npm run e2e:package
+
+      - name: Run medium reliability profile
+        run: xvfb-run --auto-servernum npm run e2e:reliability:medium
+
+      - name: Run full reliability profile
+        run: xvfb-run --auto-servernum npm run e2e:reliability
+
+      - name: Build and verify deterministic extension package
+        id: package
+        run: |
+          npm run package
+          version="$(node -p "require('./package.json').version")"
+          zip_name="refresh-em-all-v${version}.zip"
+          checksum_name="${zip_name}.sha256"
+          zip_path="dist/${zip_name}"
+          test -f "$zip_path"
+          npm run package:verify
+          unzip -t "$zip_path"
+
+          first_sha="$(sha256sum "$zip_path" | cut -d ' ' -f 1)"
+          npm run package
+          second_sha="$(sha256sum "$zip_path" | cut -d ' ' -f 1)"
+          test "$first_sha" = "$second_sha" || {
+            echo "Package checksum changed between identical builds" >&2
+            exit 1
+          }
+
+          (
+            cd dist
+            sha256sum "$zip_name" > "$checksum_name"
+            sha256sum --check "$checksum_name"
+          )
+
+          echo "SHA-256: $second_sha"
+          echo "artifact_name=refresh-em-all-v${version}-validated" >> "$GITHUB_OUTPUT"
+          echo "checksum_name=$checksum_name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$zip_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload validated ZIP and checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: |
+            dist/${{ steps.package.outputs.zip_name }}
+            dist/${{ steps.package.outputs.checksum_name }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-test-diagnostics
+          path: test-results/e2e/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish-release:
+    name: Publish immutable release asset
+    needs: validate-package
+    if: ${{ github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download validated ZIP and checksum
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.validate-package.outputs.artifact_name }}
+          path: release-artifacts
+
+      - name: Verify downloaded artifact checksum
+        env:
+          CHECKSUM_NAME: ${{ needs.validate-package.outputs.checksum_name }}
+          ZIP_NAME: ${{ needs.validate-package.outputs.zip_name }}
+        run: |
+          test -f "release-artifacts/$ZIP_NAME"
+          test -f "release-artifacts/$CHECKSUM_NAME"
+          (
+            cd release-artifacts
+            sha256sum --check "$CHECKSUM_NAME"
+          )
+
+      - name: Create release or upload missing immutable asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          ZIP_NAME: ${{ needs.validate-package.outputs.zip_name }}
+        run: |
+          zip_path="release-artifacts/$ZIP_NAME"
+          local_sha="$(sha256sum "$zip_path" | cut -d ' ' -f 1)"
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fqx "$ZIP_NAME"; then
+              comparison_dir="$(mktemp -d)"
+              gh release download "$RELEASE_TAG" --pattern "$ZIP_NAME" --dir "$comparison_dir"
+              existing_sha="$(sha256sum "$comparison_dir/$ZIP_NAME" | cut -d ' ' -f 1)"
+
+              if test "$existing_sha" = "$local_sha"; then
+                echo "Release asset $ZIP_NAME already exists with the validated SHA-256; skipping upload."
+              else
+                echo "Release asset $ZIP_NAME already exists with a different SHA-256." >&2
+                echo "Existing: $existing_sha" >&2
+                echo "Validated: $local_sha" >&2
+                echo "Published release assets are immutable; refusing to replace it." >&2
+                exit 1
+              fi
+            else
+              gh release upload "$RELEASE_TAG" "$zip_path"
+            fi
+          else
+            gh release create "$RELEASE_TAG" "$zip_path" \
+              --verify-tag \
+              --target "$GITHUB_SHA" \
+              --title "Refresh Em All $RELEASE_TAG" \
+              --generate-notes
+          fi

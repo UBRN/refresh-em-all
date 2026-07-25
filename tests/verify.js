@@ -1,8 +1,7 @@
 /**
  * Verification Script for Refresh-Em-All Extension
  * 
- * This script helps verify if the extension is working correctly after code changes,
- * particularly with the improvements addressing the fbf7234f-c82b-4801-9981-5c5695a5633c issue.
+ * This script verifies that the extension works correctly after code changes.
  */
 
 const puppeteer = require('puppeteer');
@@ -11,7 +10,10 @@ const fs = require('fs');
 const os = require('os');
 
 const extensionPath = path.join(__dirname, '..');
-const resultsPath = path.join(__dirname, 'verification-results.json');
+const artifactsPath = path.join(extensionPath, 'test-results', 'verification');
+const resultsPath = path.join(artifactsPath, 'results.json');
+
+fs.mkdirSync(artifactsPath, { recursive: true });
 
 // Verification parameters
 const VERIFICATION_CONFIG = {
@@ -223,7 +225,7 @@ async function verifyExtension() {
     const operationStartTime = Date.now();
     
     // Capture the state of the UI before clicking
-    await popupPage.screenshot({ path: path.join(__dirname, 'before-click.png') });
+    await popupPage.screenshot({ path: path.join(artifactsPath, 'before-click.png') });
     console.log('Before-click screenshot saved');
     
     // Ensure button is visible and clickable
@@ -235,7 +237,7 @@ async function verifyExtension() {
     await popupPage.click('#refreshAll');
     
     // Take screenshot right after clicking
-    await popupPage.screenshot({ path: path.join(__dirname, 'after-click.png') });
+    await popupPage.screenshot({ path: path.join(artifactsPath, 'after-click.png') });
     console.log('After-click screenshot saved');
     
     // Wait for refresh operation to complete
@@ -251,7 +253,7 @@ async function verifyExtension() {
       if (!loadingDisplayed) {
         console.log('WARNING: Loading container not displayed, operation may not have started');
         // Take screenshot to debug
-        await popupPage.screenshot({ path: path.join(__dirname, 'loading-not-displayed.png') });
+        await popupPage.screenshot({ path: path.join(artifactsPath, 'loading-not-displayed.png') });
         
         // Check if the button is still clickable
         const buttonClickable = await popupPage.evaluate(() => {
@@ -273,7 +275,7 @@ async function verifyExtension() {
       }
       
       // Take screenshot of loading state
-      await popupPage.screenshot({ path: path.join(__dirname, 'loading-state.png') });
+      await popupPage.screenshot({ path: path.join(artifactsPath, 'loading-state.png') });
       console.log('Loading state screenshot saved');
       
       // Get the tab count from the tab container
@@ -297,7 +299,7 @@ async function verifyExtension() {
         
         // Take periodic screenshots during operation
         if (i % 5 === 0) {
-          await popupPage.screenshot({ path: path.join(__dirname, `progress-${i}.png`) });
+          await popupPage.screenshot({ path: path.join(artifactsPath, `progress-${i}.png`) });
         }
         
         // Check current status
@@ -342,7 +344,7 @@ async function verifyExtension() {
       }
       
       // Take a final screenshot
-      await popupPage.screenshot({ path: path.join(__dirname, 'final-state.png') });
+      await popupPage.screenshot({ path: path.join(artifactsPath, 'final-state.png') });
       console.log('Final state screenshot saved');
       
       // Check the final status
@@ -416,7 +418,7 @@ async function verifyExtension() {
       
       // Take error screenshot for debugging
       try {
-        const errorScreenshotPath = path.join(__dirname, 'verification-error-screenshot.png');
+        const errorScreenshotPath = path.join(artifactsPath, 'error.png');
         await popupPage.screenshot({ path: errorScreenshotPath });
         console.log(`Error screenshot saved to: ${errorScreenshotPath}`);
       } catch (screenshotError) {

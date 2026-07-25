@@ -2,9 +2,9 @@
 
 ## Current status
 
-- Unit/integration tests: **16/16 passing**
-- Browser E2E tests: **4/4 passing**
-- Reliability test: **50 tabs across 2 windows, including paused and playing media**
+- Unit/integration tests: **18/18 passing**
+- Fast browser suite: **5/5 passing** (4 essential scenarios plus the 8-tab smoke profile)
+- Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 - Statement coverage: **65.47%**
 - Line coverage: **67.72%**
 
@@ -16,7 +16,10 @@ The unit tests instrument the extension scripts before executing them, so Jest n
 - npm
 - Chrome or the Chromium build bundled with Puppeteer
 
+Node 24 LTS is the CI and local-development default recorded in `.nvmrc`.
 Node 26 is not currently supported by the installed Puppeteer dependency chain.
+Install the locked dependencies with `npm ci --legacy-peer-deps`; the flag is
+needed for the documented `jest-chrome`/Jest peer-version mismatch.
 
 ## Commands
 
@@ -25,6 +28,9 @@ npm test
 npm run test:watch
 npm run test:coverage
 npm run e2e
+npm run e2e:package
+npm run e2e:reliability:smoke
+npm run e2e:reliability:medium
 npm run e2e:reliability
 npm run verify
 npm run stress-test
@@ -58,9 +64,11 @@ npm run stress-test
 - Avoids telemetry and browsing-data messages
 - Recovers from corrupted session state
 
-## Browser E2E coverage
+## Fast pull-request suite
 
-The browser suite starts a localhost-only test server and loads the unpacked extension into Chrome. It verifies:
+`npm run e2e` starts one localhost-only server and one extension-enabled browser.
+It runs the essential E2E scenarios sequentially, resets extension storage between
+scenarios, and finishes with the 8-tab, two-window smoke profile. It verifies:
 
 1. Two real pages reload exactly once.
 2. Restricted browser and extension pages are reported as skipped, not refreshed.
@@ -68,29 +76,63 @@ The browser suite starts a localhost-only test server and loads the unpacked ext
 4. The settings UI accurately states that telemetry is disabled.
 5. Refresh history renders safely.
 6. Stress mode activates without popup JavaScript errors.
+7. Eight tabs across two windows reload once while paused and playing media state is preserved.
 
-## Reliability coverage
+The fast workflow runs unit/integration tests and this browser suite on every pull
+request and every push to `main`. It also runs `npm run e2e:package`, which builds
+the release ZIP, extracts it into a temporary directory, and loads that extracted
+directory in Chrome. The test verifies the packaged manifest version, popup, and
+one real tab refresh without loading the extension from the repository root.
 
-`npm run e2e:reliability` starts 50 localhost tabs split evenly across two real
-Chrome windows. It verifies that every page reloads exactly once, the operation
-reaches 100% with accurate history counts, and paused and playing audio retain
-their playback position, volume, mute state, and playback rate.
+## Tiered reliability coverage
 
-The test uses a generated local audio file and disables Chrome's user-gesture
+All reliability profiles validate two real Chrome windows, exact-once reloads,
+100% progress, accurate local history, skipped extension pages, and paused and
+playing audio state. They differ only in scale and timeout:
+
+| Command | Tabs | Intended use |
+| --- | ---: | --- |
+| `npm run e2e:reliability:smoke` | 8 | Fast local/PR smoke coverage |
+| `npm run e2e:reliability:medium` | 20 | Changes to tab management, storage, popup/background code, or the service worker |
+| `npm run e2e:reliability` | 50 | Weekly, manual, and release-tag full-scale reliability |
+
+The medium profile crosses the extension's `>20` queried-tab batching threshold.
+The full profile crosses the `>50` threshold and preserves the original 25-tabs-
+per-window assertion.
+
+The profiles use a generated local audio file and disable Chrome's user-gesture
 requirement for autoplay so playback restoration is deterministic. Real streaming
 sites still require the manual autoplay-policy checks below.
 
 ## Continuous integration
 
-GitHub Actions runs unit/integration, browser E2E, and 50-tab reliability tests
-on pull requests. The same workflow runs on changes to `main`, weekly, and when
-started manually from the Actions page.
+GitHub Actions uses three tiers:
+
+1. Fast CI runs unit/integration, essential E2E, and the 8-tab smoke profile on
+   every pull request and push to `main`.
+2. The 20-tab profile runs when pull requests or `main` pushes change extension,
+   package, workflow, or E2E harness files.
+3. The 50-tab profile runs weekly, when selected manually from Actions, and as
+   release-tag validation. It no longer runs on ordinary pull requests.
+
+The path-filtered medium reliability workflow should not be configured as a
+required branch-protection check in its current form: GitHub does not create the
+job for pull requests outside its path filters. If it must become required,
+trigger the workflow for every pull request and skip its expensive test step
+inside the job when the changed paths are irrelevant. No branch-protection
+setting is managed by this repository change.
+
+The E2E harness records phase timings under `test-results/e2e/<profile>/timings.json`.
+Fast-suite failures are stored in a separate directory for each scenario so one
+failure cannot overwrite another. On failure the harness retains screenshots before
+closing the popup, browser and extension state, console errors, and—on the full
+profile—a Chrome trace. CI uploads these diagnostics for 14 days.
 
 ## Verification and stress tests
 
-`npm run verify` exercises a larger browser flow and writes diagnostic screenshots/results under `tests/`.
+`npm run verify` exercises a larger browser flow and writes diagnostic screenshots/results under `test-results/verification/`.
 
-`npm run stress-test` increases tab counts and records timing and memory information. A run now exits unsuccessfully if it records errors, a crash point, or repeated timeouts; failed runs are no longer marked as passed.
+`npm run stress-test` increases tab counts and records timing and memory information under `test-results/stress/`. A run exits unsuccessfully if it records errors, a crash point, or repeated timeouts; failed runs are not marked as passed.
 
 ## Remaining manual checks
 

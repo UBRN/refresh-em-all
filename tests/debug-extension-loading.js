@@ -12,6 +12,9 @@ const fs = require('fs');
 
 // Extension path - the root directory of the extension
 const extensionPath = path.join(__dirname, '..');
+const artifactsPath = path.join(extensionPath, 'test-results', 'debug');
+
+fs.mkdirSync(artifactsPath, { recursive: true });
 
 async function debugExtensionLoading() {
   console.log('Starting extension loading debug...');
@@ -125,7 +128,7 @@ async function debugExtensionLoading() {
       await extensionsPage.goto('chrome://extensions');
       
       // Take a screenshot for reference
-      const screenshotPath = path.join(__dirname, 'extensions-page-screenshot.png');
+      const screenshotPath = path.join(artifactsPath, 'extensions-page.png');
       await extensionsPage.screenshot({ path: screenshotPath });
       console.log(`Screenshot of extensions page saved to: ${screenshotPath}`);
       
@@ -184,4 +187,4 @@ async function debugExtensionLoading() {
 }
 
 // Run the debug function
-debugExtensionLoading().catch(console.error); 
+debugExtensionLoading().catch(console.error);
