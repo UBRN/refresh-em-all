@@ -1,67 +1,30 @@
-const http = require('http');
 const path = require('path');
-const crypto = require('crypto');
-const puppeteer = require('puppeteer');
 
-const extensionPath = path.join(__dirname, '../..');
-// CI only loads this trusted extension and the localhost test server.
-const ciBrowserArgs = process.env.CI === 'true' ? ['--no-sandbox'] : [];
-
-async function createTestServer() {
-  const server = http.createServer((request, response) => {
-    response.writeHead(200, { 'Content-Type': 'text/html' });
-    response.end(`<!doctype html><html><head><title>Refresh audit</title></head><body>
-      <script>
-        sessionStorage.refreshAuditLoads = String(Number(sessionStorage.refreshAuditLoads || 0) + 1);
-        document.title = location.pathname + ' load ' + sessionStorage.refreshAuditLoads;
-      </script>
-      <p>Local refresh test page</p>
-    </body></html>`);
-  });
-
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  return {
-    baseUrl: `http://127.0.0.1:${server.address().port}`,
-    close: () => new Promise(resolve => server.close(resolve))
-  };
-}
-
-async function findExtensionId(browser) {
-  const deadline = Date.now() + 10000;
-
-  while (Date.now() < deadline) {
-    const target = browser.targets().find(candidate =>
-      candidate.type() === 'service_worker'
-      && candidate.url().startsWith('chrome-extension://')
-    );
-    if (target) return new URL(target.url()).host;
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-
-  // Chrome can keep a Manifest V3 worker dormant until an extension page opens.
-  // Unpacked extension IDs are derived from the normalized absolute path.
-  return [...crypto.createHash('sha256').update(extensionPath).digest().subarray(0, 16)]
-    .flatMap(byte => [byte >> 4, byte & 15])
-    .map(nibble => String.fromCharCode(97 + nibble))
-    .join('');
-}
+const {
+  captureFailureDiagnostics,
+  createHarness,
+  createPhaseTimer,
+  ensureOutputDirectory,
+  writeJson
+} = require('./harness');
+const { runReliabilityScenario } = require('./reliability-scenario');
 
 const TEST_CASES = [
   {
     name: 'reloads real pages and reports skipped pages separately',
-    run: async (browser, extensionId, baseUrl) => {
-      const pageA = await browser.newPage();
-      const pageB = await browser.newPage();
-      const popup = await browser.newPage();
+    run: async (harness, testName) => {
+      const pageA = harness.attachPage(await harness.browser.newPage(), 'essential-page-a');
+      const pageB = harness.attachPage(await harness.browser.newPage(), 'essential-page-b');
+      const popup = harness.attachPage(await harness.browser.newPage(), 'essential-refresh-popup');
       const popupErrors = [];
       popup.on('pageerror', error => popupErrors.push(error.message));
 
       try {
         await Promise.all([
-          pageA.goto(`${baseUrl}/a`),
-          pageB.goto(`${baseUrl}/b`)
+          pageA.goto(`${harness.baseUrl}/a`),
+          pageB.goto(`${harness.baseUrl}/b`)
         ]);
-        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
         await popup.click('#refreshAll');
         await popup.waitForFunction(() => {
           const status = document.querySelector('#statusText')?.textContent || '';
@@ -101,6 +64,9 @@ const TEST_CASES = [
         if (popupState.skippedIndicators < 1) throw new Error('Expected at least one skipped indicator');
         if (popupState.latestHistory?.successfulTabs !== 2) throw new Error('Sanitized local history has the wrong success count');
         if (popupErrors.length > 0) throw new Error(`Popup errors: ${popupErrors.join('; ')}`);
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, popup, [pageA, pageB]);
+        throw error;
       } finally {
         await Promise.all([pageA.close(), pageB.close(), popup.close()]);
       }
@@ -108,10 +74,10 @@ const TEST_CASES = [
   },
   {
     name: 'shows an accurate local-only privacy statement',
-    run: async (browser, extensionId) => {
-      const popup = await browser.newPage();
+    run: async (harness, testName) => {
+      const popup = harness.attachPage(await harness.browser.newPage(), 'essential-privacy-popup');
       try {
-        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
         await popup.click('#settingsHeader');
         const state = await popup.evaluate(async () => {
           const { pendingErrorReports } = await chrome.storage.local.get(['pendingErrorReports']);
@@ -124,19 +90,33 @@ const TEST_CASES = [
 
         if (!state.text.includes('does not send telemetry')) throw new Error('Local-only privacy statement is missing');
         if (state.hasTelemetryToggle || state.hasPendingReports) throw new Error('Legacy telemetry state is still exposed');
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, popup);
+        throw error;
       } finally {
         await popup.close();
       }
     }
   },
   {
-    name: 'renders sanitized refresh history',
-    run: async (browser, extensionId) => {
-      const popup = await browser.newPage();
+    name: 'renders sanitized refresh history independently',
+    run: async (harness, testName) => {
+      await harness.controlPage.evaluate(async history => {
+        await chrome.storage.local.set({ refreshHistory: [history] });
+      }, {
+        timestamp: new Date().toISOString(),
+        totalTabs: 2,
+        successfulTabs: 2,
+        failedCount: 0,
+        skippedCount: 1,
+        cancelled: false
+      });
+
+      const popup = harness.attachPage(await harness.browser.newPage(), 'essential-history-popup');
       try {
-        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
         const historyVisible = await popup.$eval('#historyContainer', element => element.style.display === 'block');
-        if (!historyVisible) throw new Error('History did not appear after a completed refresh');
+        if (!historyVisible) throw new Error('Seeded history did not appear');
 
         await popup.click('#historyHeader');
         const historyState = await popup.evaluate(() => ({
@@ -145,6 +125,9 @@ const TEST_CASES = [
         }));
         if (!historyState.text.includes('refreshed')) throw new Error('History summary is missing');
         if (historyState.hasMarkupInjection) throw new Error('Unexpected executable markup in history');
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, popup);
+        throw error;
       } finally {
         await popup.close();
       }
@@ -152,24 +135,26 @@ const TEST_CASES = [
   },
   {
     name: 'activates stress mode without replacing the refresh handler',
-    run: async (browser, extensionId) => {
-      const popup = await browser.newPage();
+    run: async (harness, testName) => {
+      const popup = harness.attachPage(await harness.browser.newPage(), 'essential-stress-popup');
       const pageErrors = [];
       popup.on('pageerror', error => pageErrors.push(error.message));
       popup.on('dialog', dialog => dialog.accept());
 
       try {
-        await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+        await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
         await popup.evaluate(() => {
           const settings = document.querySelector('#settingsHeader');
           for (let index = 0; index < 5; index++) settings.click();
         });
         await popup.waitForFunction(() =>
           document.querySelector('#refreshAll')?.textContent === 'Start Stress Test',
-          { timeout: 5000 }
-        );
+        { timeout: 5000 });
 
         if (pageErrors.length > 0) throw new Error(`Stress activation errors: ${pageErrors.join('; ')}`);
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, popup);
+        throw error;
       } finally {
         await popup.close();
       }
@@ -177,42 +162,86 @@ const TEST_CASES = [
   }
 ];
 
+function phaseName(testName) {
+  return `essential:${testName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+}
+
+function diagnosticProfile(testName) {
+  return path.join('fast', phaseName(testName).slice('essential:'.length));
+}
+
+async function captureEssentialFailure(harness, name, error, popup, pages = []) {
+  try {
+    await captureFailureDiagnostics({
+      profile: diagnosticProfile(name),
+      error,
+      popup,
+      pages,
+      diagnostics: harness.diagnostics,
+      additionalState: { testCase: name }
+    });
+  } catch (diagnosticError) {
+    error.diagnosticCaptureError = diagnosticError.message;
+    console.error(`  Diagnostic capture also failed: ${diagnosticError.message}`);
+  }
+  error.essentialDiagnosticsCaptured = true;
+}
+
 async function runTests() {
-  console.log('Starting end-to-end tests…');
-  const testServer = await createTestServer();
-  let browser;
+  console.log('Starting fast end-to-end suite...');
+  const harness = await createHarness({ profile: 'fast', trace: false });
+  const timer = createPhaseTimer('fast', harness.basePhases, harness.startedAt);
+  const outputDirectory = ensureOutputDirectory('fast');
   let failed = 0;
+  let harnessClosed = false;
 
   try {
-    browser = await puppeteer.launch({
-      headless: false,
-      defaultViewport: null,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--window-size=500,700',
-        ...ciBrowserArgs
-      ]
-    });
-    const extensionId = await findExtensionId(browser);
-
     for (const testCase of TEST_CASES) {
-      process.stdout.write(`Running test: ${testCase.name}… `);
+      process.stdout.write(`Running test: ${testCase.name}... `);
+      await harness.resetState();
       try {
-        await testCase.run(browser, extensionId, testServer.baseUrl);
+        await timer.measure(phaseName(testCase.name), () => testCase.run(harness, testCase.name));
         console.log('PASS');
       } catch (error) {
         failed++;
         console.log('FAIL');
         console.error(`  ${error.message}`);
+        if (!error.essentialDiagnosticsCaptured) {
+          await captureFailureDiagnostics({
+            profile: diagnosticProfile(testCase.name),
+            error,
+            popup: harness.controlPage,
+            diagnostics: harness.diagnostics,
+            additionalState: { testCase: testCase.name }
+          });
+        }
       }
     }
+
+    process.stdout.write('Running test: 8-tab two-window reliability smoke... ');
+    try {
+      await timer.measure('reliability:smoke', () =>
+        runReliabilityScenario(harness, 'smoke', {
+          closeHarness: true,
+          reusedBrowser: true
+        }));
+      harnessClosed = true;
+      console.log('PASS');
+    } catch (error) {
+      harnessClosed = true;
+      failed++;
+      console.log('FAIL');
+      console.error(`  ${error.message}`);
+    }
   } finally {
-    if (browser) await browser.close();
-    await testServer.close();
+    if (!harnessClosed) await harness.close();
+    writeJson(path.join(outputDirectory, 'timings.json'), timer.snapshot(
+      failed === 0 ? 'passed' : 'failed',
+      { essentialTests: TEST_CASES.length, includesSmoke: true }
+    ));
   }
 
-  console.log(`Test summary: ${TEST_CASES.length - failed} passed, ${failed} failed`);
+  console.log(`Fast suite summary: ${TEST_CASES.length + 1 - failed} passed, ${failed} failed`);
   return failed === 0;
 }
 

@@ -4,7 +4,10 @@ const fs = require('fs');
 const os = require('os');
 
 const extensionPath = path.join(__dirname, '../..');
-const logFile = path.join(__dirname, 'stress-test-results.json');
+const artifactsPath = path.join(extensionPath, 'test-results', 'stress');
+const logFile = path.join(artifactsPath, 'results.json');
+
+fs.mkdirSync(artifactsPath, { recursive: true });
 
 // Configuration for stress test
 const CONFIG = {

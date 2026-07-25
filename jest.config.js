@@ -3,7 +3,6 @@ module.exports = {
   setupFiles: ['./tests/setup.js'],
   moduleFileExtensions: ['js'],
   testMatch: ['**/tests/**/*.test.js'],
-  collectCoverage: true,
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     '*.js',

@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Refresh Em All",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Refresh all tabs in every window for Chromium-based browsers",
     "permissions": [
         "tabs",

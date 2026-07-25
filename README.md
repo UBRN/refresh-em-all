@@ -27,15 +27,20 @@ This extension provides a simple way to refresh multiple tabs at once, with a fo
 ## Installation
 
 ### For Users
-1. Download from Chrome Web Store (coming soon)
-2. Or load unpacked:
-   - Clone repository
-   - Open `chrome://extensions/`
-   - Enable Developer Mode
-   - Load unpacked extension
+
+1. Download the versioned extension ZIP from the matching [GitHub Release](https://github.com/UBRN/refresh-em-all/releases).
+2. Extract the ZIP to a permanent local directory.
+3. Open `chrome://extensions/` and enable Developer Mode.
+4. Select **Load unpacked** and choose the extracted directory.
 
 ### For Developers
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
+
+## Packaging
+
+Run `npm run package` to create a verified, installable archive under `dist/`.
+The archive contains only extension runtime files. Run `npm run package:verify`
+to verify an existing archive without rebuilding it.
 
 ## Privacy
 
@@ -49,4 +54,4 @@ See the full [Privacy Policy](PRIVACY.md).
 
 ## License
 
-MIT
+[MIT](LICENSE)
