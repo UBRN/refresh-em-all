@@ -117,16 +117,39 @@ history, or error records to that request.
 Do not add Chrome Web Store credentials, API keys, client secrets, or realistic
 secret placeholders to the repository.
 
+## Visual assets
+
+The reviewed listing assets and their reproducible sources live under
+`docs/chrome-web-store/assets/`. They are documentation-only Store inputs and
+are not included in the extension package.
+
+- Five 1280×800 screenshots are captured from the exact published v2.0.1 ZIP,
+  whose required SHA-256 is
+  `dae27e545bea8b27f842657781ff8fc172c5ccc431e7650357c6098e74f9954d`.
+- The screenshots show the ready, in-progress, completed, history, and privacy
+  settings states using neutral localhost fixtures and an isolated browser
+  profile. Browser chrome, URLs, personal data, and development artifacts are
+  excluded.
+- The required 440×280 promotional PNG is rendered from a self-contained SVG
+  source with repository-local tooling and no external fonts or images.
+- The packaged 128×128 icon remains unchanged for v2.0.1. Its opaque padding is
+  documented as a possible future improvement; correcting it would require a
+  separately scoped package version rather than replacing the published ZIP.
+
+See `docs/chrome-web-store/assets/README.md` for provenance, commands, output
+dimensions, and review constraints.
+
 ## Submission checklist
 
-- [ ] Capture at least one clear 1280×800 or 640×400 PNG/JPEG screenshot showing
-      the popup before and after a refresh; remove unrelated personal tab data.
-- [ ] Create and review the required 440×280 PNG/JPEG promotional image. The
-      existing 1200×600 repository hero image is not the required size.
-- [ ] Validate the packaged 128×128 icon against current Store guidance,
-      including the recommended 96×96 artwork area and transparent padding. The
-      current 128×128 PNG is opaque, so resolve that risk in a separately scoped
-      version if the Store rejects it; changing it would change the v2.0.1 ZIP.
+- [x] Generate five clear 1280×800 PNG screenshots from the verified v2.0.1
+      package, showing the popup before, during, and after a refresh plus local
+      history and privacy settings. Human visual approval is still required.
+- [x] Generate the required 440×280 PNG promotional image from its repository
+      SVG source. Human visual approval is still required.
+- [x] Validate the packaged 128×128 icon against current Store guidance. It is
+      a valid, exact-size PNG but uses opaque rather than transparent padding;
+      retain it unchanged for v2.0.1 and treat transparency as a future package
+      improvement rather than mutating the published release.
 - [ ] After this change merges, use the public policy URL:
       `https://github.com/UBRN/refresh-em-all/blob/main/PRIVACY.md`.
 - [ ] Fill in and verify the monitored support URL and support email.
