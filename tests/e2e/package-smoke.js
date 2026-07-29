@@ -48,14 +48,28 @@ async function createServer() {
   <head><meta charset="utf-8"><title>Packaged extension smoke</title></head>
   <body>
     <h1>Packaged extension smoke</h1>
+    <script src="/cache-probe.js"></script>
     <script>
       sessionStorage.packageSmokeLoads = String(Number(sessionStorage.packageSmokeLoads || 0) + 1);
       window.packageSmokeReady = true;
     </script>
   </body>
 </html>`;
+  let cacheProbeRequests = 0;
   const server = http.createServer((request, response) => {
-    if (new URL(request.url, 'http://127.0.0.1').pathname === '/favicon.ico') {
+    const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
+    if (pathname === '/cache-probe.js') {
+      cacheProbeRequests++;
+      const body = `window.cacheProbeGeneration = ${cacheProbeRequests};`;
+      response.writeHead(200, {
+        'Cache-Control': 'public, max-age=86400, immutable',
+        'Content-Length': Buffer.byteLength(body),
+        'Content-Type': 'application/javascript; charset=utf-8'
+      });
+      response.end(body);
+      return;
+    }
+    if (pathname === '/favicon.ico') {
       response.writeHead(204);
       response.end();
       return;
@@ -73,6 +87,7 @@ async function createServer() {
   });
   return {
     url: `http://127.0.0.1:${server.address().port}/smoke`,
+    cacheProbeRequestCount: () => cacheProbeRequests,
     close: () => new Promise((resolve, reject) => {
       server.close(error => error ? reject(error) : resolve());
     })
@@ -149,7 +164,20 @@ async function main() {
 
     testPage = attachDiagnostics(await browser.newPage());
     await testPage.goto(server.url);
-    await testPage.waitForFunction(() => window.packageSmokeReady === true, { timeout: 10000 });
+    await testPage.waitForFunction(() =>
+      window.packageSmokeReady === true && window.cacheProbeGeneration === 1,
+    { timeout: 10000 });
+    if (server.cacheProbeRequestCount() !== 1) {
+      throw new Error(`Expected one initial packaged cache-probe request, got ${server.cacheProbeRequestCount()}`);
+    }
+
+    await testPage.reload({ waitUntil: 'load' });
+    await testPage.waitForFunction(() =>
+      Number(sessionStorage.packageSmokeLoads) === 2 && window.cacheProbeGeneration === 1,
+    { timeout: 10000 });
+    if (server.cacheProbeRequestCount() !== 1) {
+      throw new Error(`Normal packaged-page reload unexpectedly bypassed the cache probe: ${server.cacheProbeRequestCount()} requests`);
+    }
 
     popup = attachDiagnostics(await browser.newPage());
     const popupUrl = `chrome-extension://${packagedExtensionId}/popup.html`;
@@ -176,7 +204,7 @@ async function main() {
 
     await popup.click('#refreshAll');
     await testPage.waitForFunction(
-      () => Number(sessionStorage.packageSmokeLoads) === 2,
+      () => Number(sessionStorage.packageSmokeLoads) === 3 && window.cacheProbeGeneration === 2,
       { timeout: 15000 }
     );
     await popup.waitForFunction(async () => {
@@ -193,6 +221,9 @@ async function main() {
       };
     });
     if (result.progress !== '100%') throw new Error(`Expected 100% progress, got ${result.progress}`);
+    if (server.cacheProbeRequestCount() !== 2) {
+      throw new Error(`Packaged cache-bypass probe expected two server requests, got ${server.cacheProbeRequestCount()}`);
+    }
     if (diagnostics.pageErrors.length > 0) {
       throw new Error(`Packaged extension page errors: ${JSON.stringify(diagnostics.pageErrors)}`);
     }
@@ -207,6 +238,11 @@ async function main() {
       sourceExtensionId,
       extensionState,
       refresh: result,
+      semanticCacheBypass: {
+        normalReloadRequestCount: 1,
+        cacheProbeRequests: server.cacheProbeRequestCount(),
+        resourceGeneration: await testPage.evaluate(() => window.cacheProbeGeneration)
+      },
       diagnostics
     });
     console.log(`Packaged-extension smoke test passed for ${path.relative(repositoryRoot, zipPath)}.`);

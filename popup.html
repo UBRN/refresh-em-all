@@ -57,6 +57,14 @@
             gap: 8px;
         }
 
+        .refresh-explanation {
+            margin: 8px 0 0;
+            color: #5f6368;
+            font-size: 12px;
+            line-height: 1.4;
+            text-align: center;
+        }
+
         #cancelRefresh {
             display: none;
             background-color: #5f6368;
@@ -285,6 +293,7 @@
         <button id="refreshAll">Refresh All Tabs</button>
         <button id="cancelRefresh">Cancel</button>
     </div>
+    <p class="refresh-explanation">Reloads accessible tabs while bypassing local cache. Site data remains intact.</p>
 
     <div id="loadingContainer">
         <div id="progressBar" role="progressbar" aria-label="Refresh progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">

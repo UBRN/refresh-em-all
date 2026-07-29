@@ -48,6 +48,9 @@ function renderPage(pathname) {
     ? `<audio id="testAudio" preload="auto" src="/tone.wav"></audio>
        <button id="configureMedia" type="button">Configure ${mediaMode} media</button>`
     : '';
+  const cacheProbeMarkup = pathname === '/cache-bypass'
+    ? '<script src="/cache-probe.js"></script>'
+    : '';
 
   return `<!doctype html>
 <html>
@@ -55,6 +58,7 @@ function renderPage(pathname) {
   <body>
     <h1>Refresh Em All local test page</h1>
     ${mediaMarkup}
+    ${cacheProbeMarkup}
     <script>
       sessionStorage.refreshAuditLoads = String(Number(sessionStorage.refreshAuditLoads || 0) + 1);
       sessionStorage.reliabilityLoads = String(Number(sessionStorage.reliabilityLoads || 0) + 1);
@@ -91,8 +95,21 @@ function renderPage(pathname) {
 
 async function createTestServer() {
   const tone = createTone();
+  let cacheProbeRequests = 0;
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
+
+    if (pathname === '/cache-probe.js') {
+      cacheProbeRequests++;
+      const body = `window.cacheProbeGeneration = ${cacheProbeRequests};`;
+      response.writeHead(200, {
+        'Cache-Control': 'public, max-age=86400, immutable',
+        'Content-Length': Buffer.byteLength(body),
+        'Content-Type': 'application/javascript; charset=utf-8'
+      });
+      response.end(body);
+      return;
+    }
 
     if (pathname === '/tone.wav') {
       const range = request.headers.range;
@@ -136,6 +153,7 @@ async function createTestServer() {
 
   return {
     baseUrl: `http://127.0.0.1:${server.address().port}`,
+    cacheProbeRequestCount: () => cacheProbeRequests,
     close: () => new Promise((resolve, reject) => {
       server.close(error => error ? reject(error) : resolve());
     })
@@ -436,6 +454,7 @@ async function createHarness({ profile, trace = false } = {}) {
       basePhases,
       baseUrl: testServer.baseUrl,
       browser,
+      cacheProbeRequestCount: testServer.cacheProbeRequestCount,
       controlPage,
       diagnostics,
       extensionId,

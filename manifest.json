@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "Refresh Em All",
-    "version": "2.0.1",
-    "description": "Refresh all tabs in every window for Chromium-based browsers",
+    "version": "2.0.2",
+    "description": "Reload all accessible tabs in every window while bypassing the local cache and preserving supported media state.",
     "permissions": [
         "tabs",
         "scripting",
