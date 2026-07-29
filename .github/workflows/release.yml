@@ -179,6 +179,6 @@ jobs:
             gh release create "$RELEASE_TAG" "$zip_path" \
               --verify-tag \
               --target "$GITHUB_SHA" \
-              --title "Refresh Em All $RELEASE_TAG" \
+              --title "$RELEASE_TAG" \
               --generate-notes
           fi
