@@ -73,6 +73,55 @@ const TEST_CASES = [
     }
   },
   {
+    name: 'bypasses local cache for a long-lived cacheable resource',
+    run: async (harness, testName) => {
+      const page = harness.attachPage(await harness.browser.newPage(), 'cache-bypass-page');
+      const popup = harness.attachPage(await harness.browser.newPage(), 'cache-bypass-popup');
+
+      try {
+        await page.goto(`${harness.baseUrl}/cache-bypass`);
+        await page.waitForFunction(() =>
+          window.reliabilityReady === true && window.cacheProbeGeneration === 1,
+        { timeout: 10000 });
+        if (harness.cacheProbeRequestCount() !== 1) {
+          throw new Error(`Expected one initial cache-probe request, got ${harness.cacheProbeRequestCount()}`);
+        }
+
+        await page.reload({ waitUntil: 'load' });
+        await page.waitForFunction(() =>
+          Number(sessionStorage.refreshAuditLoads) === 2 && window.cacheProbeGeneration === 1,
+        { timeout: 10000 });
+        if (harness.cacheProbeRequestCount() !== 1) {
+          throw new Error(`Normal reload unexpectedly bypassed the cache probe: ${harness.cacheProbeRequestCount()} requests`);
+        }
+
+        await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
+        await popup.click('#refreshAll');
+        await page.waitForFunction(() =>
+          Number(sessionStorage.refreshAuditLoads) === 3 && window.cacheProbeGeneration === 2,
+        { timeout: 15000 });
+        await popup.waitForFunction(async () => {
+          const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
+          return refreshHistory[0]?.successfulTabs === 1;
+        }, { timeout: 15000 });
+
+        const state = await page.evaluate(() => ({
+          generation: window.cacheProbeGeneration,
+          loads: Number(sessionStorage.refreshAuditLoads)
+        }));
+        const requestCount = harness.cacheProbeRequestCount();
+        if (requestCount !== 2 || state.generation !== 2 || state.loads !== 3) {
+          throw new Error(`Cache-bypass probe failed: ${JSON.stringify({ requestCount, ...state })}`);
+        }
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, popup, [page]);
+        throw error;
+      } finally {
+        await Promise.all([page.close(), popup.close()]);
+      }
+    }
+  },
+  {
     name: 'shows an accurate local-only privacy statement',
     run: async (harness, testName) => {
       const popup = harness.attachPage(await harness.browser.newPage(), 'essential-privacy-popup');

@@ -2,8 +2,8 @@
 
 ## Current status
 
-- Unit/integration tests: **18/18 passing**
-- Fast browser suite: **5/5 passing** (4 essential scenarios plus the 8-tab smoke profile)
+- Unit/integration tests: **25/25 passing**
+- Fast browser suite: **6/6 passing** (5 essential scenarios plus the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 - Statement coverage: **65.47%**
 - Line coverage: **67.72%**
@@ -45,6 +45,9 @@ npm run stress-test
 - Emits per-tab results and processed progress
 - Retries failures and reaches a terminal state
 - Bounds waits for continuously loading tabs
+- Requires `{ bypassCache: true }` on normal, discarded, media-capture
+  fallback, synchronous fallback, loading-wait, retry, and timeout paths
+- Proves a stalled reload times out without issuing a standard cached fallback
 - Cancels active operations
 - Migrates old Chrome Sync history without retaining titles or URLs
 
@@ -71,18 +74,23 @@ It runs the essential E2E scenarios sequentially, resets extension storage betwe
 scenarios, and finishes with the 8-tab, two-window smoke profile. It verifies:
 
 1. Two real pages reload exactly once.
-2. Restricted browser and extension pages are reported as skipped, not refreshed.
-3. Progress reaches 100% and local history contains the correct sanitized counts.
-4. The settings UI accurately states that telemetry is disabled.
-5. Refresh history renders safely.
-6. Stress mode activates without popup JavaScript errors.
-7. Eight tabs across two windows reload once while paused and playing media state is preserved.
+2. A JavaScript resource served with a one-day immutable cache lifetime remains
+   cached across a normal reload, then is requested from the server again after
+   the extension reloads its page.
+3. Restricted browser and extension pages are reported as skipped, not refreshed.
+4. Progress reaches 100% and local history contains the correct sanitized counts.
+5. The settings UI accurately states that telemetry is disabled.
+6. Refresh history renders safely.
+7. Stress mode activates without popup JavaScript errors.
+8. Eight tabs across two windows reload once while paused and playing media state is preserved.
 
 The fast workflow runs unit/integration tests and this browser suite on every pull
 request and every push to `main`. It also runs `npm run e2e:package`, which builds
 the release ZIP, extracts it into a temporary directory, and loads that extracted
-directory in Chrome. The test verifies the packaged manifest version, popup, and
-one real tab refresh without loading the extension from the repository root.
+directory in Chrome. The test verifies the packaged manifest version, popup, one
+real tab refresh, and that the same one-day immutable cache probe remains cached
+during a normal reload but reaches the server during the extension reload. The
+extension is never loaded from the repository root in this test.
 
 ## Tiered reliability coverage
 

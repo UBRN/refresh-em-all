@@ -1,11 +1,15 @@
 # Privacy Policy
 
-Effective date: July 25, 2026
+Effective date: July 29, 2026
 
 Refresh Em All refreshes open tabs and attempts to preserve supported audio and
 video playback state. The extension performs this work locally in Chrome. The
 developer does not receive the tab, page, media, refresh, or error information
 described below.
+
+Each requested tab reload bypasses local cache for that reload. This does not
+delete cached browsing data or modify cookies, Cache Storage, service workers,
+or other site data.
 
 ## Information handled by the extension
 

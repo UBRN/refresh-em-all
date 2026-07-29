@@ -26,6 +26,15 @@ function setRuntimeLastError(value) {
   });
 }
 
+function expectEveryReloadToBypassLocalCache(tabId, expectedCalls = 1) {
+  expect(chrome.tabs.reload).toHaveBeenCalledTimes(expectedCalls);
+  chrome.tabs.reload.mock.calls.forEach(([actualTabId, options, callback]) => {
+    expect(actualTabId).toBe(tabId);
+    expect(options).toEqual({ bypassCache: true });
+    expect(callback).toEqual(expect.any(Function));
+  });
+}
+
 describe('Background refresh worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -72,7 +81,11 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expect(sendResponse).toHaveBeenCalledWith({ success: true });
-    expect(chrome.tabs.reload).toHaveBeenCalledTimes(1);
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith(expect.objectContaining({
+      target: { tabId: 1 },
+      function: expect.any(Function)
+    }), expect.any(Function));
+    expectEveryReloadToBypassLocalCache(1);
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
       action: 'tabSucceeded', tabId: 1
     }));
@@ -103,7 +116,7 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.runAllTimersAsync();
 
-    expect(chrome.tabs.reload).toHaveBeenCalledTimes(3);
+    expectEveryReloadToBypassLocalCache(7, 3);
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
       action: 'tabFailed', tabId: 7, error: 'Reload failed'
     }));
@@ -126,9 +139,114 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.runAllTimersAsync();
 
-    expect(chrome.tabs.reload).toHaveBeenCalledTimes(1);
+    expectEveryReloadToBypassLocalCache(4);
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
       action: 'refreshComplete', success: true
+    }));
+  });
+
+  test('reloads discarded tabs with cache bypass and without media capture', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 8, title: 'Discarded', url: 'https://example.com/discarded', discarded: true }
+    ]));
+    chrome.tabs.get.mockImplementation((tabId, callback) => callback({
+      id: tabId,
+      status: 'unloaded',
+      discarded: true
+    }));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expectEveryReloadToBypassLocalCache(8);
+  });
+
+  test('keeps cache bypass enabled for every discarded-tab reload retry', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 12, title: 'Discarded retry', url: 'https://example.com/discarded-retry', discarded: true }
+    ]));
+    chrome.tabs.get.mockImplementation((tabId, callback) => callback({
+      id: tabId,
+      status: 'unloaded',
+      discarded: true
+    }));
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => {
+      setRuntimeLastError({ message: 'Discarded reload failed' });
+      callback();
+      setRuntimeLastError(undefined);
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expectEveryReloadToBypassLocalCache(12, 3);
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'tabFailed',
+      tabId: 12,
+      error: 'Discarded reload failed'
+    }));
+  });
+
+  test('falls back to a cache-bypassing reload when media scripting fails', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 9, title: 'Script denied', url: 'https://example.com/denied', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => {
+      setRuntimeLastError({ message: 'Cannot access page' });
+      callback();
+      setRuntimeLastError(undefined);
+    });
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => {
+      setRuntimeLastError(undefined);
+      callback();
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expectEveryReloadToBypassLocalCache(9);
+  });
+
+  test('falls back to a cache-bypassing reload when media scripting throws synchronously', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 10, title: 'Script exception', url: 'https://example.com/exception', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation(() => {
+      throw new Error('Synchronous scripting failure');
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expectEveryReloadToBypassLocalCache(10);
+  });
+
+  test('times out a stalled cache-bypassing reload without issuing a cached fallback', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 11, title: 'Stalled', url: 'https://example.com/stalled', discarded: false }
+    ]));
+    chrome.tabs.reload.mockImplementation(() => {});
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expectEveryReloadToBypassLocalCache(11);
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'tabFailed',
+      tabId: 11,
+      error: 'Timed out refreshing tab after 30 seconds'
+    }));
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshComplete',
+      success: false,
+      details: expect.objectContaining({ failedCount: 1, processedTabs: 1 })
     }));
   });
 
