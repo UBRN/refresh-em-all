@@ -102,6 +102,22 @@ describe('Background refresh worker', () => {
     }));
   });
 
+  test('reports a tab with no readable URL as reloadable, not skipped (evidence that "tabs" is required)', async () => {
+    // Without "tabs", Chrome hides restricted-page URLs, preventing the skip classification above.
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 13, title: 'Unreadable URL', url: undefined, discarded: false }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      action: 'tabSkipped', tabId: 13
+    }));
+    expectEveryReloadToBypassLocalCache(13);
+  });
+
   test('emits a failure result after retries and still reaches 100 percent processed', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 7, title: 'Broken', url: 'https://example.com/broken', discarded: false }

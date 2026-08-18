@@ -32,6 +32,7 @@ The extension focuses on:
 - Error reporting and recovery
 - Batch processing to prevent browser overload
 - Clear refreshed, failed, and skipped tab counts
+- English and Turkish interface, following your browser language
 
 ## Behavior and limitations
 

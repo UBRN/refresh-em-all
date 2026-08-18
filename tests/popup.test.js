@@ -10,6 +10,8 @@ const popupJs = createInstrumenter().instrumentSync(
 
 function renderPopupDom() {
   document.body.innerHTML = `
+    <h2></h2>
+    <p class="refresh-explanation"></p>
     <button id="refreshAll">Refresh All Tabs</button>
     <button id="cancelRefresh" style="display:none">Cancel</button>
     <div id="loadingContainer" style="display:none">
@@ -25,7 +27,7 @@ function renderPopupDom() {
       <div id="historyContent" style="display:none"></div>
     </div>
     <button id="settingsHeader" aria-expanded="false"></button>
-    <div id="settingsContent" style="display:none"></div>
+    <div id="settingsContent" style="display:none"><p class="privacy-info"></p></div>
     <div id="confetti" style="display:none"></div>
   `;
 }
@@ -53,8 +55,10 @@ function executePopupJs({ operationState = { active: false }, history = [] } = {
 describe('Popup controller', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    window.confirm.mockReturnValue(false);
-    window.prompt.mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    resetTestEnvironment();
   });
 
   test('starts a refresh through the background worker and disables duplicate starts', () => {
@@ -82,6 +86,14 @@ describe('Popup controller', () => {
     onMessage({ action: 'tabSucceeded', tabId: 1 });
     onMessage({ action: 'tabFailed', tabId: 2, error: 'Reload failed' });
     onMessage({ action: 'tabSkipped', tabId: 3 });
+    onMessage({
+      action: 'refreshProgress', current: 9, total: 12, percent: 75,
+      successful: 5, failed: 2, skipped: 3
+    });
+    // Every count differs, so any swapped argument order in the statusProgress call fails here.
+    expect(document.getElementById('statusText').textContent)
+      .toBe('Processed 9/12 — 5 refreshed, 2 failed, 3 skipped');
+
     onMessage({
       action: 'refreshProgress', current: 3, total: 3, percent: 100,
       successful: 1, failed: 1, skipped: 1
@@ -120,16 +132,54 @@ describe('Popup controller', () => {
     expect(document.getElementById('refreshAll').disabled).toBe(true);
   });
 
-  test('activates stress mode after five settings clicks without replacing the button', () => {
-    jest.useFakeTimers();
-    window.confirm.mockReturnValue(true);
+  test('does not activate stress mode after five settings clicks', () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => false);
     executePopupJs();
 
     const settings = document.getElementById('settingsHeader');
     for (let index = 0; index < 5; index++) settings.click();
 
-    expect(window.confirm).toHaveBeenCalledTimes(1);
-    expect(document.getElementById('refreshAll').textContent).toBe('Start Stress Test');
+    expect(document.getElementById('refreshAll').textContent).toBe(
+      chrome.i18n.getMessage('actionRefreshAll')
+    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  test('respects reduced motion without changing the success message', () => {
+    jest.useFakeTimers();
+    window.matchMedia.mockImplementation(query => ({
+      matches: true,
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn()
+    }));
+    let onMessage = executePopupJs();
+
+    onMessage({
+      action: 'refreshComplete', success: true,
+      details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2, failedCount: 0, skippedCount: 0 }
+    });
+
+    expect(document.getElementById('confetti').childElementCount).toBe(0);
+    expect(document.getElementById('confetti').style.display).not.toBe('block');
+    expect(document.getElementById('statusText').textContent).toBe(
+      chrome.i18n.getMessage('statusCompleteAll', ['2'])
+    );
+
+    window.matchMedia.mockImplementation(query => ({
+      matches: false,
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn()
+    }));
+    onMessage = executePopupJs();
+    onMessage({
+      action: 'refreshComplete', success: true,
+      details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2, failedCount: 0, skippedCount: 0 }
+    });
+
+    expect(document.querySelectorAll('#confetti .confetti-piece').length).toBeGreaterThan(0);
     jest.useRealTimers();
   });
 

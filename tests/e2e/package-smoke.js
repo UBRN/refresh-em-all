@@ -148,6 +148,7 @@ async function main() {
       args: [
         `--disable-extensions-except=${extractedExtensionPath}`,
         `--load-extension=${extractedExtensionPath}`,
+        '--lang=en-US',
         '--autoplay-policy=no-user-gesture-required',
         ...(process.env.CI === 'true' ? ['--no-sandbox'] : [])
       ]

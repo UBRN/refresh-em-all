@@ -436,6 +436,7 @@ async function createHarness({ profile, trace = false } = {}) {
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
+        '--lang=en-US',
         '--autoplay-policy=no-user-gesture-required',
         '--window-size=500,700',
         ...ciBrowserArgs
