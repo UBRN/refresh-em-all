@@ -1,0 +1,253 @@
+{
+  "appName": {
+    "message": "Refresh Em All",
+    "description": "Extension name. Product name; keep untranslated."
+  },
+  "htmlLang": {
+    "message": "en",
+    "description": "BCP-47 language tag of THIS catalog. Resolved through Chrome's fallback chain so the popup's <html lang> always matches the language actually rendered, not the browser UI locale."
+  },
+  "appDescription": {
+    "message": "Reload all accessible tabs in every window while bypassing the local cache and preserving supported media state.",
+    "description": "Extension description shown in the Chrome Web Store and on chrome://extensions."
+  },
+  "actionRefreshAll": {
+    "message": "Refresh All Tabs",
+    "description": "Label of the primary button that starts a refresh."
+  },
+  "actionCancel": {
+    "message": "Cancel",
+    "description": "Label of the button that cancels a running refresh."
+  },
+  "refreshExplanation": {
+    "message": "Reloads accessible tabs while bypassing local cache. Site data remains intact.",
+    "description": "Short explanation under the buttons describing what a refresh does."
+  },
+  "progressLabel": {
+    "message": "Refresh progress",
+    "description": "Accessible name of the progress bar."
+  },
+  "statusRefreshingTabs": {
+    "message": "Refreshing tabs…",
+    "description": "Initial status line before the first progress update arrives."
+  },
+  "statusStarting": {
+    "message": "Starting refresh…",
+    "description": "Status shown while the refresh request is being sent."
+  },
+  "statusCancelling": {
+    "message": "Cancelling refresh…",
+    "description": "Status shown while a cancellation request is being sent."
+  },
+  "statusCancelFailed": {
+    "message": "Unable to cancel the current refresh.",
+    "description": "Status shown when cancellation was rejected."
+  },
+  "statusStartFailed": {
+    "message": "Unable to start refresh: $ERROR$",
+    "description": "Status shown when the refresh could not be started.",
+    "placeholders": {
+      "error": { "content": "$1", "example": "No tabs available to refresh" }
+    }
+  },
+  "statusProcessedInitial": {
+    "message": "Processed 0/$TOTAL$ tabs…",
+    "description": "Status shown right after the tab list is known and before any tab is processed.",
+    "placeholders": {
+      "total": { "content": "$1", "example": "8" }
+    }
+  },
+  "statusProgress": {
+    "message": "Processed $PROCESSED$/$TOTAL$ — $REFRESHED$ refreshed, $FAILED$ failed, $SKIPPED$ skipped",
+    "description": "Live progress status during a refresh.",
+    "placeholders": {
+      "processed": { "content": "$1", "example": "4" },
+      "total": { "content": "$2", "example": "8" },
+      "refreshed": { "content": "$3", "example": "3" },
+      "failed": { "content": "$4", "example": "0" },
+      "skipped": { "content": "$5", "example": "1" }
+    }
+  },
+  "statusCancelled": {
+    "message": "Refresh cancelled after $PROCESSED$/$TOTAL$ tabs.",
+    "description": "Final status after the user cancelled the refresh.",
+    "placeholders": {
+      "processed": { "content": "$1", "example": "4" },
+      "total": { "content": "$2", "example": "8" }
+    }
+  },
+  "statusCompleteMixed": {
+    "message": "Processed $PROCESSED$/$TOTAL$: $REFRESHED$ refreshed, $FAILED$ failed, $SKIPPED$ skipped.",
+    "description": "Final status when at least one tab failed.",
+    "placeholders": {
+      "processed": { "content": "$1", "example": "8" },
+      "total": { "content": "$2", "example": "8" },
+      "refreshed": { "content": "$3", "example": "6" },
+      "failed": { "content": "$4", "example": "1" },
+      "skipped": { "content": "$5", "example": "1" }
+    }
+  },
+  "statusCompleteSkipped": {
+    "message": "Refreshed $REFRESHED$ tabs; skipped $SKIPPED$ restricted tabs.",
+    "description": "Final status when nothing failed but restricted pages were skipped.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "6" },
+      "skipped": { "content": "$2", "example": "2" }
+    }
+  },
+  "statusCompleteAll": {
+    "message": "All $REFRESHED$ tabs refreshed successfully!",
+    "description": "Final status when every tab was refreshed.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "8" }
+    }
+  },
+  "statusInterrupted": {
+    "message": "The previous refresh was interrupted.",
+    "description": "Status shown when a refresh did not finish before the worker stopped."
+  },
+  "errorInterruptedTitle": {
+    "message": "Refresh interrupted",
+    "description": "Error box heading for an interrupted refresh."
+  },
+  "errorInterruptedDetail": {
+    "message": "Start a new refresh to continue.",
+    "description": "Error box detail for an interrupted refresh."
+  },
+  "errorStartTitle": {
+    "message": "Refresh could not start",
+    "description": "Error box heading when the refresh never began."
+  },
+  "errorFailedSummaryOne": {
+    "message": "Failed to refresh $COUNT$ tab.",
+    "description": "Error box heading when exactly one tab failed.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "1" }
+    }
+  },
+  "errorFailedSummaryOther": {
+    "message": "Failed to refresh $COUNT$ tabs.",
+    "description": "Error box heading when two or more tabs failed.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "errorTabLine": {
+    "message": "$INDEX$. $TITLE$: $ERROR$",
+    "description": "One line of the per-tab failure list.",
+    "placeholders": {
+      "index": { "content": "$1", "example": "1" },
+      "title": { "content": "$2", "example": "Example page" },
+      "error": { "content": "$3", "example": "Failed to reload tab" }
+    }
+  },
+  "errorNoTabDetails": {
+    "message": "No tab-specific error details were returned.",
+    "description": "Shown when a failure has no per-tab detail."
+  },
+  "tabFallbackTitle": {
+    "message": "Tab",
+    "description": "Placeholder name for a tab with no title."
+  },
+  "tabAriaLabel": {
+    "message": "$TITLE$: $STATUS$",
+    "description": "Accessible name of one tab indicator square.",
+    "placeholders": {
+      "title": { "content": "$1", "example": "Example page" },
+      "status": { "content": "$2", "example": "refreshed" }
+    }
+  },
+  "tabStatusPending": {
+    "message": "pending",
+    "description": "Tab indicator state: not processed yet."
+  },
+  "tabStatusSuccess": {
+    "message": "refreshed",
+    "description": "Tab indicator state: refreshed successfully."
+  },
+  "tabStatusError": {
+    "message": "failed",
+    "description": "Tab indicator state: refresh failed."
+  },
+  "tabStatusSkipped": {
+    "message": "skipped",
+    "description": "Tab indicator state: restricted page, skipped."
+  },
+  "historyToggle": {
+    "message": "View Refresh History",
+    "description": "Button that expands the local refresh history."
+  },
+  "historyUnknownDate": {
+    "message": "Unknown date",
+    "description": "Shown when a history entry has an unreadable timestamp."
+  },
+  "historyEntryCancelled": {
+    "message": "Cancelled: $REFRESHED$/$TOTAL$ refreshed",
+    "description": "History line for a cancelled refresh.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "3" },
+      "total": { "content": "$2", "example": "8" }
+    }
+  },
+  "historyEntrySummary": {
+    "message": "$REFRESHED$/$TOTAL$ refreshed, $FAILED$ failed, $SKIPPED$ skipped",
+    "description": "History line for a completed refresh.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "6" },
+      "total": { "content": "$2", "example": "8" },
+      "failed": { "content": "$3", "example": "0" },
+      "skipped": { "content": "$4", "example": "2" }
+    }
+  },
+  "settingsToggle": {
+    "message": "Settings",
+    "description": "Button that expands the settings and privacy section."
+  },
+  "privacyNotice": {
+    "message": "Refresh Em All processes refresh state locally. It does not send telemetry or browsing data to external servers.",
+    "description": "Privacy statement inside the settings section."
+  },
+  "errorOperationInProgress": {
+    "message": "Operation already in progress",
+    "description": "Reason returned when a refresh is requested while one is running."
+  },
+  "errorNoTabs": {
+    "message": "No tabs available to refresh",
+    "description": "Reason returned when the browser reported no tabs."
+  },
+  "errorNoRefreshableTabs": {
+    "message": "No refreshable tabs found",
+    "description": "Reason returned when every reported tab was unusable."
+  },
+  "errorStartGeneric": {
+    "message": "Unable to start refresh operation",
+    "description": "Fallback reason when the refresh could not be started."
+  },
+  "errorStartFailureTabTitle": {
+    "message": "Unable to start refresh",
+    "description": "Title of the synthetic failure entry recorded when a refresh never began."
+  },
+  "errorReloadFailed": {
+    "message": "Failed to reload tab",
+    "description": "Fallback reason when Chrome rejected a reload without a message."
+  },
+  "errorUnknown": {
+    "message": "Unknown error",
+    "description": "Generic fallback error text."
+  },
+  "errorUnknownDuringRefresh": {
+    "message": "Unknown error during refresh",
+    "description": "Generic fallback error text raised while refreshing a tab."
+  },
+  "errorRefreshTimeout": {
+    "message": "Timed out refreshing tab after $SECONDS$ seconds",
+    "description": "Reason recorded when a single tab refresh exceeded its time budget.",
+    "placeholders": {
+      "seconds": { "content": "$1", "example": "30" }
+    }
+  },
+  "errorTabRefreshFailed": {
+    "message": "Unable to refresh this tab",
+    "description": "Fallback per-tab failure reason sent to the popup."
+  }
+}

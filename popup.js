@@ -1,3 +1,17 @@
+function t(key, ...substitutions) {
+    return chrome.i18n.getMessage(
+        key,
+        substitutions.length > 0 ? substitutions.map(String) : undefined
+    );
+}
+
+const TAB_STATUS_KEYS = {
+    pending: 'tabStatusPending',
+    success: 'tabStatusSuccess',
+    error: 'tabStatusError',
+    skipped: 'tabStatusSkipped'
+};
+
 const refreshButton = document.getElementById('refreshAll');
 const cancelButton = document.getElementById('cancelRefresh');
 const loadingContainer = document.getElementById('loadingContainer');
@@ -14,27 +28,37 @@ const confettiElement = document.getElementById('confetti');
 const settingsHeader = document.getElementById('settingsHeader');
 const settingsContent = document.getElementById('settingsContent');
 
+document.documentElement.lang = t('htmlLang');
+document.title = t('appName');
+
+[
+    ['h2', 'appName'],
+    ['.refresh-explanation', 'refreshExplanation'],
+    ['#refreshAll', 'actionRefreshAll'],
+    ['#cancelRefresh', 'actionCancel'],
+    ['#statusText', 'statusRefreshingTabs'],
+    ['#historyHeader', 'historyToggle'],
+    ['#settingsHeader', 'settingsToggle'],
+    ['.privacy-info', 'privacyNotice']
+].forEach(([selector, key]) => {
+    const element = document.querySelector(selector);
+    if (element) element.textContent = t(key);
+});
+
+document.getElementById('progressBar')?.setAttribute('aria-label', t('progressLabel'));
+
 let activeRefreshOperation = false;
 let tabsToRefresh = [];
 let processedTabs = 0;
 let refreshedTabs = 0;
 let failedTabs = [];
 let skippedTabs = 0;
-let stressTestMode = false;
-let stressTestRunning = false;
-let stressTestIterations = 0;
-let maxStressTestIterations = 50;
 
 initializeHistory();
 restoreOperationStatus();
 
 refreshButton.addEventListener('click', () => {
     if (activeRefreshOperation) return;
-
-    if (stressTestMode && !stressTestRunning) {
-        startStressTest();
-        return;
-    }
 
     requestRefresh();
 });
@@ -43,11 +67,11 @@ cancelButton.addEventListener('click', () => {
     if (!activeRefreshOperation) return;
 
     cancelButton.disabled = true;
-    statusText.textContent = 'Cancelling refresh…';
+    statusText.textContent = t('statusCancelling');
     chrome.runtime.sendMessage({ action: 'cancelOperation' }, (response) => {
         if (chrome.runtime.lastError || !response?.success) {
             cancelButton.disabled = false;
-            statusText.textContent = 'Unable to cancel the current refresh.';
+            statusText.textContent = t('statusCancelFailed');
         }
     });
 });
@@ -73,18 +97,15 @@ function requestRefresh() {
     toggleOperationControls(true);
     loadingContainer.style.display = 'block';
     errorContainer.style.display = 'none';
-    statusText.textContent = stressTestRunning
-        ? `Stress test ${stressTestIterations}/${maxStressTestIterations}: starting…`
-        : 'Starting refresh…';
+    statusText.textContent = t('statusStarting');
 
     chrome.runtime.sendMessage({ action: 'startRefresh' }, (response) => {
         const errorMessage = chrome.runtime.lastError?.message || response?.message;
         if (errorMessage || !response?.success) {
             activeRefreshOperation = false;
             toggleOperationControls(false);
-            statusText.textContent = `Unable to start refresh: ${errorMessage || 'Unknown error'}`;
-            showOperationError('Refresh could not start', errorMessage || 'Unknown error');
-            finishStressTest(false);
+            statusText.textContent = t('statusStartFailed', errorMessage || t('errorUnknown'));
+            showOperationError(t('errorStartTitle'), errorMessage || t('errorUnknown'));
         }
     });
 }
@@ -101,9 +122,7 @@ function initializeRefreshUI(tabs, statuses = {}) {
     loadingContainer.style.display = 'block';
     progressBar.style.width = '0%';
     progressBar.parentElement?.setAttribute('aria-valuenow', '0');
-    statusText.textContent = stressTestRunning
-        ? `Stress test ${stressTestIterations}/${maxStressTestIterations}: refreshing 0/${tabs.length}…`
-        : `Processed 0/${tabs.length} tabs…`;
+    statusText.textContent = t('statusProcessedInitial', tabs.length);
     errorContainer.style.display = 'none';
 
     createTabIndicators(tabs);
@@ -121,10 +140,7 @@ function updateProgressUI(data) {
 
     progressBar.style.width = `${percent}%`;
     progressBar.parentElement?.setAttribute('aria-valuenow', String(percent));
-    const prefix = stressTestRunning
-        ? `Stress test ${stressTestIterations}/${maxStressTestIterations}: `
-        : '';
-    statusText.textContent = `${prefix}processed ${processedTabs}/${data.total} — ${refreshedTabs} refreshed, ${failedCount} failed, ${skippedTabs} skipped`;
+    statusText.textContent = t('statusProgress', processedTabs, data.total, refreshedTabs, failedCount, skippedTabs);
 }
 
 function handleRefreshComplete(data) {
@@ -147,22 +163,19 @@ function handleRefreshComplete(data) {
     progressBar.parentElement?.setAttribute('aria-valuenow', String(finalPercent));
 
     if (cancelled) {
-        statusText.textContent = `Refresh cancelled after ${processedTabs}/${totalTabs} tabs.`;
+        statusText.textContent = t('statusCancelled', processedTabs, totalTabs);
     } else if (failedCount > 0) {
-        statusText.textContent = `Processed ${processedTabs}/${totalTabs}: ${successfulCount} refreshed, ${failedCount} failed, ${skippedCount} skipped.`;
+        statusText.textContent = t('statusCompleteMixed', processedTabs, totalTabs, successfulCount, failedCount, skippedCount);
         showErrors();
     } else if (skippedCount > 0) {
-        statusText.textContent = `Refreshed ${successfulCount} tabs; skipped ${skippedCount} restricted tabs.`;
+        statusText.textContent = t('statusCompleteSkipped', successfulCount, skippedCount);
     } else {
-        statusText.textContent = `All ${successfulCount} tabs refreshed successfully!`;
-        if (!stressTestRunning) showConfetti();
+        statusText.textContent = t('statusCompleteAll', successfulCount);
+        showConfetti();
     }
 
     initializeHistory();
 
-    if (stressTestRunning) {
-        continueStressTest(!cancelled && failedCount === 0);
-    }
 }
 
 function restoreOperationStatus() {
@@ -182,8 +195,8 @@ function restoreOperationStatus() {
         } else if (state.interrupted) {
             loadingContainer.style.display = 'block';
             progressBar.style.width = `${Number(state.progress) || 0}%`;
-            statusText.textContent = state.message || 'The previous refresh was interrupted.';
-            showOperationError('Refresh interrupted', 'Start a new refresh to continue.');
+            statusText.textContent = t('statusInterrupted');
+            showOperationError(t('errorInterruptedTitle'), t('errorInterruptedDetail'));
         }
     });
 }
@@ -201,8 +214,8 @@ function createTabIndicators(tabs) {
         const tabElement = document.createElement('div');
         tabElement.className = 'tab-item';
         tabElement.id = `tab-${tab.id}`;
-        tabElement.title = tab.title || 'Tab';
-        tabElement.setAttribute('aria-label', `${tab.title || 'Tab'}: pending`);
+        tabElement.title = tab.title || t('tabFallbackTitle');
+        tabElement.setAttribute('aria-label', t('tabAriaLabel', tab.title || t('tabFallbackTitle'), t('tabStatusPending')));
 
         if (tab.favIconUrl) {
             const image = document.createElement('img');
@@ -252,22 +265,22 @@ function updateTabStatus(tabId, status) {
 
     const statusElement = tabElement.querySelector(`.tab-${status}`);
     if (statusElement) statusElement.style.display = 'block';
-    tabElement.setAttribute('aria-label', `${tabElement.title}: ${status}`);
+    tabElement.setAttribute('aria-label', t('tabAriaLabel', tabElement.title, t(TAB_STATUS_KEYS[status] || 'tabStatusPending')));
 }
 
 function showErrors() {
     errorContainer.style.display = 'block';
-    errorSummary.textContent = `Failed to refresh ${failedTabs.length} tab${failedTabs.length === 1 ? '' : 's'}.`;
+    errorSummary.textContent = t(failedTabs.length === 1 ? 'errorFailedSummaryOne' : 'errorFailedSummaryOther', failedTabs.length);
 
     if (failedTabs.length === 0) {
-        errorDetails.textContent = 'No tab-specific error details were returned.';
+        errorDetails.textContent = t('errorNoTabDetails');
         return;
     }
 
     errorDetails.textContent = failedTabs.map((tab, index) => {
-        const title = tab.title || 'Tab';
-        const error = tab.error || 'Unknown error';
-        return `${index + 1}. ${title}: ${error}`;
+        const title = tab.title || t('tabFallbackTitle');
+        const error = tab.error || t('errorUnknown');
+        return t('errorTabLine', index + 1, title, error);
     }).join('\n');
 }
 
@@ -287,77 +300,7 @@ settingsHeader.addEventListener('click', () => {
     const expanded = settingsContent.style.display !== 'none';
     settingsContent.style.display = expanded ? 'none' : 'block';
     settingsHeader.setAttribute('aria-expanded', String(!expanded));
-    trackStressTestActivation();
 });
-
-let settingsHeaderClickCount = 0;
-let settingsHeaderClickTimer;
-
-function trackStressTestActivation() {
-    settingsHeaderClickCount++;
-    clearTimeout(settingsHeaderClickTimer);
-
-    if (settingsHeaderClickCount === 5) {
-        settingsHeaderClickCount = 0;
-        enableStressTestMode();
-        return;
-    }
-
-    settingsHeaderClickTimer = setTimeout(() => {
-        settingsHeaderClickCount = 0;
-    }, 1500);
-}
-
-function enableStressTestMode() {
-    if (!confirm('Enable Stress Test Mode? This repeatedly refreshes all tabs until an error occurs or the iteration limit is reached.')) return;
-
-    stressTestMode = true;
-    stressTestRunning = false;
-    stressTestIterations = 0;
-    refreshButton.textContent = 'Start Stress Test';
-    refreshButton.style.backgroundColor = '#db4437';
-}
-
-function startStressTest() {
-    const iterations = prompt('Enter maximum number of iterations (1-100):', '50');
-    if (iterations === null) return;
-
-    maxStressTestIterations = Math.min(Math.max(Number.parseInt(iterations, 10) || 50, 1), 100);
-    stressTestRunning = true;
-    stressTestIterations = 0;
-    runStressTestIteration();
-}
-
-function runStressTestIteration() {
-    if (!stressTestRunning) return;
-    stressTestIterations++;
-    requestRefresh();
-}
-
-function continueStressTest(iterationSucceeded) {
-    if (iterationSucceeded && stressTestIterations < maxStressTestIterations) {
-        setTimeout(runStressTestIteration, 2000);
-        return;
-    }
-
-    finishStressTest(iterationSucceeded);
-}
-
-function finishStressTest(success) {
-    if (!stressTestMode && !stressTestRunning) return;
-
-    const completedIterations = stressTestIterations;
-    stressTestRunning = false;
-    stressTestMode = false;
-    refreshButton.textContent = 'Refresh All Tabs';
-    refreshButton.style.backgroundColor = '#4285f4';
-
-    if (completedIterations > 0) {
-        statusText.textContent = success
-            ? `Stress test completed: ${completedIterations} iteration${completedIterations === 1 ? '' : 's'}.`
-            : `Stress test stopped after iteration ${completedIterations}.`;
-    }
-}
 
 function initializeHistory() {
     chrome.storage.local.get(['refreshHistory'], (result) => {
@@ -378,7 +321,7 @@ function updateHistoryDisplay(history) {
         const date = document.createElement('div');
         const parsedDate = new Date(item.timestamp);
         date.textContent = Number.isNaN(parsedDate.getTime())
-            ? 'Unknown date'
+            ? t('historyUnknownDate')
             : `${parsedDate.toLocaleDateString()} ${parsedDate.toLocaleTimeString()}`;
 
         const failedCount = Number(item.failedCount)
@@ -386,8 +329,8 @@ function updateHistoryDisplay(history) {
         const skippedCount = Number(item.skippedCount) || 0;
         const summary = document.createElement('div');
         summary.textContent = item.cancelled
-            ? `Cancelled: ${item.successfulTabs || 0}/${item.totalTabs || 0} refreshed`
-            : `${item.successfulTabs || 0}/${item.totalTabs || 0} refreshed, ${failedCount} failed, ${skippedCount} skipped`;
+            ? t('historyEntryCancelled', item.successfulTabs || 0, item.totalTabs || 0)
+            : t('historyEntrySummary', item.successfulTabs || 0, item.totalTabs || 0, failedCount, skippedCount);
         summary.className = failedCount > 0 ? 'history-failure' : 'history-success';
 
         entry.append(date, summary);
@@ -396,6 +339,7 @@ function updateHistoryDisplay(history) {
 }
 
 function showConfetti() {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     confettiElement.style.display = 'block';
     const colors = ['#4285f4', '#0f9d58', '#f4b400', '#db4437'];
 

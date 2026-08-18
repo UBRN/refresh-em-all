@@ -1,8 +1,9 @@
 {
     "manifest_version": 3,
-    "name": "Refresh Em All",
-    "version": "2.0.2",
-    "description": "Reload all accessible tabs in every window while bypassing the local cache and preserving supported media state.",
+    "name": "__MSG_appName__",
+    "version": "2.1.0",
+    "default_locale": "en",
+    "description": "__MSG_appDescription__",
     "permissions": [
         "tabs",
         "scripting",
@@ -12,7 +13,7 @@
         "<all_urls>"
     ],
     "action": {
-        "default_title": "Refresh Em All",
+        "default_title": "__MSG_appName__",
         "default_icon": {
             "16": "assets/icon-refresh-em-colorful-16.png",
             "32": "assets/icon-refresh-em-colorful-32.png",

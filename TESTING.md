@@ -56,8 +56,16 @@ npm run stress-test
 - Prevents duplicate refresh starts
 - Displays per-tab success, failure, and skipped states
 - Restores progress when the popup is reopened
-- Activates stress mode without replacing the main click handler
 - Renders sanitized local history through DOM text nodes
+
+### Localization
+
+- English and Turkish catalogs have matching keys and placeholders
+- Manifest `default_locale` and every `__MSG_*__` reference resolve
+- Both locale catalogs are inside the packaged runtime allowlist
+- `chrome.i18n` substitutes dynamic placeholders in catalog order
+- Turkish popup text, history, and accessibility labels render from the catalog
+- The production popup contains no hidden stress-test hooks
 
 ### Content script
 
@@ -81,8 +89,10 @@ scenarios, and finishes with the 8-tab, two-window smoke profile. It verifies:
 4. Progress reaches 100% and local history contains the correct sanitized counts.
 5. The settings UI accurately states that telemetry is disabled.
 6. Refresh history renders safely.
-7. Stress mode activates without popup JavaScript errors.
-8. Eight tabs across two windows reload once while paused and playing media state is preserved.
+7. Eight tabs across two windows reload once while paused and playing media state is preserved.
+
+The browser suites launch Chrome with `--lang=en-US` because the popup is now
+localized and these scenarios assert English status text.
 
 The fast workflow runs unit/integration tests and this browser suite on every pull
 request and every push to `main`. It also runs `npm run e2e:package`, which builds

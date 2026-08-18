@@ -55,10 +55,9 @@ To provide the most reliable and safe method for bulk-refreshing browser tabs, e
   - No browsing data or telemetry is sent to external services.
 
 ### 3.5 Developer & QA Features
-- **Stress Test Mode** (Hidden):
-  - Activated by double-clicking the "Settings" header 5 times.
-  - Allows running `N` iterations of the refresh cycle automatically.
-  - Stops on error to preserve state for debugging.
+- **Localization**:
+  - English and Turkish interface text via Chrome's built-in `chrome.i18n`.
+  - Follows the browser UI language; English is the fallback locale.
 - **Debugger Detection**: Monitors for accidental "Paused in debugger" states (common in dev tools) and warns the user with actionable steps to unpause.
 
 ## 4. Technical Architecture

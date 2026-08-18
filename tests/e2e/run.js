@@ -181,33 +181,6 @@ const TEST_CASES = [
         await popup.close();
       }
     }
-  },
-  {
-    name: 'activates stress mode without replacing the refresh handler',
-    run: async (harness, testName) => {
-      const popup = harness.attachPage(await harness.browser.newPage(), 'essential-stress-popup');
-      const pageErrors = [];
-      popup.on('pageerror', error => pageErrors.push(error.message));
-      popup.on('dialog', dialog => dialog.accept());
-
-      try {
-        await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
-        await popup.evaluate(() => {
-          const settings = document.querySelector('#settingsHeader');
-          for (let index = 0; index < 5; index++) settings.click();
-        });
-        await popup.waitForFunction(() =>
-          document.querySelector('#refreshAll')?.textContent === 'Start Stress Test',
-        { timeout: 5000 });
-
-        if (pageErrors.length > 0) throw new Error(`Stress activation errors: ${pageErrors.join('; ')}`);
-      } catch (error) {
-        await captureEssentialFailure(harness, testName, error, popup);
-        throw error;
-      } finally {
-        await popup.close();
-      }
-    }
   }
 ];
 

@@ -1,0 +1,253 @@
+{
+  "appName": {
+    "message": "Refresh Em All",
+    "description": "Extension name. Product name; keep untranslated."
+  },
+  "htmlLang": {
+    "message": "tr",
+    "description": "BCP-47 language tag of THIS catalog. Resolved through Chrome's fallback chain so the popup's <html lang> always matches the language actually rendered, not the browser UI locale."
+  },
+  "appDescription": {
+    "message": "Bütün pencerelerdeki erişilebilir sekmeleri yerel önbelleği atlayarak yeniler, desteklenen medya durumunu korur.",
+    "description": "Extension description shown in the Chrome Web Store and on chrome://extensions."
+  },
+  "actionRefreshAll": {
+    "message": "Tüm Sekmeleri Yenile",
+    "description": "Label of the primary button that starts a refresh."
+  },
+  "actionCancel": {
+    "message": "İptal",
+    "description": "Label of the button that cancels a running refresh."
+  },
+  "refreshExplanation": {
+    "message": "Erişilebilir sekmeleri yerel önbelleği atlayarak yeniler. Site verileriniz olduğu gibi kalır.",
+    "description": "Short explanation under the buttons describing what a refresh does."
+  },
+  "progressLabel": {
+    "message": "Yenileme ilerlemesi",
+    "description": "Accessible name of the progress bar."
+  },
+  "statusRefreshingTabs": {
+    "message": "Sekmeler yenileniyor…",
+    "description": "Initial status line before the first progress update arrives."
+  },
+  "statusStarting": {
+    "message": "Yenileme başlatılıyor…",
+    "description": "Status shown while the refresh request is being sent."
+  },
+  "statusCancelling": {
+    "message": "Yenileme iptal ediliyor…",
+    "description": "Status shown while a cancellation request is being sent."
+  },
+  "statusCancelFailed": {
+    "message": "Bu yenileme iptal edilemedi.",
+    "description": "Status shown when cancellation was rejected."
+  },
+  "statusStartFailed": {
+    "message": "Yenileme başlatılamadı: $ERROR$",
+    "description": "Status shown when the refresh could not be started.",
+    "placeholders": {
+      "error": { "content": "$1", "example": "Yenilenecek sekme yok" }
+    }
+  },
+  "statusProcessedInitial": {
+    "message": "0/$TOTAL$ sekme işlendi…",
+    "description": "Status shown right after the tab list is known and before any tab is processed.",
+    "placeholders": {
+      "total": { "content": "$1", "example": "8" }
+    }
+  },
+  "statusProgress": {
+    "message": "$PROCESSED$/$TOTAL$ sekme işlendi — $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı",
+    "description": "Live progress status during a refresh.",
+    "placeholders": {
+      "processed": { "content": "$1", "example": "4" },
+      "total": { "content": "$2", "example": "8" },
+      "refreshed": { "content": "$3", "example": "3" },
+      "failed": { "content": "$4", "example": "0" },
+      "skipped": { "content": "$5", "example": "1" }
+    }
+  },
+  "statusCancelled": {
+    "message": "$TOTAL$ sekmeden $PROCESSED$ tanesi işlendikten sonra yenileme iptal edildi.",
+    "description": "Final status after the user cancelled the refresh.",
+    "placeholders": {
+      "processed": { "content": "$1", "example": "4" },
+      "total": { "content": "$2", "example": "8" }
+    }
+  },
+  "statusCompleteMixed": {
+    "message": "$PROCESSED$/$TOTAL$ sekme işlendi: $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı.",
+    "description": "Final status when at least one tab failed.",
+    "placeholders": {
+      "processed": { "content": "$1", "example": "8" },
+      "total": { "content": "$2", "example": "8" },
+      "refreshed": { "content": "$3", "example": "6" },
+      "failed": { "content": "$4", "example": "1" },
+      "skipped": { "content": "$5", "example": "1" }
+    }
+  },
+  "statusCompleteSkipped": {
+    "message": "$REFRESHED$ sekme yenilendi; $SKIPPED$ kısıtlı sekme atlandı.",
+    "description": "Final status when nothing failed but restricted pages were skipped.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "6" },
+      "skipped": { "content": "$2", "example": "2" }
+    }
+  },
+  "statusCompleteAll": {
+    "message": "$REFRESHED$ sekmenin tamamı yenilendi!",
+    "description": "Final status when every tab was refreshed.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "8" }
+    }
+  },
+  "statusInterrupted": {
+    "message": "Önceki yenileme yarıda kaldı.",
+    "description": "Status shown when a refresh did not finish before the worker stopped."
+  },
+  "errorInterruptedTitle": {
+    "message": "Yenileme yarıda kaldı",
+    "description": "Error box heading for an interrupted refresh."
+  },
+  "errorInterruptedDetail": {
+    "message": "Devam etmek için yeni bir yenileme başlatın.",
+    "description": "Error box detail for an interrupted refresh."
+  },
+  "errorStartTitle": {
+    "message": "Yenileme başlatılamadı",
+    "description": "Error box heading when the refresh never began."
+  },
+  "errorFailedSummaryOne": {
+    "message": "$COUNT$ sekme yenilenemedi.",
+    "description": "Error box heading when exactly one tab failed.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "1" }
+    }
+  },
+  "errorFailedSummaryOther": {
+    "message": "$COUNT$ sekme yenilenemedi.",
+    "description": "Error box heading when two or more tabs failed. Turkish nouns stay singular after a number, so this matches the singular form.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "errorTabLine": {
+    "message": "$INDEX$. $TITLE$: $ERROR$",
+    "description": "One line of the per-tab failure list.",
+    "placeholders": {
+      "index": { "content": "$1", "example": "1" },
+      "title": { "content": "$2", "example": "Örnek sayfa" },
+      "error": { "content": "$3", "example": "Sekme yeniden yüklenemedi" }
+    }
+  },
+  "errorNoTabDetails": {
+    "message": "Sekmeye özel bir hata ayrıntısı bildirilmedi.",
+    "description": "Shown when a failure has no per-tab detail."
+  },
+  "tabFallbackTitle": {
+    "message": "Sekme",
+    "description": "Placeholder name for a tab with no title."
+  },
+  "tabAriaLabel": {
+    "message": "$TITLE$: $STATUS$",
+    "description": "Accessible name of one tab indicator square.",
+    "placeholders": {
+      "title": { "content": "$1", "example": "Örnek sayfa" },
+      "status": { "content": "$2", "example": "yenilendi" }
+    }
+  },
+  "tabStatusPending": {
+    "message": "bekliyor",
+    "description": "Tab indicator state: not processed yet."
+  },
+  "tabStatusSuccess": {
+    "message": "yenilendi",
+    "description": "Tab indicator state: refreshed successfully."
+  },
+  "tabStatusError": {
+    "message": "başarısız",
+    "description": "Tab indicator state: refresh failed."
+  },
+  "tabStatusSkipped": {
+    "message": "atlandı",
+    "description": "Tab indicator state: restricted page, skipped."
+  },
+  "historyToggle": {
+    "message": "Yenileme Geçmişini Göster",
+    "description": "Button that expands the local refresh history."
+  },
+  "historyUnknownDate": {
+    "message": "Tarih bilinmiyor",
+    "description": "Shown when a history entry has an unreadable timestamp."
+  },
+  "historyEntryCancelled": {
+    "message": "İptal edildi: $REFRESHED$/$TOTAL$ yenilendi",
+    "description": "History line for a cancelled refresh.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "3" },
+      "total": { "content": "$2", "example": "8" }
+    }
+  },
+  "historyEntrySummary": {
+    "message": "$REFRESHED$/$TOTAL$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı",
+    "description": "History line for a completed refresh.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "6" },
+      "total": { "content": "$2", "example": "8" },
+      "failed": { "content": "$3", "example": "0" },
+      "skipped": { "content": "$4", "example": "2" }
+    }
+  },
+  "settingsToggle": {
+    "message": "Ayarlar",
+    "description": "Button that expands the settings and privacy section."
+  },
+  "privacyNotice": {
+    "message": "Refresh Em All yenileme durumunu yalnızca cihazınızda işler. Telemetri ya da gezinme verisi hiçbir sunucuya gönderilmez.",
+    "description": "Privacy statement inside the settings section."
+  },
+  "errorOperationInProgress": {
+    "message": "Zaten süren bir yenileme var",
+    "description": "Reason returned when a refresh is requested while one is running."
+  },
+  "errorNoTabs": {
+    "message": "Yenilenecek sekme yok",
+    "description": "Reason returned when the browser reported no tabs."
+  },
+  "errorNoRefreshableTabs": {
+    "message": "Yenilenebilir sekme bulunamadı",
+    "description": "Reason returned when every reported tab was unusable."
+  },
+  "errorStartGeneric": {
+    "message": "Yenileme işlemi başlatılamadı",
+    "description": "Fallback reason when the refresh could not be started."
+  },
+  "errorStartFailureTabTitle": {
+    "message": "Yenileme başlatılamadı",
+    "description": "Title of the synthetic failure entry recorded when a refresh never began."
+  },
+  "errorReloadFailed": {
+    "message": "Sekme yeniden yüklenemedi",
+    "description": "Fallback reason when Chrome rejected a reload without a message."
+  },
+  "errorUnknown": {
+    "message": "Bilinmeyen hata",
+    "description": "Generic fallback error text."
+  },
+  "errorUnknownDuringRefresh": {
+    "message": "Yenileme sırasında bilinmeyen bir hata oluştu",
+    "description": "Generic fallback error text raised while refreshing a tab."
+  },
+  "errorRefreshTimeout": {
+    "message": "Sekme $SECONDS$ saniye içinde yenilenemedi (zaman aşımı)",
+    "description": "Reason recorded when a single tab refresh exceeded its time budget.",
+    "placeholders": {
+      "seconds": { "content": "$1", "example": "30" }
+    }
+  },
+  "errorTabRefreshFailed": {
+    "message": "Bu sekme yenilenemedi",
+    "description": "Fallback per-tab failure reason sent to the popup."
+  }
+}

@@ -12,13 +12,40 @@ const puppeteer = require('puppeteer');
 const { extractZip, parseZip, RUNTIME_FILES } = require('../package-extension');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
-const screenshotDirectory = path.join(
-  repositoryRoot,
-  'docs/chrome-web-store/assets/screenshots'
-);
+const screenshotRoot = path.join(repositoryRoot, 'docs/chrome-web-store/assets/screenshots');
 const resultDirectory = path.join(repositoryRoot, 'test-results/chrome-web-store');
-const expectedPackageSha = 'dae27e545bea8b27f842657781ff8fc172c5ccc431e7650357c6098e74f9954d';
+const localeRoot = path.join(repositoryRoot, '_locales');
+const defaultExpectedVersion = require(path.join(repositoryRoot, 'package.json')).version;
 const fixedHistoryTimestamp = '2026-01-15T12:00:00.000Z';
+
+// The popup is localized, so every status string this capture waits on has to be rendered from
+// the same catalog Chrome will use. This mirrors chrome.i18n.getMessage's substitution rules.
+function loadCatalog(locale) {
+  return JSON.parse(fs.readFileSync(path.join(localeRoot, locale, 'messages.json'), 'utf8'));
+}
+
+function renderMessage(catalog, key, substitutions = []) {
+  const entry = catalog[key];
+  if (!entry) throw new Error(`Missing message key ${key}`);
+  const placeholders = new Map(
+    Object.entries(entry.placeholders || {}).map(([name, value]) => [name.toLowerCase(), value])
+  );
+  return entry.message.replace(/\$([A-Za-z0-9_]+)\$/g, (match, name) => {
+    const placeholder = placeholders.get(name.toLowerCase());
+    if (!placeholder) return match;
+    return String(placeholder.content).replace(
+      /\$(\d)/g,
+      (_, index) => String(substitutions[Number(index) - 1] ?? '')
+    );
+  });
+}
+
+// The default locale's screenshots sit directly in screenshots/; every additional Store language
+// gets a sibling subdirectory named after its locale. The default locale is read from the VERIFIED
+// package's manifest, not the checkout, because the package is the pinned artifact being captured.
+function screenshotDirectoryFor(locale, defaultLocale) {
+  return locale === defaultLocale ? screenshotRoot : path.join(screenshotRoot, locale);
+}
 const screenshotNames = {
   ready: '01-ready-1280x800.png',
   progress: '02-refresh-in-progress-1280x800.png',
@@ -168,7 +195,7 @@ async function applyCapturePresentation(page) {
   });
 }
 
-async function capture(page, filename) {
+async function capture(page, screenshotDirectory, filename) {
   await applyCapturePresentation(page);
   await page.mouse.move(10, 390);
   const layout = await page.evaluate(() => ({
@@ -274,11 +301,11 @@ async function queryRefreshOrder(popup) {
   }));
 }
 
-async function verifyPackage(zipPath, expectedSha) {
+async function verifyPackage(zipPath, expectedSha, expectedVersion) {
   const zipBuffer = fs.readFileSync(zipPath);
   const actualSha = sha256(zipBuffer);
-  if (actualSha !== expectedSha || expectedSha !== expectedPackageSha) {
-    throw new Error(`Expected published v2.0.1 SHA-256 ${expectedPackageSha}; received ${actualSha}`);
+  if (actualSha !== expectedSha) {
+    throw new Error(`Expected package SHA-256 ${expectedSha}; received ${actualSha}`);
   }
   const entries = parseZip(zipBuffer);
   const names = entries.map(entry => entry.filename);
@@ -287,17 +314,33 @@ async function verifyPackage(zipPath, expectedSha) {
   }
   const manifestEntry = entries.find(entry => entry.filename === 'manifest.json');
   const manifest = JSON.parse(manifestEntry.data.toString('utf8'));
-  if (manifest.version !== '2.0.1') throw new Error(`Expected v2.0.1, received v${manifest.version}`);
+  if (manifest.version !== expectedVersion) {
+    throw new Error(`Expected v${expectedVersion}, received v${manifest.version}`);
+  }
   return { zipBuffer, actualSha, entries, manifest };
 }
 
 async function main() {
   const zipArgument = argumentValue('--zip');
-  const expectedSha = argumentValue('--sha256') || expectedPackageSha;
-  if (!zipArgument) throw new Error('Usage: capture-screenshots.js --zip <v2.0.1.zip> [--sha256 <sha256>]');
+  const expectedSha = argumentValue('--sha256');
+  const expectedVersion = argumentValue('--expect-version') || defaultExpectedVersion;
+  const locale = argumentValue('--locale') || 'en';
+  if (!zipArgument || !expectedSha) {
+    throw new Error(
+      'Usage: capture-screenshots.js --zip <package.zip> --sha256 <sha256> '
+      + '[--expect-version <x.y.z>] [--locale <en|tr>]'
+    );
+  }
+  if (!fs.existsSync(path.join(localeRoot, locale, 'messages.json'))) {
+    throw new Error(`Unknown capture locale ${locale}: _locales/${locale}/messages.json does not exist`);
+  }
 
+  const catalog = loadCatalog(locale);
+  const expectedProgressStatus = renderMessage(catalog, 'statusProgress', [4, 8, 3, 0, 1]);
+  const expectedCompleteStatus = renderMessage(catalog, 'statusCompleteSkipped', [6, 2]);
   const zipPath = path.resolve(zipArgument);
-  const verifiedPackage = await verifyPackage(zipPath, expectedSha);
+  const verifiedPackage = await verifyPackage(zipPath, expectedSha, expectedVersion);
+  const screenshotDirectory = screenshotDirectoryFor(locale, verifiedPackage.manifest.default_locale);
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'refresh-em-all-store-capture-'));
   const extensionPath = path.join(temporaryRoot, 'extension');
   const userDataDirectory = path.join(temporaryRoot, 'chrome-profile');
@@ -306,8 +349,12 @@ async function main() {
   let browser;
   let secondWindowId;
 
-  fs.rmSync(screenshotDirectory, { recursive: true, force: true });
+  // The default locale writes into the shared root, which also holds the other locales'
+  // subdirectories — so clear only this locale's own files rather than the whole tree.
   fs.mkdirSync(screenshotDirectory, { recursive: true });
+  for (const filename of Object.values(screenshotNames)) {
+    fs.rmSync(path.join(screenshotDirectory, filename), { force: true });
+  }
   fs.mkdirSync(resultDirectory, { recursive: true });
 
   try {
@@ -320,11 +367,14 @@ async function main() {
       headless: false,
       userDataDir: userDataDirectory,
       defaultViewport: { width: 640, height: 400, deviceScaleFactor: 2 },
-      env: { ...process.env, TZ: 'UTC', LANG: 'en_US.UTF-8' },
+      env: { ...process.env, TZ: 'UTC', LANG: locale === 'en' ? 'en_US.UTF-8' : `${locale}_${locale.toUpperCase()}.UTF-8` },
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
-        '--lang=en-US',
+        // --lang drives the UI locale on Windows and Linux. macOS resolves it through Cocoa
+        // instead, so the app's NSUserDefaults language list has to be overridden there.
+        `--lang=${locale}`,
+        ...(process.platform === 'darwin' ? ['-AppleLanguages', `(${locale})`] : []),
         '--window-size=640,400',
         '--disable-background-networking',
         '--disable-component-update',
@@ -348,10 +398,14 @@ async function main() {
     attachPopupDiagnostics(popup);
 
     const runtimeVersion = await popup.evaluate(() => chrome.runtime.getManifest().version);
-    if (runtimeVersion !== '2.0.1') throw new Error(`Loaded extension version ${runtimeVersion}`);
+    if (runtimeVersion !== expectedVersion) throw new Error(`Loaded extension version ${runtimeVersion}`);
+    const runtimeLocale = await popup.evaluate(() => chrome.i18n.getMessage('@@ui_locale'));
+    if (!runtimeLocale.replace(/_/g, '-').toLowerCase().startsWith(locale.toLowerCase())) {
+      throw new Error(`Requested locale ${locale} but the popup resolved @@ui_locale=${runtimeLocale}`);
+    }
 
     const layouts = {};
-    layouts.ready = await capture(popup, screenshotNames.ready);
+    layouts.ready = await capture(popup, screenshotDirectory, screenshotNames.ready);
 
     const fixture = await createTabFixture(popup, fixtureServer);
     secondWindowId = fixture.secondWindowId;
@@ -363,11 +417,11 @@ async function main() {
     const accessibleOrder = refreshOrder.filter(tab => tab.url?.startsWith(fixtureServer.origin));
     if (accessibleOrder.length !== 6) throw new Error(`Expected 6 accessible tabs, received ${accessibleOrder.length}`);
     await popup.click('#refreshAll');
-    const frozenProgressStatus = await freezePopupAtProgress(popup, 'processed 4/8');
-    if (!frozenProgressStatus.includes('3 refreshed') || !frozenProgressStatus.includes('1 skipped')) {
+    const frozenProgressStatus = await freezePopupAtProgress(popup, expectedProgressStatus);
+    if (!frozenProgressStatus.includes(expectedProgressStatus)) {
       throw new Error(`Unexpected frozen progress state: ${frozenProgressStatus}`);
     }
-    layouts.progress = await capture(popup, screenshotNames.progress);
+    layouts.progress = await capture(popup, screenshotDirectory, screenshotNames.progress);
 
     await popup.close();
     popup = await browser.newPage();
@@ -379,13 +433,13 @@ async function main() {
       () => Number(sessionStorage.storeCaptureLoads) === 2,
       { timeout: 15000 }
     )));
-    await popup.waitForFunction(() => {
+    await popup.waitForFunction(expected => {
       const status = document.querySelector('#statusText')?.textContent || '';
-      return status === 'Refreshed 6 tabs; skipped 2 restricted tabs.'
+      return status === expected
         && document.querySelector('#progressFill')?.style.width === '100%';
-    }, { timeout: 20000 });
+    }, { timeout: 20000 }, expectedCompleteStatus);
     await new Promise(resolve => setTimeout(resolve, 3100));
-    layouts.complete = await capture(popup, screenshotNames.complete);
+    layouts.complete = await capture(popup, screenshotDirectory, screenshotNames.complete);
 
     await popup.evaluate(async timestamp => {
       const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
@@ -396,11 +450,11 @@ async function main() {
     await popup.reload({ waitUntil: 'domcontentloaded' });
     await popup.waitForSelector('#historyContainer');
     await setSectionExpanded(popup, '#historyHeader', '#historyContent', true);
-    layouts.history = await capture(popup, screenshotNames.history);
+    layouts.history = await capture(popup, screenshotDirectory, screenshotNames.history);
 
     await setSectionExpanded(popup, '#historyHeader', '#historyContent', false);
     await setSectionExpanded(popup, '#settingsHeader', '#settingsContent', true);
-    layouts.settings = await capture(popup, screenshotNames.settings);
+    layouts.settings = await capture(popup, screenshotDirectory, screenshotNames.settings);
 
     if (diagnostics.popupErrors.length > 0 || diagnostics.popupConsoleErrors.length > 0) {
       throw new Error(`Popup diagnostics contain errors: ${JSON.stringify(diagnostics)}`);
@@ -418,7 +472,7 @@ async function main() {
         puppeteer: require('puppeteer/package.json').version,
         browser: await browser.version(),
         extensionId,
-        locale: 'en-US',
+        locale: runtimeLocale,
         timezone: 'UTC',
         viewportCss: { width: 640, height: 400 },
         deviceScaleFactor: 2,
@@ -436,15 +490,21 @@ async function main() {
           kind: tab.url?.startsWith(fixtureServer.origin) ? 'local-fixture' : 'restricted'
         }))
       },
+      locale,
+      screenshotDirectory: path.relative(repositoryRoot, screenshotDirectory),
+      expectedStatusStrings: { progress: expectedProgressStatus, complete: expectedCompleteStatus },
       screenshots: Object.values(screenshotNames),
       layouts,
       diagnostics
     };
     fs.writeFileSync(
-      path.join(resultDirectory, 'capture-provenance.json'),
+      path.join(resultDirectory, `capture-provenance-${locale}.json`),
       `${JSON.stringify(provenance, null, 2)}\n`
     );
-    console.log(`Captured ${Object.values(screenshotNames).length} Store screenshots from the verified v2.0.1 package.`);
+    console.log(
+      `Captured ${Object.values(screenshotNames).length} ${locale} Store screenshots `
+      + `from the verified v${expectedVersion} package into ${path.relative(repositoryRoot, screenshotDirectory)}.`
+    );
   } finally {
     fixtureServer.release();
     if (browser && secondWindowId) {
