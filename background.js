@@ -1,3 +1,10 @@
+function t(key, ...substitutions) {
+    return chrome.i18n.getMessage(
+        key,
+        substitutions.length > 0 ? substitutions.map(String) : undefined
+    );
+}
+
 // State tracking
 let activeRefreshOperation = false;
 let tabsToRefresh = [];
@@ -52,7 +59,7 @@ self.addEventListener('unhandledrejection', (event) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'startRefresh') {
         if (activeRefreshOperation) {
-            sendResponse({ success: false, message: 'Operation already in progress' });
+            sendResponse({ success: false, message: t('errorOperationInProgress') });
             return true;
         }
 
@@ -92,7 +99,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         ...storedState,
                         active: false,
                         interrupted: true,
-                        message: 'The previous refresh was interrupted. Please start it again.',
                         lastUpdated: new Date().toISOString()
                     };
                     chrome.storage.session.set({ refreshOperationState: interruptedState });
@@ -161,7 +167,7 @@ function initializeAndStartRefresh(tabs, sendResponse) {
     }
 
     if (!Array.isArray(tabs) || tabs.length === 0) {
-        handleRefreshStartFailure('No tabs available to refresh', sendResponse);
+        handleRefreshStartFailure(t('errorNoTabs'), sendResponse);
         return;
     }
 
@@ -169,7 +175,7 @@ function initializeAndStartRefresh(tabs, sendResponse) {
     tabsToRefresh = tabs.filter(tab => Number.isInteger(tab.id) && tab.id !== chrome.tabs.TAB_ID_NONE);
 
     if (tabsToRefresh.length === 0) {
-        handleRefreshStartFailure('No refreshable tabs found', sendResponse);
+        handleRefreshStartFailure(t('errorNoRefreshableTabs'), sendResponse);
         return;
     }
 
@@ -200,7 +206,7 @@ function initializeAndStartRefresh(tabs, sendResponse) {
 }
 
 function handleRefreshStartFailure(message, sendResponse) {
-    const errorMessage = message || 'Unable to start refresh operation';
+    const errorMessage = message || t('errorStartGeneric');
 
     tabsToRefresh = [];
     refreshedTabs = 0;
@@ -208,7 +214,7 @@ function handleRefreshStartFailure(message, sendResponse) {
     skippedTabs = [];
     tabStatuses = {};
     failedTabs = [{
-        title: 'Unable to start refresh',
+        title: t('errorStartFailureTabTitle'),
         url: 'N/A',
         error: errorMessage
     }];
@@ -449,7 +455,7 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
                 }).catch(() => { });
             } else {
                 const failure = failedTabs.find(item => item.id === tab.id);
-                const errorMessage = failure?.error || 'Unable to refresh this tab';
+                const errorMessage = failure?.error || t('errorTabRefreshFailed');
                 tabStatuses[tab.id] = 'error';
                 chrome.runtime.sendMessage({
                     action: 'tabFailed',
@@ -469,7 +475,7 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
         .catch(error => {
             // Log error and continue with next tab
             console.error(`Error refreshing tab ${tab.id}:`, error);
-            const failure = recordTabFailure(tab, error.message || 'Unknown error');
+            const failure = recordTabFailure(tab, error.message || t('errorUnknown'));
             processedTabs++;
             tabStatuses[tab.id] = 'error';
 
@@ -492,7 +498,7 @@ function refreshTabsBatch(batch, tabIndex, onComplete) {
 function refreshTabWithTimeout(tab) {
     return new Promise((resolve, reject) => {
         const timeoutId = setTimeout(() => {
-            reject(new Error(`Timed out refreshing tab after ${MAX_TAB_REFRESH_MS / 1000} seconds`));
+            reject(new Error(t('errorRefreshTimeout', MAX_TAB_REFRESH_MS / 1000)));
         }, MAX_TAB_REFRESH_MS);
 
         refreshTab(tab, 0)
@@ -513,7 +519,7 @@ function recordTabFailure(tab, error) {
 
     const failure = {
         ...tab,
-        error: error || 'Unknown error'
+        error: error || t('errorUnknown')
     };
     failedTabs.push(failure);
     return failure;
@@ -603,7 +609,7 @@ function preserveStateAndRefreshTab(tab, retryCount, resolve) {
                         } else {
                             recordTabFailure(
                                 tab,
-                                chrome.runtime.lastError.message || 'Failed to reload tab'
+                                chrome.runtime.lastError.message || t('errorReloadFailed')
                             );
                             resolve(false);
                         }
@@ -628,7 +634,7 @@ function basicReload(tab, retryCount, resolve) {
                     refreshTab(tab, retryCount + 1).then(resolve);
                 }, 500 * (retryCount + 1));
             } else {
-                recordTabFailure(tab, chrome.runtime.lastError.message || 'Failed to reload tab');
+                recordTabFailure(tab, chrome.runtime.lastError.message || t('errorReloadFailed'));
                 resolve(false);
             }
         } else {
@@ -647,7 +653,7 @@ async function handleRefreshError(tab, error, retryCount) {
         return refreshTab(tab, retryCount + 1);
     }
 
-    recordTabFailure(tab, error.message || 'Unknown error');
+    recordTabFailure(tab, error.message || t('errorUnknown'));
     return false;
 }
 
@@ -661,7 +667,7 @@ function handleTabRefreshError(tab, error, retryCount, resolve) {
             refreshTab(tab, retryCount + 1).then(resolve);
         }, 500 * Math.pow(2, retryCount));
     } else {
-        recordTabFailure(tab, error.message || 'Unknown error during refresh');
+        recordTabFailure(tab, error.message || t('errorUnknownDuringRefresh'));
         resolve(false);
     }
 }

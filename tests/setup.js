@@ -1,7 +1,60 @@
 const chrome = require('jest-chrome');
+const fs = require('fs');
+const path = require('path');
 
 // Make chrome global
 global.chrome = chrome;
+
+const localeRoot = path.join(__dirname, '..', '_locales');
+const catalogCache = new Map();
+
+// Chrome resolves an unsupported UI locale against the default catalog rather than failing,
+// so an absent locale directory must behave as an empty catalog, not throw.
+function loadCatalog(locale) {
+  if (!catalogCache.has(locale)) {
+    const catalogPath = path.join(localeRoot, locale, 'messages.json');
+    catalogCache.set(
+      locale,
+      fs.existsSync(catalogPath) ? JSON.parse(fs.readFileSync(catalogPath, 'utf8')) : {}
+    );
+  }
+  return catalogCache.get(locale);
+}
+
+let currentLocale = 'en';
+
+// Test helper: switch the locale chrome.i18n resolves against.
+global.setTestLocale = (locale) => {
+  currentLocale = locale;
+};
+
+function resolveMessage(key, substitutions) {
+  if (key === '@@ui_locale') return currentLocale;
+  const entry = loadCatalog(currentLocale)[key] ?? loadCatalog('en')[key];
+  if (!entry) return '';
+
+  const values = substitutions === undefined
+    ? []
+    : (Array.isArray(substitutions) ? substitutions : [substitutions]);
+  const placeholders = new Map(
+    Object.entries(entry.placeholders || {}).map(([name, value]) => [name.toLowerCase(), value])
+  );
+
+  return entry.message.replace(/\$([A-Za-z0-9_]+)\$/g, (match, name) => {
+    const placeholder = placeholders.get(name.toLowerCase());
+    if (!placeholder) return match;
+    return String(placeholder.content).replace(
+      /\$(\d)/g,
+      (_, index) => values[Number(index) - 1] ?? ''
+    );
+  });
+}
+
+chrome.i18n = {
+  ...(chrome.i18n || {}),
+  getUILanguage: jest.fn(() => currentLocale),
+  getMessage: jest.fn((key, substitutions) => resolveMessage(key, substitutions))
+};
 
 // Set up Chrome API mock structures with proper Jest mocks
 chrome.tabs = {
@@ -91,8 +144,25 @@ Object.defineProperty(global, 'sessionStorage', {
   configurable: true
 });
 
-window.confirm = jest.fn(() => false);
-window.prompt = jest.fn(() => null);
+const defaultMatchMedia = query => ({
+  matches: false,
+  media: query,
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn()
+});
+
+window.matchMedia = jest.fn(defaultMatchMedia);
+
+// jest.clearAllMocks() does not restore implementations, so a test that switches locale or
+// forces reduced motion has to hand the environment back itself. setupFiles runs before the test
+// framework exists, so this cannot be registered as a global beforeEach here — suites that mutate
+// the environment call it from their own afterEach instead.
+global.resetTestEnvironment = () => {
+  currentLocale = 'en';
+  window.matchMedia.mockImplementation(defaultMatchMedia);
+  chrome.i18n.getUILanguage.mockImplementation(() => currentLocale);
+  chrome.i18n.getMessage.mockImplementation((key, substitutions) => resolveMessage(key, substitutions));
+};
 
 // Mock console methods
 global.console.error = jest.fn();

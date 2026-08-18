@@ -16,7 +16,8 @@ const promoSvgPath = path.join(assetRoot, 'promo/small-440x280.svg');
 const promoPngPath = path.join(assetRoot, 'promo/small-440x280.png');
 const resultRoot = path.join(repositoryRoot, 'test-results/chrome-web-store');
 const reviewRoot = path.join(resultRoot, 'review');
-const expectedPackageSha = 'dae27e545bea8b27f842657781ff8fc172c5ccc431e7650357c6098e74f9954d';
+const expectedPackageSha = argumentValue('--sha256');
+const expectedVersion = argumentValue('--expect-version') || require('../../package.json').version;
 const screenshotNames = [
   '01-ready-1280x800.png',
   '02-refresh-in-progress-1280x800.png',
@@ -117,6 +118,9 @@ function dominantEdgeColour(data, info) {
 }
 
 async function inspectPackagedIcon(zipPath) {
+  if (!expectedPackageSha) {
+    throw new Error('--zip requires --sha256 <hex> so the audited package is pinned explicitly');
+  }
   const zipBuffer = fs.readFileSync(zipPath);
   const packageSha = sha256(zipBuffer);
   if (packageSha !== expectedPackageSha) {
@@ -130,7 +134,7 @@ async function inspectPackagedIcon(zipPath) {
   }
   const entryMap = new Map(entries.map(entry => [entry.filename, entry.data]));
   const manifest = JSON.parse(entryMap.get('manifest.json').toString('utf8'));
-  if (manifest.version !== '2.0.1') throw new Error(`Unexpected packaged version ${manifest.version}`);
+  if (manifest.version !== expectedVersion) throw new Error(`Unexpected packaged version ${manifest.version}`);
   const iconPath = manifest.icons?.['128'];
   if (!entryMap.has(iconPath)) throw new Error(`Packaged Store icon is missing: ${iconPath}`);
 
@@ -189,7 +193,7 @@ async function inspectPackagedIcon(zipPath) {
         width: right - left + 1,
         height: bottom - top + 1
       },
-      finding: 'Valid 128x128 PNG; opaque padding is retained for v2.0.1 and documented as a future improvement.'
+      finding: `Valid 128x128 PNG; opaque padding is retained for v${manifest.version} and documented as a future improvement.`
     }
   };
   fs.mkdirSync(resultRoot, { recursive: true });
@@ -208,12 +212,37 @@ async function verifyPromo() {
   return result;
 }
 
-async function verifyScreenshots() {
-  const previewDirectory = path.join(reviewRoot, 'screenshots-640x400');
+// The default-language screenshots sit directly in screenshots/; each additional Store language gets
+// a sibling subdirectory named after its locale. Every locale shipped in _locales must have a full set.
+function localizedScreenshotDirectories() {
+  const localeRoot = path.join(repositoryRoot, '_locales');
+  const defaultLocale = JSON.parse(
+    fs.readFileSync(path.join(repositoryRoot, 'manifest.json'), 'utf8')
+  ).default_locale;
+
+  return fs.readdirSync(localeRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+    .sort()
+    .map(locale => ({
+      locale,
+      directory: locale === defaultLocale
+        ? screenshotDirectory
+        : path.join(screenshotDirectory, locale)
+    }));
+}
+
+async function verifyScreenshotSet(locale, directory) {
+  const previewDirectory = path.join(reviewRoot, `screenshots-640x400`, locale);
   fs.mkdirSync(previewDirectory, { recursive: true });
   const results = [];
   for (const name of screenshotNames) {
-    const filename = path.join(screenshotDirectory, name);
+    const filename = path.join(directory, name);
+    if (!fs.existsSync(filename)) {
+      throw new Error(
+        `Missing ${locale} Store screenshot: ${path.relative(repositoryRoot, filename)}`
+      );
+    }
     results.push(await inspectPng(filename, 1280, 800, { requireOpaque: true }));
     await sharp(filename)
       .resize(640, 400, { fit: 'fill' })
@@ -221,6 +250,25 @@ async function verifyScreenshots() {
       .toFile(path.join(previewDirectory, name.replace('1280x800', '640x400')));
   }
   return results;
+}
+
+async function verifyScreenshots() {
+  const byLocale = {};
+  for (const { locale, directory } of localizedScreenshotDirectories()) {
+    byLocale[locale] = await verifyScreenshotSet(locale, directory);
+  }
+
+  // Each locale must be a distinct capture, not the same PNGs copied around.
+  const locales = Object.keys(byLocale);
+  for (let index = 0; index < screenshotNames.length; index += 1) {
+    const hashes = new Set(locales.map(locale => byLocale[locale][index].sha256));
+    if (hashes.size !== locales.length) {
+      throw new Error(
+        `Localized screenshots are duplicates for ${screenshotNames[index]}: ${locales.join(', ')}`
+      );
+    }
+  }
+  return byLocale;
 }
 
 async function main() {

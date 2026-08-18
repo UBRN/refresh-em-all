@@ -8,10 +8,13 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(ROOT, 'dist');
 
-// Keep this list explicit. It is both the package manifest and the guard against
-// accidentally shipping tests, documentation, local configuration, or build
-// output. Entries are sorted before writing so the archive is reproducible.
+// Keep this list explicit. It is both the package manifest, the locale allowlist,
+// and the guard against accidentally shipping tests, documentation, local
+// configuration, or build output. Entries are sorted before writing so the
+// archive is reproducible.
 const RUNTIME_FILES = [
+    '_locales/en/messages.json',
+    '_locales/tr/messages.json',
     'manifest.json',
     'background.js',
     'content-script.js',
@@ -189,6 +192,48 @@ function collectReferencedRuntimeFiles(manifest) {
     return referenced;
 }
 
+function validateLocales(manifest, allowed) {
+    const localesRoot = path.join(ROOT, '_locales');
+    const defaultLocaleFile = manifest.default_locale
+        ? `_locales/${manifest.default_locale}/messages.json`
+        : null;
+
+    if (!fs.existsSync(localesRoot)) {
+        if (defaultLocaleFile) throw new Error(`Default locale file is missing: ${defaultLocaleFile}`);
+        return;
+    }
+
+    const localeFiles = [];
+    for (const locale of fs.readdirSync(localesRoot, { withFileTypes: true })) {
+        const localeDirectory = `_locales/${locale.name}`;
+        if (!locale.isDirectory()) {
+            throw new Error(`Unexpected entry in _locales: ${localeDirectory}`);
+        }
+
+        const entries = fs.readdirSync(path.join(localesRoot, locale.name), { withFileTypes: true });
+        if (entries.length !== 1 || entries[0].name !== 'messages.json' || !entries[0].isFile()) {
+            throw new Error(`Locale directory must contain exactly messages.json: ${localeDirectory}`);
+        }
+
+        const localeFile = `${localeDirectory}/messages.json`;
+        try {
+            JSON.parse(fs.readFileSync(path.join(ROOT, localeFile), 'utf8'));
+        } catch (error) {
+            throw new Error(`Locale ${locale.name} has invalid messages.json: ${error.message}`);
+        }
+        localeFiles.push(localeFile);
+    }
+
+    if (defaultLocaleFile && !localeFiles.includes(defaultLocaleFile)) {
+        throw new Error(`Default locale file is missing: ${defaultLocaleFile}`);
+    }
+
+    const missingLocales = localeFiles.filter(file => !allowed.has(file)).sort();
+    if (missingLocales.length > 0) {
+        throw new Error(`Locale files present but not packaged: ${missingLocales.join(', ')}`);
+    }
+}
+
 function validateRuntimeAllowlist(manifest) {
     const allowed = new Set(RUNTIME_FILES);
     const referenced = collectReferencedRuntimeFiles(manifest);
@@ -197,6 +242,8 @@ function validateRuntimeAllowlist(manifest) {
     if (missingReferences.length > 0) {
         throw new Error(`Runtime files referenced but not packaged: ${missingReferences.join(', ')}`);
     }
+
+    validateLocales(manifest, allowed);
 
     for (const relativePath of RUNTIME_FILES) {
         if (path.posix.isAbsolute(relativePath) || relativePath.includes('..')) {
