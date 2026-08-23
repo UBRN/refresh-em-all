@@ -348,7 +348,7 @@ function showConfetti() {
         confetti.className = 'confetti-piece';
         confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
         confetti.style.left = `${Math.random() * 100}%`;
-        confetti.style.animationDuration = `${Math.random() * 2 + 2}s`;
+        confetti.style.animationDuration = `${Math.random() + 2}s`;
         confettiElement.appendChild(confetti);
     }
 

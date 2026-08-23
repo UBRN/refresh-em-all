@@ -18,13 +18,48 @@ let operationCancelled = false;
 let operationFinalized = false;
 let batchTimeoutId = null;
 
+// Tabs this worker just reloaded that are still waiting for media restoration.
+// ponytail: in-memory only — if the MV3 worker is evicted between the reload
+// and the tab reaching "complete", that tab's restore is skipped. Move to
+// chrome.storage.session if that gap shows up in practice.
+const pendingMediaRestores = new Map(); // tabId -> timeout id
+const MEDIA_RESTORE_TIMEOUT_MS = 30000;
+
 // Constants for tab processing
 const MAX_TABS_PER_BATCH = 5; // Process tabs in smaller batches
-const TAB_PROCESSING_INTERVAL = 150; // ms between tab refreshes
+const TAB_PROCESSING_INTERVAL = 75; // ms between tab refreshes
 const MAX_RETRIES = 2; // Number of retries for failed tab refreshes
-const BATCH_INTERVAL = 500; // ms between batches
+const BATCH_INTERVAL = 250; // ms between batches
 const MAX_LOADING_WAIT_MS = 10000;
 const MAX_TAB_REFRESH_MS = 30000;
+
+function clearPendingMediaRestore(tabId) {
+    const timeoutId = pendingMediaRestores.get(tabId);
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    pendingMediaRestores.delete(tabId);
+}
+
+function scheduleMediaRestore(tabId) {
+    clearPendingMediaRestore(tabId);
+    pendingMediaRestores.set(
+        tabId,
+        setTimeout(() => pendingMediaRestores.delete(tabId), MEDIA_RESTORE_TIMEOUT_MS)
+    );
+}
+
+function restoreMediaStateInTab(tabId) {
+    try {
+        chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['content-script.js']
+        }, () => {
+            // The tab may have navigated away, closed, or be restricted by now.
+            void chrome.runtime.lastError;
+        });
+    } catch (error) {
+        console.debug('[Refresh Em All] Media restoration injection failed:', error);
+    }
+}
 
 // Setup error handling for uncaught errors
 self.addEventListener('error', (event) => {
@@ -54,6 +89,16 @@ self.addEventListener('unhandledrejection', (event) => {
 
     reportError('unhandled_promise_rejection', errorDetails);
 });
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status !== 'complete') return;
+    if (!pendingMediaRestores.has(tabId)) return;
+
+    clearPendingMediaRestore(tabId);
+    restoreMediaStateInTab(tabId);
+});
+
+chrome.tabs.onRemoved.addListener(clearPendingMediaRestore);
 
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -592,32 +637,38 @@ function preserveStateAndRefreshTab(tab, retryCount, resolve) {
         chrome.scripting.executeScript({
             target: { tabId: tab.id },
             function: preserveMediaState
-        }, () => {
+        }, (injectionResults) => {
             const error = chrome.runtime.lastError;
             if (error) {
                 basicReload(tab, retryCount, resolve);
                 return;
             }
 
-            setTimeout(() => {
-                chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
-                    if (chrome.runtime.lastError) {
-                        if (retryCount < MAX_RETRIES) {
-                            setTimeout(() => {
-                                refreshTab(tab, retryCount + 1).then(resolve);
-                            }, 500 * (retryCount + 1));
-                        } else {
-                            recordTabFailure(
-                                tab,
-                                chrome.runtime.lastError.message || t('errorReloadFailed')
-                            );
-                            resolve(false);
-                        }
+            const capturedCount = injectionResults?.[0]?.result?.count;
+            // Unexpected or absent results restore rather than silently dropping captured state.
+            const hasStateToRestore = capturedCount !== 0;
+
+            chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
+                if (chrome.runtime.lastError) {
+                    if (retryCount < MAX_RETRIES) {
+                        setTimeout(() => {
+                            refreshTab(tab, retryCount + 1).then(resolve);
+                        }, 500 * (retryCount + 1));
                     } else {
-                        resolve(true);
+                        recordTabFailure(
+                            tab,
+                            chrome.runtime.lastError.message || t('errorReloadFailed')
+                        );
+                        resolve(false);
                     }
-                });
-            }, 100);
+                } else {
+                    // Scheduled only after the reload is dispatched: an
+                    // already-loading tab can otherwise reach "complete" for
+                    // its previous navigation and consume the saved state.
+                    if (hasStateToRestore) scheduleMediaRestore(tab.id);
+                    resolve(true);
+                }
+            });
         });
     } catch (error) {
         basicReload(tab, retryCount, resolve);
