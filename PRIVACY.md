@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective date: July 29, 2026
+Effective date: August 24, 2026
 
 Refresh Em All refreshes open tabs and attempts to preserve supported audio and
 video playback state. The extension performs this work locally in Chrome. The
@@ -27,6 +27,11 @@ YouTube pages it may also handle the current video identifier and the time at
 which state was captured. The extension does not read arbitrary page text or
 form contents for this feature.
 
+The same pre-reload check also reads the page's Resource Timing entries to
+total the byte sizes of resources the page loaded from cache. It reads only
+sizes and timings recorded by the browser, not page content, text, or URLs
+beyond those already described above.
+
 ## Local storage and retention
 
 Refresh Em All uses the following browser-managed storage:
@@ -40,6 +45,10 @@ Refresh Em All uses the following browser-managed storage:
   summary contains a timestamp, tab totals, successful, failed, and skipped
   counts, and whether the operation was cancelled. History summaries do not
   contain tab URLs or titles.
+- `chrome.storage.local` also holds `cacheStats`, which contains byte totals
+  only: the most recent operation, an all-time total, and at most 31 daily
+  totals keyed by local date. It contains no URLs, hostnames, per-site, or
+  per-tab data. The reset control in the popup clears it.
 - The relevant page's `sessionStorage` temporarily holds media state under the
   `refreshEmAllMediaState` key so it can survive that page's reload. The bundled
   content script removes the entry when it reads it. If it cannot be consumed,

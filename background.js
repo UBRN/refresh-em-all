@@ -17,6 +17,7 @@ let startTime;
 let operationCancelled = false;
 let operationFinalized = false;
 let batchTimeoutId = null;
+let staleBytesThisRun = 0;
 
 // Tabs this worker just reloaded that are still waiting for media restoration.
 // ponytail: in-memory only — if the MV3 worker is evicted between the reload
@@ -226,6 +227,7 @@ function initializeAndStartRefresh(tabs, sendResponse) {
 
     refreshedTabs = 0;
     processedTabs = 0;
+    staleBytesThisRun = 0;
     failedTabs = [];
     skippedTabs = [];
     tabStatuses = Object.fromEntries(tabsToRefresh.map(tab => [tab.id, 'pending']));
@@ -374,7 +376,8 @@ function endRefreshOperation(success = true) {
         successfulTabs: refreshedTabs,
         failedCount: failedTabs.length,
         skippedCount: skippedTabs.length,
-        cancelled: operationCancelled
+        cancelled: operationCancelled,
+        staleBytes: staleBytesThisRun
     };
 
     const historyEntry = {
@@ -387,15 +390,43 @@ function endRefreshOperation(success = true) {
     };
 
     clearPersistedOperationState();
-    saveToHistory(historyEntry, () => {
-        // Broadcast completion after history is durable so an open popup can reload it.
-        chrome.runtime.sendMessage({
-            action: 'refreshComplete',
-            success: finalSuccess,
-            details: operationDetails,
-            failedTabs: failedTabs
-        }).catch(() => {
-            // Popup might be closed, ignore error
+    chrome.storage.local.get(['cacheStats'], (result) => {
+        const previous = result.cacheStats
+            && typeof result.cacheStats === 'object'
+            && !Array.isArray(result.cacheStats)
+            ? result.cacheStats
+            : {};
+        const previousDays = previous.days
+            && typeof previous.days === 'object'
+            && !Array.isArray(previous.days)
+            ? previous.days
+            : {};
+        const today = dayKey();
+        const days = {
+            ...previousDays,
+            [today]: (Number.isFinite(previousDays[today]) ? previousDays[today] : 0) + staleBytesThisRun
+        };
+        const prunedDays = Object.fromEntries(
+            Object.keys(days).sort().slice(-31).map(key => [key, days[key]])
+        );
+        const next = {
+            lastRun: staleBytesThisRun,
+            total: (Number.isFinite(previous.total) ? previous.total : 0) + staleBytesThisRun,
+            days: prunedDays
+        };
+
+        chrome.storage.local.set({ cacheStats: next }, () => {
+            saveToHistory(historyEntry, () => {
+                // Broadcast completion after history is durable so an open popup can reload it.
+                chrome.runtime.sendMessage({
+                    action: 'refreshComplete',
+                    success: finalSuccess,
+                    details: operationDetails,
+                    failedTabs: failedTabs
+                }).catch(() => {
+                    // Popup might be closed, ignore error
+                });
+            });
         });
     });
 }
@@ -644,6 +675,8 @@ function preserveStateAndRefreshTab(tab, retryCount, resolve) {
                 return;
             }
 
+            const measuredStaleBytes = injectionResults?.[0]?.result?.staleBytes;
+            if (Number.isFinite(measuredStaleBytes)) staleBytesThisRun += measuredStaleBytes;
             const capturedCount = injectionResults?.[0]?.result?.count;
             // Unexpected or absent results restore rather than silently dropping captured state.
             const hasStateToRestore = capturedCount !== 0;
@@ -763,9 +796,24 @@ function saveToHistory(operation, onSaved = () => {}) {
     });
 }
 
+function dayKey(date = new Date()) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 // Function to preserve media state before refresh
 function preserveMediaState() {
     try {
+        let staleBytes = 0;
+        try {
+            for (const entry of performance.getEntriesByType('resource')) {
+                if (entry.transferSize === 0 && entry.decodedBodySize > 0) {
+                    staleBytes += entry.encodedBodySize;
+                }
+            }
+        } catch (error) {
+            staleBytes = 0;
+        }
+
         const videos = document.querySelectorAll('video');
         const audios = document.querySelectorAll('audio');
         let mediaStates = {};
@@ -816,10 +864,10 @@ function preserveMediaState() {
         // Save to sessionStorage if we have media elements
         if (Object.keys(mediaStates).length > 0) {
             sessionStorage.setItem('refreshEmAllMediaState', JSON.stringify(mediaStates));
-            return { success: true, count: Object.keys(mediaStates).length };
+            return { success: true, count: Object.keys(mediaStates).length, staleBytes };
         }
 
-        return { success: true, count: 0 };
+        return { success: true, count: 0, staleBytes };
     } catch (error) {
         console.error("Error preserving media state:", error);
         return { success: false, error: error.message };

@@ -199,6 +199,60 @@
       "skipped": { "content": "$4", "example": "2" }
     }
   },
+  "statsToggle": {
+    "message": "Önbellek İstatistikleri",
+    "description": "Button that expands the local cache statistics."
+  },
+  "statsToday": {
+    "message": "Bugün: en az $SIZE$",
+    "description": "Cache statistics row for the current local date.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12,4 MB" }
+    }
+  },
+  "statsLastRun": {
+    "message": "Son çalıştırma: en az $SIZE$",
+    "description": "Cache statistics row for the most recent refresh operation.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12,4 MB" }
+    }
+  },
+  "statsWeek": {
+    "message": "Son 7 gün: en az $SIZE$",
+    "description": "Cache statistics row for the current and previous six local dates.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12,4 MB" }
+    }
+  },
+  "statsMonth": {
+    "message": "Son 30 gün: en az $SIZE$",
+    "description": "Cache statistics row for the current and previous 29 local dates.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12,4 MB" }
+    }
+  },
+  "statsTotal": {
+    "message": "Tüm zamanlar: en az $SIZE$",
+    "description": "Cache statistics row for the all-time measured byte total.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12,4 MB" }
+    }
+  },
+  "statsRunLine": {
+    "message": "En az $SIZE$ bayat önbellek tazelendi.",
+    "description": "Completion line showing stale cache measured during the latest refresh.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12,4 MB" }
+    }
+  },
+  "statsResetAction": {
+    "message": "İstatistikleri sıfırla",
+    "description": "Button that clears locally stored cache statistics."
+  },
+  "statsNote": {
+    "message": "Bu toplamlar tarayıcınızda ölçülür ve cihazınızdan çıkmaz. Alt sınır niteliğindedir: Timing-Allow-Origin göndermeyen dosyalar sayfaya boyut bildirmediği için sayıma girmez.",
+    "description": "Privacy and measurement-limit note below the cache statistics."
+  },
   "settingsToggle": {
     "message": "Ayarlar",
     "description": "Button that expands the settings and privacy section."

@@ -1,10 +1,10 @@
 # Chrome Web Store Listing Proposal
 
 This document contains proposed submission text and a code-backed declaration
-audit for Refresh Em All v2.1.0. It does not authorize publication.
+audit for Refresh Em All v2.3.0. It does not authorize publication.
 
-v2.1.0 adds English and Turkish localization through Chrome's native
-`chrome.i18n` support. Dashboard-only items are tracked separately in
+v2.3.0 adds local-first cache statistics that show how much stale cached data
+each refresh freshens. Dashboard-only items are tracked separately in
 [`dashboard-checklist.md`](dashboard-checklist.md).
 
 ## Listing content (English)
@@ -39,6 +39,12 @@ be captured first.
 
 The interface is available in English and Turkish, and follows your browser's
 language automatically.
+
+Refresh Em All now totals, on your device, how much stale cached data each
+refresh freshens. The popup shows the last run, today, the last 7 and 30 days,
+and all time. The figure is a lower bound because files served without
+Timing-Allow-Origin report no size to the page. Nothing is transmitted, and
+the totals can be reset from Settings.
 
 Refresh progress and up to ten summary-only history entries remain in
 browser-managed storage on your device. Refresh Em All does not send browsing
@@ -91,6 +97,12 @@ bu sekmelerin medya durumu önceden okunamaz.
 
 Arayüz İngilizce ve Türkçe olarak sunulur ve tarayıcınızın diline göre kendini
 ayarlar.
+
+Refresh Em All artık her yenilemede tazelenen bayat önbellek verisinin miktarını
+cihazınızda toplar. Açılır pencere son çalıştırma, bugün, son 7 ve 30 gün ile tüm
+zamanların toplamını gösterir. Bu değer alt sınırdır; Timing-Allow-Origin
+göndermeyen dosyalar sayfaya boyut bildirmediği için hesaba katılmaz. Hiçbir veri
+gönderilmez; toplamlar Ayarlar'dan sıfırlanabilir.
 
 Yenileme ilerlemesi ve en fazla on adet özet geçmiş kaydı yalnızca cihazınızda,
 tarayıcının yönettiği depolamada kalır. Refresh Em All gezinme verisi,

@@ -5,6 +5,27 @@ function t(key, ...substitutions) {
     );
 }
 
+function dayKey(date = new Date()) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function formatBytes(bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = Number.isFinite(bytes) ? bytes : 0;
+    let unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex++;
+    }
+
+    const fractionDigits = unitIndex === 0 ? 0 : 1;
+    return `${value.toLocaleString(t('htmlLang'), {
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits
+    })} ${units[unitIndex]}`;
+}
+
 const TAB_STATUS_KEYS = {
     pending: 'tabStatusPending',
     success: 'tabStatusSuccess',
@@ -17,6 +38,7 @@ const cancelButton = document.getElementById('cancelRefresh');
 const loadingContainer = document.getElementById('loadingContainer');
 const progressBar = document.getElementById('progressFill');
 const statusText = document.getElementById('statusText');
+const statsRunLine = document.getElementById('statsRunLine');
 const tabsContainer = document.getElementById('tabsContainer');
 const errorContainer = document.getElementById('errorContainer');
 const errorSummary = document.getElementById('errorSummary');
@@ -24,6 +46,15 @@ const errorDetails = document.getElementById('errorDetails');
 const historyContainer = document.getElementById('historyContainer');
 const historyHeader = document.getElementById('historyHeader');
 const historyContent = document.getElementById('historyContent');
+const statsContainer = document.getElementById('statsContainer');
+const statsHeader = document.getElementById('statsHeader');
+const statsContent = document.getElementById('statsContent');
+const statsToday = document.getElementById('statsToday');
+const statsLastRun = document.getElementById('statsLastRun');
+const statsWeek = document.getElementById('statsWeek');
+const statsMonth = document.getElementById('statsMonth');
+const statsTotal = document.getElementById('statsTotal');
+const resetStats = document.getElementById('resetStats');
 const confettiElement = document.getElementById('confetti');
 const settingsHeader = document.getElementById('settingsHeader');
 const settingsContent = document.getElementById('settingsContent');
@@ -38,8 +69,11 @@ document.title = t('appName');
     ['#cancelRefresh', 'actionCancel'],
     ['#statusText', 'statusRefreshingTabs'],
     ['#historyHeader', 'historyToggle'],
+    ['#statsHeader', 'statsToggle'],
+    ['#resetStats', 'statsResetAction'],
+    ['#statsNote', 'statsNote'],
     ['#settingsHeader', 'settingsToggle'],
-    ['.privacy-info', 'privacyNotice']
+    ['#settingsContent .privacy-info', 'privacyNotice']
 ].forEach(([selector, key]) => {
     const element = document.querySelector(selector);
     if (element) element.textContent = t(key);
@@ -55,6 +89,7 @@ let failedTabs = [];
 let skippedTabs = 0;
 
 initializeHistory();
+initializeStats();
 restoreOperationStatus();
 
 refreshButton.addEventListener('click', () => {
@@ -123,6 +158,8 @@ function initializeRefreshUI(tabs, statuses = {}) {
     progressBar.style.width = '0%';
     progressBar.parentElement?.setAttribute('aria-valuenow', '0');
     statusText.textContent = t('statusProcessedInitial', tabs.length);
+    statsRunLine.style.display = 'none';
+    statsRunLine.textContent = '';
     errorContainer.style.display = 'none';
 
     createTabIndicators(tabs);
@@ -174,8 +211,17 @@ function handleRefreshComplete(data) {
         showConfetti();
     }
 
-    initializeHistory();
+    const staleBytes = Number.isFinite(details.staleBytes) ? details.staleBytes : 0;
+    if (staleBytes > 0) {
+        statsRunLine.style.display = 'block';
+        statsRunLine.textContent = t('statsRunLine', formatBytes(staleBytes));
+    } else {
+        statsRunLine.style.display = 'none';
+        statsRunLine.textContent = '';
+    }
 
+    initializeHistory();
+    initializeStats();
 }
 
 function restoreOperationStatus() {
@@ -296,10 +342,20 @@ historyHeader.addEventListener('click', () => {
     historyHeader.setAttribute('aria-expanded', String(!expanded));
 });
 
+statsHeader.addEventListener('click', () => {
+    const expanded = statsContent.style.display !== 'none';
+    statsContent.style.display = expanded ? 'none' : 'block';
+    statsHeader.setAttribute('aria-expanded', String(!expanded));
+});
+
 settingsHeader.addEventListener('click', () => {
     const expanded = settingsContent.style.display !== 'none';
     settingsContent.style.display = expanded ? 'none' : 'block';
     settingsHeader.setAttribute('aria-expanded', String(!expanded));
+});
+
+resetStats.addEventListener('click', () => {
+    chrome.storage.local.remove(['cacheStats'], initializeStats);
 });
 
 function initializeHistory() {
@@ -307,6 +363,43 @@ function initializeHistory() {
         const history = Array.isArray(result.refreshHistory) ? result.refreshHistory : [];
         historyContainer.style.display = history.length > 0 ? 'block' : 'none';
         updateHistoryDisplay(history);
+    });
+}
+
+function initializeStats() {
+    chrome.storage.local.get(['cacheStats'], (result) => {
+        const cacheStats = result.cacheStats
+            && typeof result.cacheStats === 'object'
+            && !Array.isArray(result.cacheStats)
+            ? result.cacheStats
+            : {};
+        const days = cacheStats.days
+            && typeof cacheStats.days === 'object'
+            && !Array.isArray(cacheStats.days)
+            ? cacheStats.days
+            : {};
+        const todayValue = days[dayKey()];
+        const today = Number.isFinite(todayValue) ? todayValue : 0;
+        const lastRun = Number.isFinite(cacheStats.lastRun) ? cacheStats.lastRun : 0;
+        const total = Number.isFinite(cacheStats.total) ? cacheStats.total : 0;
+        let week = 0;
+        let month = 0;
+
+        for (let offset = 0; offset < 30; offset++) {
+            const date = new Date();
+            date.setDate(date.getDate() - offset);
+            const value = days[dayKey(date)];
+            if (!Number.isFinite(value)) continue;
+            month += value;
+            if (offset < 7) week += value;
+        }
+
+        statsToday.textContent = t('statsToday', formatBytes(today));
+        statsLastRun.textContent = t('statsLastRun', formatBytes(lastRun));
+        statsWeek.textContent = t('statsWeek', formatBytes(week));
+        statsMonth.textContent = t('statsMonth', formatBytes(month));
+        statsTotal.textContent = t('statsTotal', formatBytes(total));
+        statsContainer.style.display = total > 0 ? 'block' : 'none';
     });
 }
 

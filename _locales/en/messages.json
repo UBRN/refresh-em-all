@@ -199,6 +199,60 @@
       "skipped": { "content": "$4", "example": "2" }
     }
   },
+  "statsToggle": {
+    "message": "Cache Statistics",
+    "description": "Button that expands the local cache statistics."
+  },
+  "statsToday": {
+    "message": "Today: at least $SIZE$",
+    "description": "Cache statistics row for the current local date.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12.4 MB" }
+    }
+  },
+  "statsLastRun": {
+    "message": "Last run: at least $SIZE$",
+    "description": "Cache statistics row for the most recent refresh operation.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12.4 MB" }
+    }
+  },
+  "statsWeek": {
+    "message": "Last 7 days: at least $SIZE$",
+    "description": "Cache statistics row for the current and previous six local dates.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12.4 MB" }
+    }
+  },
+  "statsMonth": {
+    "message": "Last 30 days: at least $SIZE$",
+    "description": "Cache statistics row for the current and previous 29 local dates.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12.4 MB" }
+    }
+  },
+  "statsTotal": {
+    "message": "All time: at least $SIZE$",
+    "description": "Cache statistics row for the all-time measured byte total.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12.4 MB" }
+    }
+  },
+  "statsRunLine": {
+    "message": "Freshened at least $SIZE$ of stale cache.",
+    "description": "Completion line showing stale cache measured during the latest refresh.",
+    "placeholders": {
+      "size": { "content": "$1", "example": "12.4 MB" }
+    }
+  },
+  "statsResetAction": {
+    "message": "Reset statistics",
+    "description": "Button that clears locally stored cache statistics."
+  },
+  "statsNote": {
+    "message": "These totals are measured in your browser and never leave it. They are a lower bound: files served without Timing-Allow-Origin report no size to the page, so they are not counted.",
+    "description": "Privacy and measurement-limit note below the cache statistics."
+  },
   "settingsToggle": {
     "message": "Settings",
     "description": "Button that expands the settings and privacy section."

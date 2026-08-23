@@ -21,6 +21,7 @@ function renderPopupDom() {
     <div id="loadingContainer" style="display:none">
       <div id="progressBar" aria-valuenow="0"><div id="progressFill"></div></div>
       <div id="statusText"></div>
+      <div id="statsRunLine" style="display:none"></div>
       <div id="tabsContainer"></div>
     </div>
     <div id="errorContainer" style="display:none">
@@ -30,13 +31,27 @@ function renderPopupDom() {
       <button id="historyHeader" aria-expanded="false"></button>
       <div id="historyContent" style="display:none"></div>
     </div>
+    <div id="statsContainer" style="display:none">
+      <button id="statsHeader" aria-expanded="false"></button>
+      <div id="statsContent" style="display:none">
+        <div id="statsToday"></div>
+        <div id="statsLastRun"></div>
+        <div id="statsWeek"></div>
+        <div id="statsMonth"></div>
+        <div id="statsTotal"></div>
+        <p id="statsNote" class="privacy-info"></p>
+      </div>
+    </div>
     <button id="settingsHeader" aria-expanded="false"></button>
-    <div id="settingsContent" style="display:none"><p class="privacy-info"></p></div>
+    <div id="settingsContent" style="display:none">
+      <button id="resetStats"></button>
+      <p class="privacy-info"></p>
+    </div>
     <div id="confetti" style="display:none"></div>
   `;
 }
 
-function executePopupJs({ operationState = { active: false }, history = [] } = {}) {
+function executePopupJs({ operationState = { active: false }, history = [], cacheStats } = {}) {
   renderPopupDom();
   chrome.runtime.onMessage.callbackQueue = [];
   chrome.runtime.onMessage.addListener.mockImplementation(callback => {
@@ -49,7 +64,7 @@ function executePopupJs({ operationState = { active: false }, history = [] } = {
     return Promise.resolve({});
   });
   chrome.storage.local.get.mockImplementation((keys, callback) => {
-    callback({ refreshHistory: history });
+    callback(keys.includes('cacheStats') ? { cacheStats } : { refreshHistory: history });
   });
 
   new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
@@ -76,8 +91,11 @@ describe('Localization contracts', () => {
         const referencedNames = [...entry.message.matchAll(/\$([A-Za-z0-9_]+)\$/g)]
           .map(match => match[1].toLowerCase())
           .sort();
+        const referencedSpelling = [...entry.message.matchAll(/\$([A-Za-z0-9_]+)\$/g)]
+          .map(match => match[1]);
 
         expect(referencedNames).toEqual(placeholderNames[locale]);
+        for (const name of referencedSpelling) expect(name).toBe(name.toUpperCase());
         for (const placeholder of Object.values(entry.placeholders || {})) {
           expect(placeholder.content).toMatch(/^\$[1-9]$/);
         }
@@ -163,6 +181,11 @@ describe('Localization contracts', () => {
     expect(document.documentElement.lang).toBe('tr');
     expect(document.getElementById('refreshAll').textContent).toBe('Tüm Sekmeleri Yenile');
     expect(document.getElementById('settingsHeader').textContent).toBe('Ayarlar');
+    expect(document.getElementById('statsHeader').textContent).toBe('Önbellek İstatistikleri');
+    expect(document.getElementById('resetStats').textContent).toBe('İstatistikleri sıfırla');
+    expect(document.getElementById('statsNote').textContent).toBe(
+      'Bu toplamlar tarayıcınızda ölçülür ve cihazınızdan çıkmaz. Alt sınır niteliğindedir: Timing-Allow-Origin göndermeyen dosyalar sayfaya boyut bildirmediği için sayıma girmez.'
+    );
 
     onMessage({
       action: 'refreshComplete', success: true,

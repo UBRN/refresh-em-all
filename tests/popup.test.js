@@ -17,6 +17,7 @@ function renderPopupDom() {
     <div id="loadingContainer" style="display:none">
       <div id="progressBar" aria-valuenow="0"><div id="progressFill"></div></div>
       <div id="statusText"></div>
+      <div id="statsRunLine" style="display:none"></div>
       <div id="tabsContainer"></div>
     </div>
     <div id="errorContainer" style="display:none">
@@ -26,13 +27,27 @@ function renderPopupDom() {
       <button id="historyHeader" aria-expanded="false"></button>
       <div id="historyContent" style="display:none"></div>
     </div>
+    <div id="statsContainer" style="display:none">
+      <button id="statsHeader" aria-expanded="false"></button>
+      <div id="statsContent" style="display:none">
+        <div id="statsToday"></div>
+        <div id="statsLastRun"></div>
+        <div id="statsWeek"></div>
+        <div id="statsMonth"></div>
+        <div id="statsTotal"></div>
+        <p id="statsNote" class="privacy-info"></p>
+      </div>
+    </div>
     <button id="settingsHeader" aria-expanded="false"></button>
-    <div id="settingsContent" style="display:none"><p class="privacy-info"></p></div>
+    <div id="settingsContent" style="display:none">
+      <button id="resetStats"></button>
+      <p class="privacy-info"></p>
+    </div>
     <div id="confetti" style="display:none"></div>
   `;
 }
 
-function executePopupJs({ operationState = { active: false }, history = [] } = {}) {
+function executePopupJs({ operationState = { active: false }, history = [], cacheStats } = {}) {
   renderPopupDom();
   chrome.runtime.onMessage.callbackQueue = [];
   chrome.runtime.onMessage.addListener.mockImplementation(callback => {
@@ -45,7 +60,7 @@ function executePopupJs({ operationState = { active: false }, history = [] } = {
     return Promise.resolve({});
   });
   chrome.storage.local.get.mockImplementation((keys, callback) => {
-    callback({ refreshHistory: history });
+    callback(keys.includes('cacheStats') ? { cacheStats } : { refreshHistory: history });
   });
 
   new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
@@ -198,5 +213,64 @@ describe('Popup controller', () => {
     expect(chrome.storage.local.get).toHaveBeenCalledWith(['refreshHistory'], expect.any(Function));
     expect(document.getElementById('historyContent').textContent).toContain('2/4 refreshed, 1 failed, 1 skipped');
     expect(document.getElementById('historyContent').querySelector('script')).toBeNull();
+  });
+
+  test('hides absent statistics and renders five localized totals when seeded', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 7, 24, 12));
+    executePopupJs();
+    expect(document.getElementById('statsContainer').style.display).toBe('none');
+
+    executePopupJs({
+      cacheStats: {
+        lastRun: 1536,
+        total: 10 * 1024 * 1024,
+        days: {
+          '2026-08-24': 2048,
+          '2026-08-23': 3072,
+          '2026-08-22': 4096,
+          '2026-08-01': 1024
+        }
+      }
+    });
+
+    expect(document.getElementById('statsContainer').style.display).toBe('block');
+    expect(document.getElementById('statsToday').textContent).toBe('Today: at least 2.0 KB');
+    expect(document.getElementById('statsLastRun').textContent).toBe('Last run: at least 1.5 KB');
+    expect(document.getElementById('statsWeek').textContent).toBe('Last 7 days: at least 9.0 KB');
+    expect(document.getElementById('statsMonth').textContent).toBe('Last 30 days: at least 10.0 KB');
+    expect(document.getElementById('statsTotal').textContent).toBe('All time: at least 10.0 MB');
+    jest.useRealTimers();
+  });
+
+  test('resets local cache statistics with one click', () => {
+    executePopupJs();
+
+    document.getElementById('resetStats').click();
+
+    expect(chrome.storage.local.remove).toHaveBeenCalledWith(
+      ['cacheStats'],
+      expect.any(Function)
+    );
+  });
+
+  test('shows measured stale bytes on completion and hides zero on the next run', () => {
+    const onMessage = executePopupJs();
+
+    onMessage({
+      action: 'refreshComplete', success: true,
+      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1, staleBytes: 2048 }
+    });
+    expect(document.getElementById('statsRunLine').style.display).toBe('block');
+    expect(document.getElementById('statsRunLine').textContent)
+      .toBe('Freshened at least 2.0 KB of stale cache.');
+
+    onMessage({ action: 'refreshStarted', tabs: [{ id: 1, title: 'Next' }] });
+    onMessage({
+      action: 'refreshComplete', success: true,
+      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1, staleBytes: 0 }
+    });
+    expect(document.getElementById('statsRunLine').style.display).toBe('none');
+    expect(document.getElementById('statsRunLine').textContent).toBe('');
   });
 });
