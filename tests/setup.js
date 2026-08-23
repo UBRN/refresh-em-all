@@ -56,6 +56,18 @@ chrome.i18n = {
   getMessage: jest.fn((key, substitutions) => resolveMessage(key, substitutions))
 };
 
+const onUpdatedAddListener = jest.fn();
+onUpdatedAddListener.callbackQueue = [];
+onUpdatedAddListener.mockImplementation(cb => {
+  onUpdatedAddListener.callbackQueue.push(cb);
+});
+
+const onRemovedAddListener = jest.fn();
+onRemovedAddListener.callbackQueue = [];
+onRemovedAddListener.mockImplementation(cb => {
+  onRemovedAddListener.callbackQueue.push(cb);
+});
+
 // Set up Chrome API mock structures with proper Jest mocks
 chrome.tabs = {
   ...chrome.tabs,
@@ -64,7 +76,19 @@ chrome.tabs = {
   update: jest.fn(),
   reload: jest.fn(),
   create: jest.fn(),
-  remove: jest.fn()
+  remove: jest.fn(),
+  onUpdated: {
+    addListener: onUpdatedAddListener,
+    callbackQueue: [],
+    hasListener: jest.fn(),
+    removeListener: jest.fn()
+  },
+  onRemoved: {
+    addListener: onRemovedAddListener,
+    callbackQueue: [],
+    hasListener: jest.fn(),
+    removeListener: jest.fn()
+  }
 };
 
 // Create properly mocked addListener function for onMessage

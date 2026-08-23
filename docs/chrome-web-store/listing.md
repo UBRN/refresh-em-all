@@ -116,18 +116,19 @@ permission was added or removed in this release.
 | Declaration | Current implementation | Necessity and audit result |
 | --- | --- | --- |
 | `tabs` | `background.js` queries all tabs, gets current tab records, reads URL/title/favicon/status/discarded metadata, and performs cache-bypassing reloads. URLs identify restricted pages; titles and favicons support popup status. | **Used; retain.** The `tabs` permission gates the *fields* `url`, `title`, and `favIconUrl`, not the `query`/`get`/`reload` methods. Removing it hides `tab.url` for exactly the browser-internal pages `<all_urls>` cannot match, so those pages stop being classified as skipped and lose their titles in the popup. See "Permission reduction attempts" below. |
-| `scripting` | `background.js` calls `chrome.scripting.executeScript` with the packaged `preserveMediaState` function before reloading an accessible tab. | **Used; retain.** Required for best-effort media-state capture in the page. |
+| `scripting` | `background.js` calls `chrome.scripting.executeScript` with the packaged `preserveMediaState` function before reloading an accessible tab, then injects packaged `content-script.js` after that refreshed tab finishes loading when captured media state may exist. | **Used; retain.** Required for best-effort media-state capture and just-in-time restoration in the page. |
 | `storage` | The extension uses `chrome.storage.session` for active-operation recovery, `chrome.storage.local` for the ten-entry summary history and legacy cleanup, and `chrome.storage.sync` only to migrate and delete old-version keys. | **Used; retain.** Required for operation continuity, local history, and removal of legacy synced state. |
 | Host access / `<all_urls>` | Host permission lets the packaged media-capture function execute on accessible websites before the extension refreshes them, and keeps `url`/`title`/`favIconUrl` readable for ordinary sites. | **Used; retain.** The broad scope matches the disclosed all-tabs purpose. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
-| Content scripts / `<all_urls>` | The bundled `content-script.js` runs at `document_idle` on matching page loads. It checks for the extension's page-session media key, exits when none exists, and restores and removes saved state after a refresh. | **Used; retain.** Matching all accessible sites is necessary to restore state after refreshing arbitrary tabs. This declaration is separate from host permission and can also produce an installation warning. See "Permission reduction attempts". |
+| Programmatic media restoration | The bundled `content-script.js` is not declared as a permanent content script. After this extension refreshes a tab and that tab reaches `complete`, `background.js` injects the packaged file with `chrome.scripting.executeScript` only when media capture did not report a zero count. | **Used; shipped.** Restoration is scoped to tabs the user just asked the extension to refresh. Existing `scripting` and `<all_urls>` access authorize the injection; the install warning is unchanged. See "Permission reduction attempts". |
 
 No requested permission is unused.
 
 ### Permission reduction attempts in this release
 
 Chrome's guidance is to request relevant, least-privilege, and where possible
-optional permissions. Both candidate reductions were traced through every caller
-before being judged, and neither is being shipped, for the reasons below.
+optional permissions. Both candidates were traced through every caller before
+being judged. Candidate 1 is not shipped; Candidate 2 is shipped as a
+behavioural least-privilege change, not a permission reduction.
 
 **Candidate 1 — drop `tabs` and rely on `<all_urls>` host permission.**
 
@@ -166,44 +167,44 @@ before being judged, and neither is being shipped, for the reasons below.
 **Candidate 2 — remove the permanent all-sites content script and inject the
 restoration logic only into tabs this extension just refreshed.**
 
-- *What was tested.* The full trigger chain was traced:
+- *What was shipped.* The full trigger chain was traced:
   `background.js` injects `preserveMediaState` via `chrome.scripting`, which
   writes the `refreshEmAllMediaState` key into the page's `sessionStorage`
-  immediately before `chrome.tabs.reload`; the declared content script then runs
-  at `document_idle` after the reload and consumes that key. Nothing else writes
-  it. The repository contains no `chrome.permissions` or
-  `optional_host_permissions` usage today.
-- *What this would and would not buy.* Be precise about the benefit, because it
+  immediately before `chrome.tabs.reload`. If capture does not report a zero
+  media count, the worker tracks that tab until `chrome.tabs.onUpdated` reports
+  `status === 'complete'`, then injects packaged `content-script.js` once to
+  consume the key. Nothing else writes it. The repository contains no
+  `chrome.permissions` or `optional_host_permissions` usage today.
+- *What this does and does not buy.* Be precise about the benefit, because it
   is easy to overstate. The install warning users see comes from
   `host_permissions: <all_urls>`, which this extension needs and keeps either
   way. Dropping the `content_scripts` declaration therefore does **not** change
-  the install warning. The real gain is behavioural: `content-script.js` would
-  stop executing at `document_idle` on every navigation on every site for the
-  life of the install, and would run only on tabs the user just asked to
+  the install warning. The real gain is behavioural: `content-script.js` no
+  longer executes at `document_idle` on every navigation on every site for the
+  life of the install, and runs only on tabs the user just asked to
   refresh. That is a genuine least-privilege-in-spirit improvement and worth
   doing — it is simply not a permission reduction.
-- *Precise blocker.* It is a redesign of the media-restoration timing, not a
-  manifest edit. Restoration must run **after** the reload completes, so the
-  extension would have to register a scoped script (or inject after observing
-  that tab reach `complete`) for each refreshed tab and then tear it down. That
-  introduces a new race window between reload and injection in exactly the place
-  today's declared script is guaranteed to be present, and the existing e2e
-  media assertions do not cover it. Equivalence was not demonstrated inside this
-  release, so the declared script is retained rather than shipped in a state
-  where media restoration might silently miss.
+- *Implementation boundary.* The `chrome.tabs.onUpdated` and
+  `chrome.tabs.onRemoved` listeners are registered at worker top level, as MV3
+  requires. A tab is marked pending only once its cache-bypassing reload has
+  been dispatched without error, so an already-loading tab cannot reach
+  `complete` for its *previous* navigation and consume the saved key. The mark
+  is cleared after one `complete` event or tab removal, and expires after 30
+  seconds. The pending set is intentionally held in worker memory; if Chrome
+  evicts the MV3 worker between reload and completion, that tab's restoration is
+  skipped. That is the remaining race window replacing the previous
+  always-declared script.
   Note that `chrome.optional_host_permissions` is **not** the mechanism here —
   `scripting` plus the existing `<all_urls>` host permission is already
   sufficient for programmatic injection, so no runtime consent flow is required.
-- *Smallest future experiment.* Behind a branch, delete the `content_scripts`
-  block and, in `background.js`, call `chrome.scripting.executeScript` with the
-  restoration function against each refreshed tab once `chrome.tabs.onUpdated`
-  reports `status === 'complete'` for it. Then run
-  `tests/e2e/reliability-scenario.js` unchanged: it already asserts paused and
-  playing media state across a refresh. Ship the reduction only if those
-  assertions pass unmodified, including for slow-loading and discarded tabs.
+- *Evidence.* Unit coverage exercises complete/loading events, unrefreshed tabs,
+  zero and absent capture results, tab removal, and one-shot injection. The
+  existing real-browser reliability scenario remains the integration check for
+  paused and playing media across a refresh.
 
-Neither reduction was proven equivalent within this release, so all five
-declarations are retained unchanged and the disclosure above is the deliverable.
+Candidate 1 is not shipped. Candidate 2 removes the permanent
+`content_scripts` declaration while retaining every requested permission and
+`host_permissions: <all_urls>`; the disclosure and install warning are unchanged.
 
 Note also that removing permissions does **not** earn Enhanced Safe Browsing
 publisher trust; see "Trust, badges, and what this release can and cannot
@@ -215,27 +216,33 @@ change".
   required to identify refreshable versus restricted tabs, and perform
   cache-bypassing reloads while reporting local progress.
 - **scripting:** Needed to run the extension's packaged media-state capture
-  function in an accessible tab immediately before that tab is reloaded.
+  function in an accessible tab immediately before that tab is reloaded and to
+  inject packaged `content-script.js` for restoration after that refreshed tab
+  finishes loading.
 - **storage:** Needed for temporary refresh-operation recovery, up to ten local
   summary history entries, and cleanup of legacy storage created by older
   versions.
 - **host access (`<all_urls>`):** Needed because the user-facing purpose is to
   refresh all accessible open tabs, regardless of site, and to capture supported
   media state before those reloads.
-- **content scripts (`<all_urls>`):** Needed to run the packaged restoration logic
-  after a refreshed page loads. The script reads only the extension's media-state
-  session key and supported media-element properties for this purpose.
+- **programmatic media restoration:** Packaged `content-script.js` is injected
+  only into a tab this extension just refreshed, after that tab finishes loading.
+  It reads only the extension's media-state session key and supported
+  media-element properties for this purpose. It is not a permanent
+  `content_scripts` declaration and adds no permission.
 
 ## Remote-code declaration
 
 Select **No, I am not using remote code**.
 
 All executable extension code is packaged in `background.js`, `popup.js`, and
-`content-script.js`. The function passed to `chrome.scripting.executeScript` is
-defined in the packaged background script. The extension does not fetch or
-execute external JavaScript, use `eval` or `new Function`, import remote modules,
-or load a remote script. The `_locales/*/messages.json` catalogs are data, not
-code, and are read by Chrome's own `chrome.i18n` implementation.
+`content-script.js`. The capture function passed to
+`chrome.scripting.executeScript` is defined in the packaged background script;
+the restoration call injects packaged `content-script.js` through the API's
+`files` option. The extension does not fetch or execute external JavaScript, use
+`eval` or `new Function`, import remote modules, or load a remote script. The
+`_locales/*/messages.json` catalogs are data, not code, and are read by Chrome's
+own `chrome.i18n` implementation.
 
 ## Data-use declaration guidance
 

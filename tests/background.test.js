@@ -14,9 +14,22 @@ function executeBackgroundJs() {
   chrome.runtime.onMessage.addListener.mockImplementation(callback => {
     chrome.runtime.onMessage.callbackQueue.push(callback);
   });
+  chrome.tabs.onUpdated.callbackQueue = [];
+  chrome.tabs.onUpdated.addListener.mockImplementation(callback => {
+    chrome.tabs.onUpdated.callbackQueue.push(callback);
+  });
+  chrome.tabs.onRemoved.callbackQueue = [];
+  chrome.tabs.onRemoved.addListener.mockImplementation(callback => {
+    chrome.tabs.onRemoved.callbackQueue.push(callback);
+  });
 
   new Function('self', 'chrome', backgroundJs)(self, chrome);
-  return { self, onMessage: chrome.runtime.onMessage.callbackQueue[0] };
+  return {
+    self,
+    onMessage: chrome.runtime.onMessage.callbackQueue[0],
+    onUpdated: chrome.tabs.onUpdated.callbackQueue[0],
+    onRemoved: chrome.tabs.onRemoved.callbackQueue[0]
+  };
 }
 
 function setRuntimeLastError(value) {
@@ -241,6 +254,150 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expectEveryReloadToBypassLocalCache(10);
+  });
+
+  test('injects media restoration after a refreshed tab finishes loading', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 14, title: 'Media', url: 'https://example.com/media', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 1 } }
+    ]));
+    const { onMessage, onUpdated } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(100);
+    expect(onUpdated).toEqual(expect.any(Function));
+    onUpdated(14, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
+      target: { tabId: 14 },
+      files: ['content-script.js']
+    }, expect.any(Function));
+  });
+
+  test('does not inject media restoration while a refreshed tab is loading', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 15, title: 'Loading media', url: 'https://example.com/loading-media', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 1 } }
+    ]));
+    const { onMessage, onUpdated } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(100);
+    expect(onUpdated).toEqual(expect.any(Function));
+    onUpdated(15, { status: 'loading' });
+
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalledWith({
+      target: { tabId: 15 },
+      files: ['content-script.js']
+    }, expect.any(Function));
+  });
+
+  test('does not inject media restoration for a tab that was never refreshed', () => {
+    const { onUpdated } = executeBackgroundJs();
+
+    expect(onUpdated).toEqual(expect.any(Function));
+    onUpdated(16, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
+  });
+
+  test('does not schedule media restoration when capture finds no media', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 17, title: 'No media', url: 'https://example.com/no-media', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 0 } }
+    ]));
+    const { onMessage, onUpdated } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(100);
+    expect(onUpdated).toEqual(expect.any(Function));
+    onUpdated(17, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
+  });
+
+  test('schedules media restoration when the capture result shape is absent', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 18, title: 'Unknown capture', url: 'https://example.com/unknown-capture', discarded: false }
+    ]));
+    const { onMessage, onUpdated } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(100);
+    expect(onUpdated).toEqual(expect.any(Function));
+    onUpdated(18, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
+      target: { tabId: 18 },
+      files: ['content-script.js']
+    }, expect.any(Function));
+  });
+
+  test('cancels pending media restoration when the tab is removed', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 19, title: 'Removed', url: 'https://example.com/removed', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 1 } }
+    ]));
+    const { onMessage, onUpdated, onRemoved } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(100);
+    expect(onUpdated).toEqual(expect.any(Function));
+    expect(onRemoved).toEqual(expect.any(Function));
+    onRemoved(19);
+    onUpdated(19, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
+  });
+
+  test('injects media restoration exactly once per refreshed tab', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 20, title: 'Once', url: 'https://example.com/once', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 1 } }
+    ]));
+    const { onMessage, onUpdated } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(100);
+    expect(onUpdated).toEqual(expect.any(Function));
+    onUpdated(20, { status: 'complete' });
+    onUpdated(20, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(2);
+  });
+
+  test('does not inject media restoration when the reload itself failed', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 21, title: 'Reload failure', url: 'https://example.com/reload-failure', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 1 } }
+    ]));
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => {
+      setRuntimeLastError({ message: 'Tab was discarded' });
+      callback();
+      setRuntimeLastError(undefined);
+    });
+    const { onMessage, onUpdated } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(5000);
+    onUpdated(21, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalledWith({
+      target: { tabId: 21 },
+      files: ['content-script.js']
+    }, expect.any(Function));
   });
 
   test('times out a stalled cache-bypassing reload without issuing a cached fallback', async () => {

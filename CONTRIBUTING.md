@@ -13,7 +13,7 @@ refresh-em-all/
 │   ├── stress/          # Stress tests
 │   └── *.test.js        # Unit tests
 ├── background.js        # Extension background script
-├── content-script.js    # Content script for tab state preservation
+├── content-script.js    # Just-in-time media state restoration injected after refresh
 ├── manifest.json        # Extension manifest
 ├── popup.html           # Extension popup interface
 ├── popup.js             # Popup functionality
