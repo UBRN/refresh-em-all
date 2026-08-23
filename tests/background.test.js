@@ -400,6 +400,28 @@ describe('Background refresh worker', () => {
     }, expect.any(Function));
   });
 
+  test('reloads immediately after capture without an intervening delay', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 22, title: 'No wait', url: 'https://example.com/no-wait', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 1 } }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    // Let only the already-existing batch scheduling run, then assert the reload
+    // has fired without advancing timers any further.
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(chrome.tabs.reload).toHaveBeenCalledWith(
+      22,
+      { bypassCache: true },
+      expect.any(Function)
+    );
+  });
+
   test('times out a stalled cache-bypassing reload without issuing a cached fallback', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 11, title: 'Stalled', url: 'https://example.com/stalled', discarded: false }

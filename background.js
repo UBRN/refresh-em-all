@@ -648,29 +648,27 @@ function preserveStateAndRefreshTab(tab, retryCount, resolve) {
             // Unexpected or absent results restore rather than silently dropping captured state.
             const hasStateToRestore = capturedCount !== 0;
 
-            setTimeout(() => {
-                chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
-                    if (chrome.runtime.lastError) {
-                        if (retryCount < MAX_RETRIES) {
-                            setTimeout(() => {
-                                refreshTab(tab, retryCount + 1).then(resolve);
-                            }, 500 * (retryCount + 1));
-                        } else {
-                            recordTabFailure(
-                                tab,
-                                chrome.runtime.lastError.message || t('errorReloadFailed')
-                            );
-                            resolve(false);
-                        }
+            chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
+                if (chrome.runtime.lastError) {
+                    if (retryCount < MAX_RETRIES) {
+                        setTimeout(() => {
+                            refreshTab(tab, retryCount + 1).then(resolve);
+                        }, 500 * (retryCount + 1));
                     } else {
-                        // Scheduled only after the reload is dispatched: an
-                        // already-loading tab can otherwise reach "complete" for
-                        // its previous navigation and consume the saved state.
-                        if (hasStateToRestore) scheduleMediaRestore(tab.id);
-                        resolve(true);
+                        recordTabFailure(
+                            tab,
+                            chrome.runtime.lastError.message || t('errorReloadFailed')
+                        );
+                        resolve(false);
                     }
-                });
-            }, 100);
+                } else {
+                    // Scheduled only after the reload is dispatched: an
+                    // already-loading tab can otherwise reach "complete" for
+                    // its previous navigation and consume the saved state.
+                    if (hasStateToRestore) scheduleMediaRestore(tab.id);
+                    resolve(true);
+                }
+            });
         });
     } catch (error) {
         basicReload(tab, retryCount, resolve);
