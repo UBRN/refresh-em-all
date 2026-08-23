@@ -27,9 +27,9 @@ const MEDIA_RESTORE_TIMEOUT_MS = 30000;
 
 // Constants for tab processing
 const MAX_TABS_PER_BATCH = 5; // Process tabs in smaller batches
-const TAB_PROCESSING_INTERVAL = 150; // ms between tab refreshes
+const TAB_PROCESSING_INTERVAL = 75; // ms between tab refreshes
 const MAX_RETRIES = 2; // Number of retries for failed tab refreshes
-const BATCH_INTERVAL = 500; // ms between batches
+const BATCH_INTERVAL = 250; // ms between batches
 const MAX_LOADING_WAIT_MS = 10000;
 const MAX_TAB_REFRESH_MS = 30000;
 
