@@ -8,7 +8,7 @@
     "description": "BCP-47 language tag of THIS catalog. Resolved through Chrome's fallback chain so the popup's <html lang> always matches the language actually rendered, not the browser UI locale."
   },
   "appDescription": {
-    "message": "Reload all accessible tabs in every window while bypassing the local cache and preserving supported media state.",
+    "message": "Reloads tabs across every window and fetches fresh files instead of reusing saved copies, with best-effort media restoration.",
     "description": "Extension description shown in the Chrome Web Store and on chrome://extensions."
   },
   "actionRefreshAll": {
@@ -20,45 +20,45 @@
     "description": "Label of the button that cancels a running refresh."
   },
   "refreshExplanation": {
-    "message": "Reloads accessible tabs while bypassing local cache. Site data remains intact.",
+    "message": "Reloads the tabs it can and fetches fresh files instead of reusing copies Chrome saved earlier. Your site data stays in place.",
     "description": "Short explanation under the buttons describing what a refresh does."
   },
   "progressLabel": {
-    "message": "Refresh progress",
+    "message": "Tab reload progress",
     "description": "Accessible name of the progress bar."
   },
   "statusRefreshingTabs": {
-    "message": "Refreshing tabs…",
+    "message": "Reloading your tabs…",
     "description": "Initial status line before the first progress update arrives."
   },
   "statusStarting": {
-    "message": "Starting refresh…",
+    "message": "Starting…",
     "description": "Status shown while the refresh request is being sent."
   },
   "statusCancelling": {
-    "message": "Cancelling refresh…",
+    "message": "Stopping…",
     "description": "Status shown while a cancellation request is being sent."
   },
   "statusCancelFailed": {
-    "message": "Unable to cancel the current refresh.",
+    "message": "This reload could not be stopped.",
     "description": "Status shown when cancellation was rejected."
   },
   "statusStartFailed": {
-    "message": "Unable to start refresh: $ERROR$",
+    "message": "Could not start: $ERROR$",
     "description": "Status shown when the refresh could not be started.",
     "placeholders": {
       "error": { "content": "$1", "example": "No tabs available to refresh" }
     }
   },
   "statusProcessedInitial": {
-    "message": "Processed 0/$TOTAL$ tabs…",
+    "message": "0 of $TOTAL$ tabs done…",
     "description": "Status shown right after the tab list is known and before any tab is processed.",
     "placeholders": {
       "total": { "content": "$1", "example": "8" }
     }
   },
   "statusProgress": {
-    "message": "Processed $PROCESSED$/$TOTAL$ — $REFRESHED$ refreshed, $FAILED$ failed, $SKIPPED$ skipped",
+    "message": "$PROCESSED$ of $TOTAL$ — $REFRESHED$ reloaded, $FAILED$ failed, $SKIPPED$ skipped",
     "description": "Live progress status during a refresh.",
     "placeholders": {
       "processed": { "content": "$1", "example": "4" },
@@ -69,7 +69,7 @@
     }
   },
   "statusCancelled": {
-    "message": "Refresh cancelled after $PROCESSED$/$TOTAL$ tabs.",
+    "message": "Stopped after $PROCESSED$ of $TOTAL$ tabs.",
     "description": "Final status after the user cancelled the refresh.",
     "placeholders": {
       "processed": { "content": "$1", "example": "4" },
@@ -77,7 +77,7 @@
     }
   },
   "statusCompleteMixed": {
-    "message": "Processed $PROCESSED$/$TOTAL$: $REFRESHED$ refreshed, $FAILED$ failed, $SKIPPED$ skipped.",
+    "message": "$PROCESSED$ of $TOTAL$ done: $REFRESHED$ reloaded, $FAILED$ failed, $SKIPPED$ skipped.",
     "description": "Final status when at least one tab failed.",
     "placeholders": {
       "processed": { "content": "$1", "example": "8" },
@@ -88,34 +88,34 @@
     }
   },
   "statusCompleteSkipped": {
-    "message": "Refreshed $REFRESHED$ tabs; skipped $SKIPPED$ restricted tabs.",
-    "description": "Final status when nothing failed but restricted pages were skipped.",
+    "message": "Reloaded $REFRESHED$ tabs. Skipped $SKIPPED$.",
+    "description": "Final status when nothing failed but some tabs were skipped.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "6" },
       "skipped": { "content": "$2", "example": "2" }
     }
   },
   "statusCompleteAll": {
-    "message": "All $REFRESHED$ tabs refreshed successfully!",
-    "description": "Final status when every tab was refreshed.",
+    "message": "All $REFRESHED$ tabs reloaded.",
+    "description": "Final status when Chrome accepted a reload for every tab.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "8" }
     }
   },
   "statusInterrupted": {
-    "message": "The previous refresh was interrupted.",
+    "message": "The last reload stopped before it finished.",
     "description": "Status shown when a refresh did not finish before the worker stopped."
   },
   "errorInterruptedTitle": {
-    "message": "Refresh interrupted",
+    "message": "Reload stopped",
     "description": "Error box heading for an interrupted refresh."
   },
   "errorInterruptedDetail": {
-    "message": "Start a new refresh to continue.",
+    "message": "Start again when you are ready.",
     "description": "Error box detail for an interrupted refresh."
   },
   "errorStartTitle": {
-    "message": "Refresh could not start",
+    "message": "Could not start",
     "description": "Error box heading when the refresh never began."
   },
   "errorFailedSummaryOne": {
@@ -162,19 +162,19 @@
     "description": "Tab indicator state: not processed yet."
   },
   "tabStatusSuccess": {
-    "message": "refreshed",
-    "description": "Tab indicator state: refreshed successfully."
+    "message": "reloaded",
+    "description": "Tab indicator state: Chrome accepted the reload."
   },
   "tabStatusError": {
-    "message": "failed",
+    "message": "reload failed",
     "description": "Tab indicator state: refresh failed."
   },
   "tabStatusSkipped": {
     "message": "skipped",
-    "description": "Tab indicator state: restricted page, skipped."
+    "description": "Tab indicator state: the tab was skipped."
   },
   "historyToggle": {
-    "message": "View Refresh History",
+    "message": "Show Recent Reloads",
     "description": "Button that expands the local refresh history."
   },
   "historyUnknownDate": {
@@ -182,7 +182,7 @@
     "description": "Shown when a history entry has an unreadable timestamp."
   },
   "historyEntryCancelled": {
-    "message": "Cancelled: $REFRESHED$/$TOTAL$ refreshed",
+    "message": "Stopped: $REFRESHED$ of $TOTAL$ reloaded",
     "description": "History line for a cancelled refresh.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "3" },
@@ -190,7 +190,7 @@
     }
   },
   "historyEntrySummary": {
-    "message": "$REFRESHED$/$TOTAL$ refreshed, $FAILED$ failed, $SKIPPED$ skipped",
+    "message": "$REFRESHED$ of $TOTAL$ reloaded; $FAILED$ failed, $SKIPPED$ skipped",
     "description": "History line for a completed refresh.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "6" },
@@ -200,8 +200,8 @@
     }
   },
   "statsToggle": {
-    "message": "Cache Statistics",
-    "description": "Button that expands the local cache statistics."
+    "message": "Files Downloaded Again",
+    "description": "Button that expands the locally measured saved-file figures."
   },
   "statsToday": {
     "message": "Today: at least $SIZE$",
@@ -211,7 +211,7 @@
     }
   },
   "statsLastRun": {
-    "message": "Last run: at least $SIZE$",
+    "message": "Last reload: at least $SIZE$",
     "description": "Cache statistics row for the most recent refresh operation.",
     "placeholders": {
       "size": { "content": "$1", "example": "12.4 MB" }
@@ -239,8 +239,8 @@
     }
   },
   "statsRunLine": {
-    "message": "Freshened at least $SIZE$ of stale cache.",
-    "description": "Completion line showing stale cache measured during the latest refresh.",
+    "message": "At least $SIZE$ came from copies Chrome saved earlier and will now be downloaded again.",
+    "description": "Completion line showing files measured from copies Chrome saved earlier during the latest reload.",
     "placeholders": {
       "size": { "content": "$1", "example": "12.4 MB" }
     }
@@ -250,47 +250,47 @@
     "description": "Button that clears locally stored cache statistics."
   },
   "statsNote": {
-    "message": "These totals are measured in your browser and never leave it. They are a lower bound: files served without Timing-Allow-Origin report no size to the page, so they are not counted.",
+    "message": "Every figure is at least the amount shown. The real number is higher because some files do not tell the page their size, and Chrome keeps only a limited number of the page's load records. Refresh Em All measures these figures in your browser and sends them nowhere.",
     "description": "Privacy and measurement-limit note below the cache statistics."
   },
   "permissionGrantAction": {
-    "message": "Enable media preservation",
-    "description": "Button that requests optional site access for media preservation and cache measurement."
+    "message": "Allow Page Reading",
+    "description": "Button that requests permission to read refreshed pages for best-effort media restoration and saved-file measurement."
   },
   "permissionGrantExplain": {
-    "message": "Refresh Em All asks for site access only to read and restore media playback state, and to measure freshened cache. Refreshing works without it.",
-    "description": "Explanation shown beside the optional site-access button."
+    "message": "This optional permission lets Refresh Em All read the pages you refresh. It uses the permission to keep videos and audio where you left them on a best-effort basis, and to measure files Chrome served from saved copies. Reloading works if you say no.",
+    "description": "Explanation shown beside the optional page-reading permission button."
   },
   "statsAccessHint": {
-    "message": "Measurement needs site access, so these totals are paused.",
-    "description": "Notice shown above cache statistics while optional site access is missing."
+    "message": "No new data is being measured because Refresh Em All does not have permission to read the pages you refresh.",
+    "description": "Notice shown above the saved-file figures while optional page-reading permission is missing."
   },
   "settingsToggle": {
     "message": "Settings",
     "description": "Button that expands the settings and privacy section."
   },
   "privacyNotice": {
-    "message": "Refresh Em All processes refresh state locally. It does not send telemetry or browsing data to external servers.",
+    "message": "This extension sends no browsing data, measurements, or error reports anywhere. For best-effort playback restoration, it briefly keeps the page's own media settings in temporary storage that clears with the tab; the page can read them until they are cleared.",
     "description": "Privacy statement inside the settings section."
   },
   "errorOperationInProgress": {
-    "message": "Operation already in progress",
+    "message": "Your tabs are already being reloaded",
     "description": "Reason returned when a refresh is requested while one is running."
   },
   "errorNoTabs": {
-    "message": "No tabs available to refresh",
+    "message": "There are no tabs to reload",
     "description": "Reason returned when the browser reported no tabs."
   },
   "errorNoRefreshableTabs": {
-    "message": "No refreshable tabs found",
+    "message": "Chrome did not return any tabs this extension can reload",
     "description": "Reason returned when every reported tab was unusable."
   },
   "errorStartGeneric": {
-    "message": "Unable to start refresh operation",
+    "message": "Could not start reloading your tabs",
     "description": "Fallback reason when the refresh could not be started."
   },
   "errorStartFailureTabTitle": {
-    "message": "Unable to start refresh",
+    "message": "Could not start",
     "description": "Title of the synthetic failure entry recorded when a refresh never began."
   },
   "errorReloadFailed": {
@@ -302,7 +302,7 @@
     "description": "Generic fallback error text."
   },
   "errorUnknownDuringRefresh": {
-    "message": "Unknown error during refresh",
+    "message": "Something went wrong while reloading the tab",
     "description": "Generic fallback error text raised while refreshing a tab."
   },
   "errorRefreshTimeout": {

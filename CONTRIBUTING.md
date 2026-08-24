@@ -36,7 +36,7 @@ compatibility flag requires a reviewed test-mock migration.
 
 The project includes several testing utilities:
 
-- Unit tests: `npm test`
+- Jest unit/integration/contract suites: `npm test`
 - Essential E2E and smoke tests: `npm run e2e`
 - Packaged-extension smoke test: `npm run e2e:package`
 - Medium reliability tests: `npm run e2e:reliability:medium`

@@ -26,11 +26,23 @@ const TEST_CASES = [
         ]);
         await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
         await popup.click('#refreshAll');
-        await popup.waitForFunction(() => {
+        await popup.waitForFunction(async () => {
           const status = document.querySelector('#statusText')?.textContent || '';
-          return status.includes('successfully')
-            || status.includes('restricted tabs')
-            || status.includes('failed');
+          const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
+          const latest = refreshHistory[0];
+          if (!latest || latest.cancelled) return false;
+
+          const key = latest.failedCount > 0
+            ? 'statusCompleteMixed'
+            : latest.skippedCount > 0
+              ? 'statusCompleteSkipped'
+              : 'statusCompleteAll';
+          const substitutions = key === 'statusCompleteMixed'
+            ? [latest.totalTabs, latest.totalTabs, latest.successfulTabs, latest.failedCount, latest.skippedCount]
+            : key === 'statusCompleteSkipped'
+              ? [latest.successfulTabs, latest.skippedCount]
+              : [latest.successfulTabs];
+          return status === chrome.i18n.getMessage(key, substitutions.map(String));
         }, { timeout: 15000 });
 
         await Promise.all([
@@ -47,19 +59,24 @@ const TEST_CASES = [
           pageB.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
           popup.evaluate(async () => {
             const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
+            const latestHistory = refreshHistory[0];
             return {
               status: document.querySelector('#statusText')?.textContent || '',
+              expectedStatus: chrome.i18n.getMessage('statusCompleteSkipped', [
+                String(latestHistory?.successfulTabs || 0),
+                String(latestHistory?.skippedCount || 0)
+              ]),
               progress: document.querySelector('#progressFill')?.style.width || '',
               successIndicators: document.querySelectorAll('.tab-success[style*="display: block"]').length,
               skippedIndicators: document.querySelectorAll('.tab-skipped[style*="display: block"]').length,
-              latestHistory: refreshHistory[0]
+              latestHistory
             };
           })
         ]);
 
         if (loadsA !== 2 || loadsB !== 2) throw new Error('One or more real pages did not reload exactly once');
         if (popupState.progress !== '100%') throw new Error(`Expected 100% progress, got ${popupState.progress}`);
-        if (!popupState.status.includes('skipped')) throw new Error(`Skipped pages were not reported: ${popupState.status}`);
+        if (popupState.status !== popupState.expectedStatus) throw new Error(`Skipped pages were not reported: ${popupState.status}`);
         if (popupState.successIndicators !== 2) throw new Error(`Expected 2 success indicators, got ${popupState.successIndicators}`);
         if (popupState.skippedIndicators < 1) throw new Error('Expected at least one skipped indicator');
         if (popupState.latestHistory?.successfulTabs !== 2) throw new Error('Sanitized local history has the wrong success count');
@@ -73,7 +90,7 @@ const TEST_CASES = [
     }
   },
   {
-    name: 'bypasses local cache for a long-lived cacheable resource',
+    name: 'fetches a fresh file instead of reusing a long-lived saved copy',
     run: async (harness, testName) => {
       const page = harness.attachPage(await harness.browser.newPage(), 'cache-bypass-page');
       const popup = harness.attachPage(await harness.browser.newPage(), 'cache-bypass-popup');
@@ -111,7 +128,7 @@ const TEST_CASES = [
         }));
         const requestCount = harness.cacheProbeRequestCount();
         if (requestCount !== 2 || state.generation !== 2 || state.loads !== 3) {
-          throw new Error(`Cache-bypass probe failed: ${JSON.stringify({ requestCount, ...state })}`);
+          throw new Error(`Fresh-file probe failed: ${JSON.stringify({ requestCount, ...state })}`);
         }
       } catch (error) {
         await captureEssentialFailure(harness, testName, error, popup, [page]);
@@ -130,14 +147,15 @@ const TEST_CASES = [
         await popup.click('#settingsHeader');
         const state = await popup.evaluate(async () => {
           const { pendingErrorReports } = await chrome.storage.local.get(['pendingErrorReports']);
+          const notice = document.querySelector('#settingsContent > .privacy-info:last-child')?.textContent || '';
           return {
-            text: document.querySelector('#settingsContent')?.textContent || '',
+            privacyMatches: notice === chrome.i18n.getMessage('privacyNotice'),
             hasTelemetryToggle: Boolean(document.querySelector('#errorReportingToggle')),
             hasPendingReports: Array.isArray(pendingErrorReports) && pendingErrorReports.length > 0
           };
         });
 
-        if (!state.text.includes('does not send telemetry')) throw new Error('Local-only privacy statement is missing');
+        if (!state.privacyMatches) throw new Error('Local-only privacy statement is missing');
         if (state.hasTelemetryToggle || state.hasPendingReports) throw new Error('Legacy telemetry state is still exposed');
       } catch (error) {
         await captureEssentialFailure(harness, testName, error, popup);
@@ -168,11 +186,17 @@ const TEST_CASES = [
         if (!historyVisible) throw new Error('Seeded history did not appear');
 
         await popup.click('#historyHeader');
-        const historyState = await popup.evaluate(() => ({
-          text: document.querySelector('#historyContent')?.textContent || '',
-          hasMarkupInjection: Boolean(document.querySelector('#historyContent script'))
-        }));
-        if (!historyState.text.includes('refreshed')) throw new Error('History summary is missing');
+        const historyState = await popup.evaluate(() => {
+          const summary = document.querySelector('#historyContent .history-entry > div:last-child')?.textContent || '';
+          return {
+            summaryMatches: summary === chrome.i18n.getMessage(
+              'historyEntrySummary',
+              ['2', '2', '0', '1']
+            ),
+            hasMarkupInjection: Boolean(document.querySelector('#historyContent script'))
+          };
+        });
+        if (!historyState.summaryMatches) throw new Error('History summary is missing');
         if (historyState.hasMarkupInjection) throw new Error('Unexpected executable markup in history');
       } catch (error) {
         await captureEssentialFailure(harness, testName, error, popup);
@@ -213,7 +237,7 @@ async function runTests() {
   console.log('Starting fast end-to-end suite...');
   let failed = 0;
 
-  process.stdout.write('Running test: refreshes without optional site access and does not restore media... ');
+  process.stdout.write('Running test: reloads without optional page-reading permission and does not restore media... ');
   try {
     const deniedHarness = await createHarness({
       profile: 'denied',

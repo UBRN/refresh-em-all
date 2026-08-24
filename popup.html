@@ -335,13 +335,13 @@
         <button id="refreshAll">Refresh All Tabs</button>
         <button id="cancelRefresh">Cancel</button>
     </div>
-    <p class="refresh-explanation">Reloads accessible tabs while bypassing local cache. Site data remains intact.</p>
+    <p class="refresh-explanation">Reloads the tabs it can and fetches fresh files instead of reusing copies Chrome saved earlier. Your site data stays in place.</p>
 
     <div id="loadingContainer">
-        <div id="progressBar" role="progressbar" aria-label="Refresh progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="progressBar" role="progressbar" aria-label="Tab reload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="progressFill"></div>
         </div>
-        <div id="statusText" aria-live="polite">Refreshing tabs...</div>
+        <div id="statusText" aria-live="polite">Reloading your tabs...</div>
         <div id="statsRunLine" style="display: none; margin-top: 6px; font-size: 12px; color: #5f6368;"></div>
         <div id="tabsContainer"></div>
     </div>
@@ -352,12 +352,12 @@
     </div>
 
     <div id="historyContainer">
-        <button id="historyHeader" class="section-header" type="button" aria-expanded="false" aria-controls="historyContent">View Refresh History</button>
+        <button id="historyHeader" class="section-header" type="button" aria-expanded="false" aria-controls="historyContent">Show Recent Reloads</button>
         <div id="historyContent"></div>
     </div>
 
     <div id="statsContainer">
-        <button id="statsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="statsContent">Cache Statistics</button>
+        <button id="statsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="statsContent">Files Downloaded Again</button>
         <div id="statsContent">
             <div id="statsToday"></div>
             <div id="statsLastRun"></div>
@@ -376,7 +376,7 @@
             <p id="grantAccessExplain" class="privacy-info" style="display: none"></p>
             <button id="resetStats" type="button">Reset statistics</button>
             <div class="privacy-info">
-                Refresh Em All processes refresh state locally. It does not send telemetry or browsing data to external servers.
+                This extension sends no browsing data, measurements, or error reports anywhere. For best-effort playback restoration, it briefly keeps the page's own media settings in temporary storage that clears with the tab; the page can read them until they are cleared.
             </div>
         </div>
     </div>

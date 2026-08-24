@@ -311,29 +311,47 @@ async function verifyExtension() {
         }
         
         // Check current status
-        const currentStatus = await popupPage.evaluate(() => {
+        const currentStatus = await popupPage.evaluate(async () => {
           const statusElement = document.getElementById('statusText');
           const loadingContainer = document.getElementById('loadingContainer');
           const errorContainer = document.getElementById('errorContainer');
           const confetti = document.getElementById('confetti');
+          const statusText = statusElement ? statusElement.textContent : '';
+          const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
+          const latest = refreshHistory[0];
+          let expectedStatus = '';
+
+          if (latest && !latest.cancelled) {
+            if (latest.failedCount > 0) {
+              expectedStatus = chrome.i18n.getMessage('statusCompleteMixed', [
+                latest.totalTabs, latest.totalTabs, latest.successfulTabs,
+                latest.failedCount, latest.skippedCount
+              ].map(String));
+            } else if (latest.skippedCount > 0) {
+              expectedStatus = chrome.i18n.getMessage('statusCompleteSkipped', [
+                latest.successfulTabs, latest.skippedCount
+              ].map(String));
+            } else {
+              expectedStatus = chrome.i18n.getMessage(
+                'statusCompleteAll',
+                [String(latest.successfulTabs)]
+              );
+            }
+          }
           
           return {
-            statusText: statusElement ? statusElement.textContent : '',
+            statusText,
             loadingVisible: loadingContainer ? loadingContainer.style.display !== 'none' : false,
             errorVisible: errorContainer ? errorContainer.style.display !== 'none' : false,
-            confettiVisible: confetti ? confetti.style.display !== 'none' : false
+            confettiVisible: confetti ? confetti.style.display !== 'none' : false,
+            isComplete: statusText === expectedStatus
           };
         });
         
         console.log(`Poll ${i+1}/${maxPolls}: ${currentStatus.statusText} (loading: ${currentStatus.loadingVisible}, error: ${currentStatus.errorVisible}, confetti: ${currentStatus.confettiVisible})`);
         
         // Check if operation is complete
-        const isComplete = currentStatus.statusText.includes('refreshed successfully')
-                          || currentStatus.statusText.includes('restricted tabs')
-                          || currentStatus.statusText.includes('failed')
-                          || currentStatus.confettiVisible;
-        
-        if (isComplete) {
+        if (currentStatus.isComplete) {
           console.log('Operation appears to be complete!');
           break;
         }
@@ -356,25 +374,42 @@ async function verifyExtension() {
       console.log('Final state screenshot saved');
       
       // Check the final status
-      const finalStatus = await popupPage.evaluate(() => {
+      const finalStatus = await popupPage.evaluate(async () => {
         const statusElement = document.getElementById('statusText');
         const loadingContainer = document.getElementById('loadingContainer');
         const errorContainer = document.getElementById('errorContainer');
         const errorDetailsElement = document.getElementById('errorDetails');
-        const confetti = document.getElementById('confetti');
-        
-        // Check for success indication in the UI
         const statusText = statusElement ? statusElement.textContent : '';
-        const isSuccess = (confetti && confetti.style.display !== 'none')
-                         || statusText.includes('successfully')
-                         || (statusText.includes('skipped') && !statusText.includes('failed'));
+        const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
+        const latest = refreshHistory[0];
+        let expectedStatus = '';
+
+        if (latest && !latest.cancelled) {
+          if (latest.failedCount > 0) {
+            expectedStatus = chrome.i18n.getMessage('statusCompleteMixed', [
+              latest.totalTabs, latest.totalTabs, latest.successfulTabs,
+              latest.failedCount, latest.skippedCount
+            ].map(String));
+          } else if (latest.skippedCount > 0) {
+            expectedStatus = chrome.i18n.getMessage('statusCompleteSkipped', [
+              latest.successfulTabs, latest.skippedCount
+            ].map(String));
+          } else {
+            expectedStatus = chrome.i18n.getMessage(
+              'statusCompleteAll',
+              [String(latest.successfulTabs)]
+            );
+          }
+        }
         
         return {
           statusText,
           loadingVisible: loadingContainer ? loadingContainer.style.display !== 'none' : false,
           hasErrors: errorContainer ? errorContainer.style.display !== 'none' : false,
           errorDetails: errorDetailsElement ? errorDetailsElement.textContent : '',
-          isSuccess
+          isSuccess: statusText === expectedStatus && latest?.failedCount === 0,
+          tabsRefreshed: latest?.successfulTabs || 0,
+          errorCount: latest?.failedCount || 0
         };
       });
       
@@ -384,27 +419,11 @@ async function verifyExtension() {
       // Update results
       results.refreshOperation.operationDuration = operationDuration;
       results.refreshOperation.success = finalStatus.isSuccess;
-      
-      // Extract tab numbers from status text using regex
-      const statusMatch = finalStatus.statusText.match(/(\d+)\/(\d+)|(\d+)\s+tabs/i);
-      if (statusMatch) {
-        // Handle different format possibilities in the status text
-        if (statusMatch[1] && statusMatch[2]) {
-          // Format: "Refreshed X/Y tabs"
-          results.refreshOperation.tabsRefreshed = parseInt(statusMatch[1]);
-        } else if (statusMatch[3]) {
-          // Format: "All X tabs refreshed successfully"
-          results.refreshOperation.tabsRefreshed = parseInt(statusMatch[3]);
-        }
-      }
+      results.refreshOperation.tabsRefreshed = finalStatus.tabsRefreshed;
+      results.refreshOperation.errorCount = finalStatus.errorCount;
       
       // Check for errors
       if (finalStatus.hasErrors) {
-        const errorMatch = finalStatus.statusText.match(/with\s+(\d+)\s+errors/i);
-        if (errorMatch && errorMatch[1]) {
-          results.refreshOperation.errorCount = parseInt(errorMatch[1]);
-        }
-        
         results.errors.push({
           message: 'Refresh operation completed with errors',
           details: finalStatus.errorDetails || 'No detailed error information available'
