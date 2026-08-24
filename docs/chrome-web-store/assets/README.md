@@ -1,19 +1,19 @@
 # Chrome Web Store visual assets
 
-These files are reviewable listing inputs for Refresh Em All v2.1.0. They are
+These files are reviewable listing inputs for Refresh Em All v2.4.1. They are
 not part of the extension runtime package and must not be added to the package
 allowlist in `scripts/package-extension.js`.
 
 ## Provenance
 
-The screenshots are captured from `refresh-em-all-v2.1.0.zip` (111,659 bytes)
+The screenshots are captured from `refresh-em-all-v2.4.1.zip` (130,215 bytes)
 after requiring this SHA-256:
 
 ```text
-b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5
+372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc
 ```
 
-Each capture run also asserts that the loaded extension reports version 2.1.0
+Each capture run also asserts that the loaded extension reports version 2.4.1
 and that the popup's resolved `@@ui_locale` matches the requested `--locale`,
 so a localized set cannot silently be a copy of another language.
 
@@ -22,16 +22,20 @@ only that directory in an isolated Chrome for Testing profile, uses neutral
 localhost fixtures, and removes the profile and extracted files afterward.
 The Store icon inside the package remains unchanged.
 
-## Current v2.4.0 capture note
+## Capture viewport
 
-This document remains the provenance record for the published v2.1.0 assets. For a v2.4.0
-capture, pin the new ZIP and SHA-256 and pass `--expect-version 2.4.0`. Review the popup's
-new optional-access and cache-statistics UI in addition to the existing states.
+The capture viewport is 880x550 CSS pixels at a device scale factor of
+1280/880, which renders to exactly 1280x800. It used to be 640x400 at 2x, which
+stopped fitting once the popup gained the cache-statistics section: the tallest
+state is the Turkish settings panel at roughly 524 CSS pixels. The viewport is
+sized for that worst case and the card is centred, so shorter states show even
+slack above and below rather than a card clipped at the top.
 
-Before clicking refresh, `scripts/chrome-web-store/capture-screenshots.js` now seeds
-`mediaAccessAsked` in `chrome.storage.local` because automation cannot dismiss Chrome's
-native permission dialog. This suppresses the automatic prompt; it does not grant the
-optional host permission.
+Before clicking refresh, `scripts/chrome-web-store/capture-screenshots.js` seeds
+`mediaAccessAsked` in `chrome.storage.local` because automation cannot dismiss
+Chrome's native permission dialog. This suppresses the automatic prompt; it does
+not grant the optional host permission, so the captures show the popup as a user
+who has not granted page access sees it.
 
 ## Generate and verify
 
@@ -40,18 +44,18 @@ Use Node.js 24 and the locked dependencies:
 ```bash
 npm ci --legacy-peer-deps
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.1.0.zip \
-  --sha256 b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5 \
-  --expect-version 2.1.0 --locale en
+  --zip /absolute/path/to/refresh-em-all-v2.4.1.zip \
+  --sha256 372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc \
+  --expect-version 2.4.1 --locale en
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.1.0.zip \
-  --sha256 b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5 \
-  --expect-version 2.1.0 --locale tr
+  --zip /absolute/path/to/refresh-em-all-v2.4.1.zip \
+  --sha256 372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc \
+  --expect-version 2.4.1 --locale tr
 npm run store-assets:promo
 npm run store-assets:verify -- \
-  --zip /absolute/path/to/refresh-em-all-v2.1.0.zip \
-  --sha256 b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5 \
-  --expect-version 2.1.0
+  --zip /absolute/path/to/refresh-em-all-v2.4.1.zip \
+  --sha256 372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc \
+  --expect-version 2.4.1
 ```
 
 Generated diagnostics and downscaled review copies are written beneath
