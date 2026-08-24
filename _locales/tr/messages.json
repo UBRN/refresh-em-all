@@ -253,6 +253,18 @@
     "message": "Bu toplamlar tarayıcınızda ölçülür ve cihazınızdan çıkmaz. Alt sınır niteliğindedir: Timing-Allow-Origin göndermeyen dosyalar sayfaya boyut bildirmediği için sayıma girmez.",
     "description": "Privacy and measurement-limit note below the cache statistics."
   },
+  "permissionGrantAction": {
+    "message": "Medya korumasını etkinleştir",
+    "description": "Button that requests optional site access for media preservation and cache measurement."
+  },
+  "permissionGrantExplain": {
+    "message": "Refresh Em All site erişimini yalnızca medya oynatma durumunu okuyup geri yüklemek ve tazelenen önbelleği ölçmek için ister. Yenileme bu izin olmadan da çalışır.",
+    "description": "Explanation shown beside the optional site-access button."
+  },
+  "statsAccessHint": {
+    "message": "Ölçüm için site erişimi gerekiyor, bu yüzden toplamlar duraklatıldı.",
+    "description": "Notice shown above cache statistics while optional site access is missing."
+  },
   "settingsToggle": {
     "message": "Ayarlar",
     "description": "Button that expands the settings and privacy section."

@@ -253,6 +253,18 @@
     "message": "These totals are measured in your browser and never leave it. They are a lower bound: files served without Timing-Allow-Origin report no size to the page, so they are not counted.",
     "description": "Privacy and measurement-limit note below the cache statistics."
   },
+  "permissionGrantAction": {
+    "message": "Enable media preservation",
+    "description": "Button that requests optional site access for media preservation and cache measurement."
+  },
+  "permissionGrantExplain": {
+    "message": "Refresh Em All asks for site access only to read and restore media playback state, and to measure freshened cache. Refreshing works without it.",
+    "description": "Explanation shown beside the optional site-access button."
+  },
+  "statsAccessHint": {
+    "message": "Measurement needs site access, so these totals are paused.",
+    "description": "Notice shown above cache statistics while optional site access is missing."
+  },
   "settingsToggle": {
     "message": "Settings",
     "description": "Button that expands the settings and privacy section."

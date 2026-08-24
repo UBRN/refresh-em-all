@@ -260,6 +260,7 @@
             font-size: 12px;
         }
 
+        #grantAccess,
         #resetStats {
             font-size: 12px;
             padding: 6px 12px;
@@ -363,6 +364,7 @@
             <div id="statsWeek"></div>
             <div id="statsMonth"></div>
             <div id="statsTotal"></div>
+            <p id="statsAccessHint" class="privacy-info" style="display: none"></p>
             <p id="statsNote" class="privacy-info"></p>
         </div>
     </div>
@@ -370,6 +372,8 @@
     <div id="settingsContainer">
         <button id="settingsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="settingsContent">Settings</button>
         <div id="settingsContent">
+            <button id="grantAccess" type="button" style="display: none"></button>
+            <p id="grantAccessExplain" class="privacy-info" style="display: none"></p>
             <button id="resetStats" type="button">Reset statistics</button>
             <div class="privacy-info">
                 Refresh Em All processes refresh state locally. It does not send telemetry or browsing data to external servers.

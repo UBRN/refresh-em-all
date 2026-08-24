@@ -330,6 +330,86 @@ function verifyResult(result, config) {
   if (result.playingMedia.muted) throw new Error('Playing media mute state changed');
 }
 
+async function runDeniedPathScenario(harness, { closeHarness = false } = {}) {
+  const config = { tabCount: 2, tabsPerWindow: 1, operationTimeout: 30000 };
+  const popup = harness.controlPage;
+  let windowIds = [];
+  let pages = [];
+
+  try {
+    await harness.resetState();
+    windowIds = await createTabFixture(harness, config, {
+      measure: (name, operation) => operation()
+    });
+    pages = await waitForFixturePages(harness, config, {
+      measure: (name, operation) => operation()
+    });
+    await validateFixture(popup, pages, harness.baseUrl, 'smoke', config);
+
+    const pausedPage = localPageByPath(pages, '/media-paused');
+    const playingPage = localPageByPath(pages, '/media-playing');
+    await Promise.all([configureMediaPage(pausedPage), configureMediaPage(playingPage)]);
+
+    const origins = await popup.evaluate(async () => {
+      await chrome.storage.local.set({ mediaAccessAsked: true });
+      return (await chrome.permissions.getAll()).origins || [];
+    });
+    if (origins.includes('<all_urls>')) {
+      throw new Error(`Denied-path profile unexpectedly has site access: ${JSON.stringify(origins)}`);
+    }
+    await popup.reload({ waitUntil: 'load' });
+
+    await armRefreshCompletion(popup, config.operationTimeout);
+    await popup.click('#refreshAll');
+    await waitForRefreshCompletion(popup, config);
+    await runPool(pages, 2, page => page.waitForFunction(
+      () => Number(sessionStorage.reliabilityLoads) >= 2,
+      { timeout: 10000 }
+    ));
+
+    const result = await collectResult(popup, pages, harness.baseUrl);
+    const wrongLoadCounts = result.pageStates.filter(page => page.loads !== 2);
+    if (wrongLoadCounts.length > 0) {
+      throw new Error(`Denied-path pages did not reload exactly once: ${JSON.stringify(wrongLoadCounts)}`);
+    }
+    if (result.popupState.history?.successfulTabs !== config.tabCount
+        || result.popupState.history?.failedCount !== 0) {
+      throw new Error(`Denied-path refresh reported errors: ${JSON.stringify(result.popupState.history)}`);
+    }
+    if (result.popupState.progress !== '100%') {
+      throw new Error(`Denied-path progress did not complete: ${result.popupState.progress}`);
+    }
+
+    const pausedWasRestored = result.pausedMedia.currentTime >= 2.25
+      && Math.abs(result.pausedMedia.volume - 0.35) <= 0.01
+      && Math.abs(result.pausedMedia.playbackRate - 1.25) <= 0.01;
+    const playingWasRestored = !result.playingMedia.paused
+      && result.playingMedia.currentTime >= 2.5
+      && Math.abs(result.playingMedia.volume - 0.45) <= 0.01
+      && Math.abs(result.playingMedia.playbackRate - 1.25) <= 0.01;
+    if (pausedWasRestored || playingWasRestored) {
+      throw new Error(`Denied-path media state was restored: ${JSON.stringify({
+        pausedMedia: result.pausedMedia,
+        playingMedia: result.playingMedia
+      })}`);
+    }
+
+    return result;
+  } catch (error) {
+    await captureFailureDiagnostics({
+      profile: 'denied',
+      error,
+      popup,
+      pages,
+      diagnostics: harness.diagnostics
+    });
+    throw error;
+  } finally {
+    if (windowIds.length > 0) await harness.removeWindows(windowIds);
+    if (closeHarness) await harness.close();
+  }
+}
+
 async function runReliabilityScenario(harness, profile, {
   closeHarness = false,
   reusedBrowser = false
@@ -419,4 +499,4 @@ async function runReliabilityScenario(harness, profile, {
   return { config, fixtureState, result };
 }
 
-module.exports = { PROFILES, runReliabilityScenario };
+module.exports = { PROFILES, runDeniedPathScenario, runReliabilityScenario };

@@ -54,6 +54,9 @@ const statsLastRun = document.getElementById('statsLastRun');
 const statsWeek = document.getElementById('statsWeek');
 const statsMonth = document.getElementById('statsMonth');
 const statsTotal = document.getElementById('statsTotal');
+const statsAccessHint = document.getElementById('statsAccessHint');
+const grantAccess = document.getElementById('grantAccess');
+const grantAccessExplain = document.getElementById('grantAccessExplain');
 const resetStats = document.getElementById('resetStats');
 const confettiElement = document.getElementById('confetti');
 const settingsHeader = document.getElementById('settingsHeader');
@@ -70,10 +73,13 @@ document.title = t('appName');
     ['#statusText', 'statusRefreshingTabs'],
     ['#historyHeader', 'historyToggle'],
     ['#statsHeader', 'statsToggle'],
+    ['#statsAccessHint', 'statsAccessHint'],
+    ['#grantAccess', 'permissionGrantAction'],
+    ['#grantAccessExplain', 'permissionGrantExplain'],
     ['#resetStats', 'statsResetAction'],
     ['#statsNote', 'statsNote'],
     ['#settingsHeader', 'settingsToggle'],
-    ['#settingsContent .privacy-info', 'privacyNotice']
+    ['#settingsContent > .privacy-info:last-child', 'privacyNotice']
 ].forEach(([selector, key]) => {
     const element = document.querySelector(selector);
     if (element) element.textContent = t(key);
@@ -87,7 +93,10 @@ let processedTabs = 0;
 let refreshedTabs = 0;
 let failedTabs = [];
 let skippedTabs = 0;
+let siteAccessGranted = false;
+let mediaAccessAsked = false;
 
+initializeSiteAccess();
 initializeHistory();
 initializeStats();
 restoreOperationStatus();
@@ -95,7 +104,18 @@ restoreOperationStatus();
 refreshButton.addEventListener('click', () => {
     if (activeRefreshOperation) return;
 
+    if (!siteAccessGranted && !mediaAccessAsked) {
+        mediaAccessAsked = true;
+        chrome.storage.local.set({ mediaAccessAsked: true });
+        requestSiteAccess().then(requestRefresh);
+        return;
+    }
+
     requestRefresh();
+});
+
+grantAccess.addEventListener('click', () => {
+    requestSiteAccess();
 });
 
 cancelButton.addEventListener('click', () => {
@@ -142,6 +162,53 @@ function requestRefresh() {
             statusText.textContent = t('statusStartFailed', errorMessage || t('errorUnknown'));
             showOperationError(t('errorStartTitle'), errorMessage || t('errorUnknown'));
         }
+    });
+}
+
+async function hasSiteAccess() {
+    try {
+        const granted = await chrome.permissions.contains({ origins: ['<all_urls>'] });
+        return !chrome.runtime.lastError && granted === true;
+    } catch (error) {
+        return false;
+    }
+}
+
+function renderSiteAccess(granted) {
+    const display = granted ? 'none' : 'block';
+    grantAccess.style.display = display;
+    grantAccessExplain.style.display = display;
+    statsAccessHint.style.display = display;
+}
+
+function requestSiteAccess() {
+    let request;
+    try {
+        request = chrome.permissions.request({ origins: ['<all_urls>'] });
+    } catch (error) {
+        siteAccessGranted = false;
+        renderSiteAccess(false);
+        return Promise.resolve(false);
+    }
+
+    return Promise.resolve(request).then(granted => {
+        siteAccessGranted = !chrome.runtime.lastError && granted === true;
+        renderSiteAccess(siteAccessGranted);
+        return siteAccessGranted;
+    }).catch(() => {
+        siteAccessGranted = false;
+        renderSiteAccess(false);
+        return false;
+    });
+}
+
+function initializeSiteAccess() {
+    chrome.storage.local.get(['mediaAccessAsked'], (result) => {
+        mediaAccessAsked = result.mediaAccessAsked === true;
+    });
+    hasSiteAccess().then(granted => {
+        siteAccessGranted = granted;
+        renderSiteAccess(granted);
     });
 }
 
@@ -367,6 +434,7 @@ function initializeHistory() {
 }
 
 function initializeStats() {
+    renderSiteAccess(siteAccessGranted);
     chrome.storage.local.get(['cacheStats'], (result) => {
         const cacheStats = result.cacheStats
             && typeof result.cacheStats === 'object'

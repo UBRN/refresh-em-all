@@ -203,6 +203,13 @@ async function main() {
       throw new Error(`Unexpected popup title: ${extensionState.title}`);
     }
 
+    // Answer the optional site-access question up front. On a fresh profile the first
+    // refresh click would otherwise open Chrome's native permission dialog, which
+    // automation cannot dismiss, and every wait below would time out.
+    await popup.evaluate(() => chrome.storage.local.set({ mediaAccessAsked: true }));
+    // popup.js caches the flag at startup, so it has to load again to observe it.
+    await popup.reload({ waitUntil: 'load' });
+
     await popup.click('#refreshAll');
     await testPage.waitForFunction(
       () => Number(sessionStorage.packageSmokeLoads) === 3 && window.cacheProbeGeneration === 2,
