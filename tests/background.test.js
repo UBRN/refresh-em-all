@@ -85,6 +85,31 @@ describe('Background refresh worker', () => {
     expect(onMessage).toEqual(expect.any(Function));
   });
 
+  test('keeps the toolbar icon colorful through a completed refresh', async () => {
+    // The manifest declares the colorful icons as action.default_icon. An earlier
+    // version "reset" to the monochrome assets/icon-refresh-em-*.png set when a
+    // refresh finished, so the first completed refresh greyed the toolbar icon and
+    // Chrome kept that override.
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 31, title: 'One', url: 'https://example.com/one', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => {
+      callback([{ result: { success: true, count: 0, staleBytes: 0 } }]);
+    });
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => callback());
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(5000);
+
+    expect(chrome.action.setIcon).toHaveBeenCalled();
+    for (const [details] of chrome.action.setIcon.mock.calls) {
+      for (const iconPath of Object.values(details.path)) {
+        expect(iconPath).toContain('icon-refresh-em-colorful-');
+      }
+    }
+  });
+
   test('measures only stale cached resource encoded byte sizes', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 23, title: 'Cached', url: 'https://example.com/cached', discarded: false }

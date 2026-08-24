@@ -337,15 +337,9 @@ function startRefreshOperation() {
     operationFinalized = false;
     operationCancelled = false;
 
-    // Update icon to indicate operation is in progress
-    chrome.action.setIcon({
-        path: {
-            "16": "assets/icon-refresh-em-colorful-16.png",
-            "32": "assets/icon-refresh-em-colorful-32.png",
-            "48": "assets/icon-refresh-em-colorful-48.png",
-            "128": "assets/icon-refresh-em-colorful-128.png"
-        }
-    });
+    // No icon swap here: these are the same colorful icons the manifest already
+    // declares as action.default_icon, so setting them changed nothing. The badge
+    // below is what actually signals that a refresh is running.
 
     // Update badge to show progress
     chrome.action.setBadgeBackgroundColor({ color: "#4285f4" });
@@ -359,13 +353,18 @@ function endRefreshOperation(success = true) {
     activeRefreshOperation = false;
     const finalSuccess = success && !operationCancelled && failedTabs.length === 0;
 
-    // Reset icon
+    // Restore the colorful action icons the manifest declares. Earlier versions
+    // "reset" to the monochrome assets/icon-refresh-em-*.png set instead, which are
+    // the extension-management icons, not the toolbar ones — so the first completed
+    // refresh turned the toolbar icon grey and Chrome kept that override.
+    // ponytail: this exists only to repair that stored override; drop it once no
+    // install predating the fix is left.
     chrome.action.setIcon({
         path: {
-            "16": "assets/icon-refresh-em-16.png",
-            "32": "assets/icon-refresh-em-32.png",
-            "48": "assets/icon-refresh-em-48.png",
-            "128": "assets/icon-refresh-em-128.png"
+            "16": "assets/icon-refresh-em-colorful-16.png",
+            "32": "assets/icon-refresh-em-colorful-32.png",
+            "48": "assets/icon-refresh-em-colorful-48.png",
+            "128": "assets/icon-refresh-em-colorful-128.png"
         }
     });
 
