@@ -172,23 +172,33 @@
             display: none;
         }
 
-        #historyContainer {
+        #historyContainer,
+        #statsContainer {
             width: 100%;
             margin-top: 15px;
             display: none;
         }
 
-        #historyHeader {
+        #historyHeader,
+        #statsHeader {
             margin: 0;
         }
 
-        #historyContent {
+        #historyContent,
+        #statsContent {
             display: none;
             width: 100%;
             max-height: 150px;
             overflow-y: auto;
             border-top: 1px solid #ddd;
             padding-top: 10px;
+        }
+
+        /* Five fixed rows plus the measurement note: capping this the way the
+           ten-entry history is capped would scroll the note out of view. */
+        #statsContent {
+            max-height: none;
+            overflow-y: visible;
         }
 
         #settingsContainer {
@@ -244,6 +254,16 @@
         .history-entry {
             padding: 5px 0;
             font-size: 12px;
+        }
+
+        #statsContent > div {
+            font-size: 12px;
+        }
+
+        #resetStats {
+            font-size: 12px;
+            padding: 6px 12px;
+            margin-bottom: 10px;
         }
 
         .history-success {
@@ -321,6 +341,7 @@
             <div id="progressFill"></div>
         </div>
         <div id="statusText" aria-live="polite">Refreshing tabs...</div>
+        <div id="statsRunLine" style="display: none; margin-top: 6px; font-size: 12px; color: #5f6368;"></div>
         <div id="tabsContainer"></div>
     </div>
 
@@ -334,9 +355,22 @@
         <div id="historyContent"></div>
     </div>
 
+    <div id="statsContainer">
+        <button id="statsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="statsContent">Cache Statistics</button>
+        <div id="statsContent">
+            <div id="statsToday"></div>
+            <div id="statsLastRun"></div>
+            <div id="statsWeek"></div>
+            <div id="statsMonth"></div>
+            <div id="statsTotal"></div>
+            <p id="statsNote" class="privacy-info"></p>
+        </div>
+    </div>
+
     <div id="settingsContainer">
         <button id="settingsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="settingsContent">Settings</button>
         <div id="settingsContent">
+            <button id="resetStats" type="button">Reset statistics</button>
             <div class="privacy-info">
                 Refresh Em All processes refresh state locally. It does not send telemetry or browsing data to external servers.
             </div>

@@ -82,6 +82,84 @@ describe('Background refresh worker', () => {
     expect(onMessage).toEqual(expect.any(Function));
   });
 
+  test('measures only stale cached resource encoded byte sizes', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 23, title: 'Cached', url: 'https://example.com/cached', discarded: false }
+    ]));
+    let injectedFunction;
+    chrome.scripting.executeScript.mockImplementation((details, callback) => {
+      injectedFunction = details.function;
+      callback([{ result: { success: true, count: 0 } }]);
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(0);
+
+    const originalDescriptor = Object.getOwnPropertyDescriptor(performance, 'getEntriesByType');
+    Object.defineProperty(performance, 'getEntriesByType', {
+      configurable: true,
+      value: jest.fn(() => [
+        { transferSize: 0, decodedBodySize: 4000, encodedBodySize: 1200 },
+        { transferSize: 500, decodedBodySize: 2000, encodedBodySize: 400 },
+        { transferSize: 0, decodedBodySize: 0, encodedBodySize: 0 }
+      ])
+    });
+
+    let result;
+    try {
+      result = injectedFunction();
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(performance, 'getEntriesByType', originalDescriptor);
+      } else {
+        delete performance.getEntriesByType;
+      }
+    }
+
+    expect(result).toEqual({ success: true, count: 0, staleBytes: 1200 });
+  });
+
+  test('stores merged cache statistics and prunes daily totals to 31 dates', async () => {
+    jest.setSystemTime(new Date(2026, 7, 24, 12));
+    const days = {};
+    for (let offset = 0; offset < 35; offset++) {
+      const date = new Date(2026, 6, 20 + offset, 12);
+      days[date.toISOString().slice(0, 10)] = 10;
+    }
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 24, title: 'Measured', url: 'https://example.com/measured', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { success: true, count: 0, staleBytes: 256 } }
+    ]));
+    chrome.storage.local.get.mockImplementation((keys, callback) => {
+      callback(keys.includes('cacheStats')
+        ? { cacheStats: { lastRun: 999, total: 1024, days } }
+        : { refreshHistory: [] });
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    const statsWriteIndex = chrome.storage.local.set.mock.calls.findIndex(([value]) => value.cacheStats);
+    const historyWriteIndex = chrome.storage.local.set.mock.calls.findIndex(([value]) => value.refreshHistory);
+    expect(statsWriteIndex).toBeGreaterThanOrEqual(0);
+    const cacheStats = chrome.storage.local.set.mock.calls[statsWriteIndex][0].cacheStats;
+    expect(cacheStats.lastRun).toBe(256);
+    expect(cacheStats.total).toBe(1280);
+    expect(cacheStats.days['2026-08-24']).toBe(256);
+    expect(Object.keys(cacheStats.days)).toHaveLength(31);
+    expect(cacheStats.days).not.toHaveProperty('2026-07-24');
+    expect(cacheStats.days).toHaveProperty('2026-07-25');
+    expect(statsWriteIndex).toBeLessThan(historyWriteIndex);
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshComplete',
+      details: expect.objectContaining({ staleBytes: 256 })
+    }));
+  });
+
   test('refreshes ordinary tabs and reports restricted pages as skipped', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 1, title: 'Normal', url: 'https://example.com', discarded: false },
