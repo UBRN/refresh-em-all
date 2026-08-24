@@ -230,6 +230,14 @@ async function verifyExtension() {
     
     // Ensure button is visible and clickable
     await popupPage.waitForSelector('#refreshAll', { visible: true, timeout: 5000 });
+
+    // Answer the optional site-access question up front. On a fresh profile the first
+    // refresh click would otherwise open Chrome's native permission dialog, which
+    // automation cannot dismiss, and this run would stall on it.
+    await popupPage.evaluate(() => chrome.storage.local.set({ mediaAccessAsked: true }));
+    // popup.js caches the flag at startup, so it has to load again to observe it.
+    await popupPage.reload({ waitUntil: 'load' });
+    await popupPage.waitForSelector('#refreshAll', { visible: true, timeout: 5000 });
     console.log('Refresh button is visible');
     
     // Click the refresh button

@@ -39,11 +39,14 @@ function renderPopupDom() {
         <div id="statsWeek"></div>
         <div id="statsMonth"></div>
         <div id="statsTotal"></div>
+        <p id="statsAccessHint" class="privacy-info" style="display:none"></p>
         <p id="statsNote" class="privacy-info"></p>
       </div>
     </div>
     <button id="settingsHeader" aria-expanded="false"></button>
     <div id="settingsContent" style="display:none">
+      <button id="grantAccess" style="display:none"></button>
+      <p id="grantAccessExplain" class="privacy-info" style="display:none"></p>
       <button id="resetStats"></button>
       <p class="privacy-info"></p>
     </div>
@@ -64,8 +67,14 @@ function executePopupJs({ operationState = { active: false }, history = [], cach
     return Promise.resolve({});
   });
   chrome.storage.local.get.mockImplementation((keys, callback) => {
-    callback(keys.includes('cacheStats') ? { cacheStats } : { refreshHistory: history });
+    if (keys.includes('cacheStats')) callback({ cacheStats });
+    else if (keys.includes('mediaAccessAsked')) callback({ mediaAccessAsked: false });
+    else callback({ refreshHistory: history });
   });
+  chrome.permissions = {
+    contains: jest.fn().mockResolvedValue(true),
+    request: jest.fn().mockResolvedValue(false)
+  };
 
   new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
   return chrome.runtime.onMessage.callbackQueue[0];

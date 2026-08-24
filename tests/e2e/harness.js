@@ -1,8 +1,10 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
+const os = require('os');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const { RUNTIME_FILES } = require('../../scripts/package-extension');
 
 const extensionPath = path.join(__dirname, '../..');
 const outputRoot = path.join(extensionPath, 'test-results', 'e2e');
@@ -160,19 +162,80 @@ async function createTestServer() {
   };
 }
 
-function deriveExtensionId() {
-  return [...crypto.createHash('sha256').update(extensionPath).digest().subarray(0, 16)]
+function deriveExtensionId(loadedExtensionPath) {
+  return [...crypto.createHash('sha256').update(loadedExtensionPath).digest().subarray(0, 16)]
     .flatMap(byte => [byte >> 4, byte & 15])
     .map(nibble => String.fromCharCode(97 + nibble))
     .join('');
 }
 
-async function findExtensionId(browser) {
-  const existingTarget = browser.targets().find(candidate =>
-    candidate.type() === 'service_worker'
-    && candidate.url().startsWith('chrome-extension://'));
-  if (existingTarget) return new URL(existingTarget.url()).host;
-  return deriveExtensionId();
+async function findExtensionId(browser, loadedExtensionPath) {
+  // Prefer the ID Chrome actually assigned. The worker may not have started yet at launch,
+  // so wait briefly for it rather than falling straight through to path derivation.
+  try {
+    const target = await browser.waitForTarget(candidate =>
+      candidate.type() === 'service_worker'
+      && candidate.url().startsWith('chrome-extension://'),
+    { timeout: 15000 });
+    return new URL(target.url()).host;
+  } catch (error) {
+    return deriveExtensionId(loadedExtensionPath);
+  }
+}
+
+function createRuntimeCopy() {
+  // realpath matters: on macOS os.tmpdir() is /var/folders/... which is a symlink to
+  // /private/var/folders/.... Chrome derives an unpacked extension's ID from the resolved
+  // path, so hashing the unresolved one yields a different ID and every
+  // chrome-extension:// navigation fails with ERR_BLOCKED_BY_CLIENT.
+  const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'refresh-em-all-e2e-')));
+  const runtimePath = path.join(temporaryRoot, 'extension');
+  const userDataDir = path.join(temporaryRoot, 'profile');
+
+  for (const relativePath of RUNTIME_FILES) {
+    const destination = path.join(runtimePath, relativePath);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(path.join(extensionPath, relativePath), destination);
+  }
+
+  return { runtimePath, temporaryRoot, userDataDir };
+}
+
+function launchExtension(runtimePath, userDataDir) {
+  return puppeteer.launch({
+    headless: false,
+    defaultViewport: null,
+    userDataDir,
+    args: [
+      `--disable-extensions-except=${runtimePath}`,
+      `--load-extension=${runtimePath}`,
+      '--lang=en-US',
+      '--autoplay-policy=no-user-gesture-required',
+      '--window-size=500,700',
+      ...ciBrowserArgs
+    ]
+  });
+}
+
+async function seedHostPermission(runtimePath, userDataDir) {
+  const manifestPath = path.join(runtimePath, 'manifest.json');
+  const shippedManifest = fs.readFileSync(manifestPath, 'utf8');
+  const seedManifest = JSON.parse(shippedManifest);
+  seedManifest.host_permissions = ['<all_urls>'];
+  delete seedManifest.optional_host_permissions;
+  fs.writeFileSync(manifestPath, `${JSON.stringify(seedManifest, null, 4)}\n`);
+
+  let browser;
+  try {
+    browser = await launchExtension(runtimePath, userDataDir);
+    await browser.waitForTarget(target =>
+      target.type() === 'service_worker'
+      && target.url().startsWith('chrome-extension://'),
+    { timeout: 15000 });
+  } finally {
+    if (browser) await browser.close();
+    fs.writeFileSync(manifestPath, shippedManifest);
+  }
 }
 
 function createPhaseTimer(profile, basePhases = {}, totalStarted = performance.now()) {
@@ -413,42 +476,58 @@ async function captureFailureDiagnostics({
   return payload;
 }
 
-async function createHarness({ profile, trace = false } = {}) {
+async function createHarness({ profile, trace = false, seedSiteAccess = true } = {}) {
   const startedAt = performance.now();
   const outputDirectory = prepareOutputDirectory(profile);
   const basePhases = {};
   const diagnostics = { console: [], pageErrors: [], requestFailures: [], workerConsole: [] };
-
-  const serverStarted = performance.now();
-  const testServer = await createTestServer();
-  basePhases.serverSetup = Number((performance.now() - serverStarted).toFixed(1));
-
+  let runtimePath;
+  let temporaryRoot;
+  let userDataDir;
+  let testServer;
   let browser;
   let controlPage;
   let tracePath;
   let tracePage;
+  let closed = false;
+
+  async function closeResources() {
+    if (closed) return;
+    closed = true;
+    try {
+      if (browser) await browser.close();
+    } finally {
+      try {
+        if (testServer) await testServer.close();
+      } finally {
+        if (temporaryRoot) fs.rmSync(temporaryRoot, { recursive: true, force: true });
+      }
+    }
+  }
 
   try {
+    ({ runtimePath, temporaryRoot, userDataDir } = createRuntimeCopy());
+    const serverStarted = performance.now();
+    testServer = await createTestServer();
+    basePhases.serverSetup = Number((performance.now() - serverStarted).toFixed(1));
+
     const browserStarted = performance.now();
-    browser = await puppeteer.launch({
-      headless: false,
-      defaultViewport: null,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--lang=en-US',
-        '--autoplay-policy=no-user-gesture-required',
-        '--window-size=500,700',
-        ...ciBrowserArgs
-      ]
-    });
+    if (seedSiteAccess) await seedHostPermission(runtimePath, userDataDir);
+    browser = await launchExtension(runtimePath, userDataDir);
     basePhases.browserLaunch = Number((performance.now() - browserStarted).toFixed(1));
     attachWorkerDiagnostics(browser, diagnostics);
 
     const discoveryStarted = performance.now();
-    const extensionId = await findExtensionId(browser);
+    const extensionId = await findExtensionId(browser, runtimePath);
     controlPage = attachPageDiagnostics(await browser.newPage(), diagnostics, 'control');
     await controlPage.goto(`chrome-extension://${extensionId}/popup.html`);
+    if (seedSiteAccess) {
+      const origins = await controlPage.evaluate(async () =>
+        (await chrome.permissions.getAll()).origins || []);
+      if (!origins.includes('<all_urls>')) {
+        throw new Error(`Two-phase site-access seed failed: ${JSON.stringify(origins)}`);
+      }
+    }
     basePhases.extensionDiscovery = Number((performance.now() - discoveryStarted).toFixed(1));
 
     return {
@@ -491,13 +570,11 @@ async function createHarness({ profile, trace = false } = {}) {
       },
       async close() {
         if (tracePath && tracePage) await this.stopTrace({ keep: true });
-        if (browser) await browser.close();
-        await testServer.close();
+        await closeResources();
       }
     };
   } catch (error) {
-    if (browser) await browser.close();
-    await testServer.close();
+    await closeResources();
     throw error;
   }
 }

@@ -1,10 +1,11 @@
 # Chrome Web Store Listing Proposal
 
 This document contains proposed submission text and a code-backed declaration
-audit for Refresh Em All v2.3.0. It does not authorize publication.
+audit for Refresh Em All v2.4.0. It does not authorize publication.
 
-v2.3.0 adds local-first cache statistics that show how much stale cached data
-each refresh freshens. Dashboard-only items are tracked separately in
+v2.4.0 makes all-sites host access optional and requests it at runtime for
+media preservation and cache measurement. Refreshing continues without that
+grant. Dashboard-only items are tracked separately in
 [`dashboard-checklist.md`](dashboard-checklist.md).
 
 ## Listing content (English)
@@ -45,6 +46,10 @@ refresh freshens. The popup shows the last run, today, the last 7 and 30 days,
 and all time. The figure is a lower bound because files served without
 Timing-Allow-Origin report no size to the page. Nothing is transmitted, and
 the totals can be reset from Settings.
+
+The v2.3.0 cache measurement depends on the same optional site-access grant as
+media preservation. Without the grant, refreshing still works and the displayed
+totals remain paused at their previously measured values.
 
 Refresh progress and up to ten summary-only history entries remain in
 browser-managed storage on your device. Refresh Em All does not send browsing
@@ -121,26 +126,56 @@ olabildiğince korumaktır.
 
 ## Permission justifications and audit
 
-The v2.1.0 manifest declares exactly the same permissions as v2.0.2. Adding
-`default_locale` and `__MSG_*__` fields requires no new permission, and no
-permission was added or removed in this release.
+The v2.4.0 manifest keeps `tabs`, `scripting`, and `storage` required while
+moving `<all_urls>` from `host_permissions` to `optional_host_permissions`.
+The popup requests that host access at runtime; refusing it does not prevent
+cache-bypassing tab reloads.
 
 | Declaration | Current implementation | Necessity and audit result |
 | --- | --- | --- |
 | `tabs` | `background.js` queries all tabs, gets current tab records, reads URL/title/favicon/status/discarded metadata, and performs cache-bypassing reloads. URLs identify restricted pages; titles and favicons support popup status. | **Used; retain.** The `tabs` permission gates the *fields* `url`, `title`, and `favIconUrl`, not the `query`/`get`/`reload` methods. Removing it hides `tab.url` for exactly the browser-internal pages `<all_urls>` cannot match, so those pages stop being classified as skipped and lose their titles in the popup. See "Permission reduction attempts" below. |
-| `scripting` | `background.js` calls `chrome.scripting.executeScript` with the packaged `preserveMediaState` function before reloading an accessible tab, then injects packaged `content-script.js` after that refreshed tab finishes loading when captured media state may exist. | **Used; retain.** Required for best-effort media-state capture and just-in-time restoration in the page. |
-| `storage` | The extension uses `chrome.storage.session` for active-operation recovery, `chrome.storage.local` for the ten-entry summary history and legacy cleanup, and `chrome.storage.sync` only to migrate and delete old-version keys. | **Used; retain.** Required for operation continuity, local history, and removal of legacy synced state. |
-| Host access / `<all_urls>` | Host permission lets the packaged media-capture function execute on accessible websites before the extension refreshes them, and keeps `url`/`title`/`favIconUrl` readable for ordinary sites. | **Used; retain.** The broad scope matches the disclosed all-tabs purpose. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
-| Programmatic media restoration | The bundled `content-script.js` is not declared as a permanent content script. After this extension refreshes a tab and that tab reaches `complete`, `background.js` injects the packaged file with `chrome.scripting.executeScript` only when media capture did not report a zero count. | **Used; shipped.** Restoration is scoped to tabs the user just asked the extension to refresh. Existing `scripting` and `<all_urls>` access authorize the injection; the install warning is unchanged. See "Permission reduction attempts". |
+| `scripting` | When optional host access is granted, `background.js` calls `chrome.scripting.executeScript` with the packaged `preserveMediaState` function before reloading an accessible tab, then injects packaged `content-script.js` after that refreshed tab finishes loading when captured media state may exist. | **Used; retain.** Required for the optional best-effort media-state capture and just-in-time restoration. It is not used when host access is absent. |
+| `storage` | The extension uses `chrome.storage.session` for active-operation recovery, `chrome.storage.local` for the ten-entry summary history, cache statistics, the one-time automatic permission-prompt flag, and legacy cleanup, and `chrome.storage.sync` only to migrate and delete old-version keys. | **Used; retain.** Required for operation continuity, local history and statistics, prompt behavior, and removal of legacy synced state. |
+| Host access / `<all_urls>` | Declared in `optional_host_permissions` and requested from the popup at runtime on the first refresh, with a permanent Settings button for later requests. It authorizes packaged media capture/restoration and the v2.3.0 cache measurement on accessible websites. | **Optional; request at runtime.** A refusal leaves cache-bypassing refresh fully operational. Media preservation and cache measurement pause until access is granted. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
+| Programmatic media restoration | The bundled `content-script.js` is not declared as a permanent content script. When optional host access is present, `background.js` injects it only after a tab this extension refreshed reaches `complete` and media capture may have saved state. | **Used only with optional host access.** Without the grant, the worker goes directly to a cache-bypassing reload and performs no page injection. |
 
-No requested permission is unused.
+No required permission is unused. The optional host permission has a disclosed,
+user-triggered media-preservation and cache-measurement purpose.
 
 ### Permission reduction attempts in this release
 
 Chrome's guidance is to request relevant, least-privilege, and where possible
-optional permissions. Both candidates were traced through every caller before
-being judged. Candidate 1 is not shipped; Candidate 2 is shipped as a
-behavioural least-privilege change, not a permission reduction.
+optional permissions. v2.4.0 ships the all-sites host permission as optional,
+while retaining `tabs` for the separate restricted-page classification and
+display-metadata behavior established by Candidate 1.
+
+**Shipped change — move `<all_urls>` to runtime-requested optional host
+access.**
+
+- *Manifest and prompt.* `<all_urls>` moves from `host_permissions` to
+  `optional_host_permissions`. A fresh install begins with no granted origins.
+  The popup requests access directly inside the user's first Refresh All Tabs
+  click and records that it has asked, so it never prompts automatically twice.
+  Settings keeps a permanent user-triggered way to request access later.
+- *Behavior without access.* The worker resolves permission once at the start
+  of each operation. Without access it performs the same cache-bypassing reloads
+  and does not attempt page injection. Media-state preservation and the v2.3.0
+  cache measurement pause; cache statistics still record a normal last-run
+  value of zero. Refusing access never cancels the refresh.
+- *Fresh-install warning.* With required `<all_urls>` removed, the install
+  warning drops from "Read and change all your data on all websites" to the
+  `tabs` warning, "Read your browsing history." It does not disappear because
+  Candidate 1's analysis below is precisely why `tabs` remains required.
+- *Upgrade evidence and limit.* An unpacked extension was upgraded in place on
+  the same profile and extension ID from required to optional host access. Its
+  existing `<all_urls>` grant survived, and the service worker remained active.
+  This is evidence for an unpacked in-place upgrade, **not** a Chrome Web Store
+  update. Independently, the
+  [Chromium extensions permissions design](https://chromium.googlesource.com/chromium/src/+/HEAD/extensions/docs/permissions.md)
+  documents that the granted permission set survives removal from the active
+  manifest set and that update disabling compares requested permissions with
+  the granted set. Together these support, but do not mislabel, the upgrade
+  conclusion.
 
 **Candidate 1 — drop `tabs` and rely on `<all_urls>` host permission.**
 
@@ -176,26 +211,22 @@ behavioural least-privilege change, not a permission reduction.
   does dropping `tabs` become a candidate, and the popup would still lose
   restricted-tab titles.
 
-**Candidate 2 — remove the permanent all-sites content script and inject the
-restoration logic only into tabs this extension just refreshed.**
+**Candidate 2 — keep restoration programmatic rather than permanent.**
 
-- *What was shipped.* The full trigger chain was traced:
+- *What remains shipped.* The full trigger chain is unchanged when optional
+  host access is granted:
   `background.js` injects `preserveMediaState` via `chrome.scripting`, which
   writes the `refreshEmAllMediaState` key into the page's `sessionStorage`
   immediately before `chrome.tabs.reload`. If capture does not report a zero
   media count, the worker tracks that tab until `chrome.tabs.onUpdated` reports
   `status === 'complete'`, then injects packaged `content-script.js` once to
-  consume the key. Nothing else writes it. The repository contains no
-  `chrome.permissions` or `optional_host_permissions` usage today.
-- *What this does and does not buy.* Be precise about the benefit, because it
-  is easy to overstate. The install warning users see comes from
-  `host_permissions: <all_urls>`, which this extension needs and keeps either
-  way. Dropping the `content_scripts` declaration therefore does **not** change
-  the install warning. The real gain is behavioural: `content-script.js` no
-  longer executes at `document_idle` on every navigation on every site for the
-  life of the install, and runs only on tabs the user just asked to
-  refresh. That is a genuine least-privilege-in-spirit improvement and worth
-  doing — it is simply not a permission reduction.
+  consume the key. Nothing else writes it. Without host access, neither capture
+  nor restoration injection is attempted.
+- *What this buys.* `content-script.js` does not execute at `document_idle` on
+  every navigation. With access granted it runs only on tabs the user just
+  asked to refresh; without access it does not run at all. v2.4.0's optional
+  host declaration is the mechanism that removes the broad install-time host
+  warning while preserving this programmatic design after consent.
 - *Implementation boundary.* The `chrome.tabs.onUpdated` and
   `chrome.tabs.onRemoved` listeners are registered at worker top level, as MV3
   requires. A tab is marked pending only once its cache-bypassing reload has
@@ -206,17 +237,16 @@ restoration logic only into tabs this extension just refreshed.**
   evicts the MV3 worker between reload and completion, that tab's restoration is
   skipped. That is the remaining race window replacing the previous
   always-declared script.
-  Note that `chrome.optional_host_permissions` is **not** the mechanism here —
-  `scripting` plus the existing `<all_urls>` host permission is already
-  sufficient for programmatic injection, so no runtime consent flow is required.
-- *Evidence.* Unit coverage exercises complete/loading events, unrefreshed tabs,
-  zero and absent capture results, tab removal, and one-shot injection. The
-  existing real-browser reliability scenario remains the integration check for
-  paused and playing media across a refresh.
+- *Evidence.* Unit coverage exercises granted and denied host-access paths,
+  complete/loading events, unrefreshed tabs, zero and absent capture results,
+  tab removal, and one-shot injection. The real-browser reliability scenario
+  seeds an existing-user grant through an unpacked in-place upgrade before
+  checking paused and playing media restoration. A separate fresh-profile
+  scenario checks that no-grant refreshes complete without media restoration.
 
-Candidate 1 is not shipped. Candidate 2 removes the permanent
-`content_scripts` declaration while retaining every requested permission and
-`host_permissions: <all_urls>`; the disclosure and install warning are unchanged.
+Candidate 1 is not shipped, so the `tabs` warning remains. Candidate 2 remains
+the restoration model. v2.4.0 changes required all-sites host access into an
+optional runtime grant and keeps basic refreshing available without it.
 
 Note also that removing permissions does **not** earn Enhanced Safe Browsing
 publisher trust; see "Trust, badges, and what this release can and cannot
@@ -234,9 +264,12 @@ change".
 - **storage:** Needed for temporary refresh-operation recovery, up to ten local
   summary history entries, and cleanup of legacy storage created by older
   versions.
-- **host access (`<all_urls>`):** Needed because the user-facing purpose is to
-  refresh all accessible open tabs, regardless of site, and to capture supported
-  media state before those reloads.
+- **optional host access (`<all_urls>`):** Requested at runtime from the user's
+  first refresh action, and available later from Settings. It is used only to
+  capture and restore supported media state and to perform the v2.3.0 cache
+  measurement on accessible sites. If the user refuses, all accessible tabs are
+  still refreshed with local-cache bypass; only media preservation and cache
+  measurement pause.
 - **programmatic media restoration:** Packaged `content-script.js` is injected
   only into a tab this extension just refreshed, after that tab finishes loading.
   It reads only the extension's media-state session key and supported

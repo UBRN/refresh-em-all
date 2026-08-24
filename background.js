@@ -18,6 +18,7 @@ let operationCancelled = false;
 let operationFinalized = false;
 let batchTimeoutId = null;
 let staleBytesThisRun = 0;
+let hasSiteAccess = false;
 
 // Tabs this worker just reloaded that are still waiting for media restoration.
 // ponytail: in-memory only — if the MV3 worker is evicted between the reload
@@ -112,16 +113,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         startRefreshOperation();
 
         chrome.tabs.query({}, (tabs) => {
-            try {
-                initializeAndStartRefresh(tabs, sendResponse);
-            } catch (error) {
+            initializeAndStartRefresh(tabs, sendResponse).catch(error => {
                 reportError('refresh_operation_start_error', {
                     message: error.message,
                     stack: error.stack,
                     timestamp: new Date().toISOString()
                 });
                 endRefreshOperation(false);
-            }
+            });
         });
         return true;
     }
@@ -206,7 +205,7 @@ function clearPersistedOperationState() {
 }
 
 // Prepare and start the refresh operation once tabs are available
-function initializeAndStartRefresh(tabs, sendResponse) {
+async function initializeAndStartRefresh(tabs, sendResponse) {
     if (chrome.runtime.lastError) {
         handleRefreshStartFailure(chrome.runtime.lastError.message, sendResponse);
         return;
@@ -225,6 +224,12 @@ function initializeAndStartRefresh(tabs, sendResponse) {
         return;
     }
 
+    try {
+        hasSiteAccess = await chrome.permissions.contains({ origins: ['<all_urls>'] }) === true;
+    } catch (error) {
+        hasSiteAccess = false;
+    }
+
     refreshedTabs = 0;
     processedTabs = 0;
     staleBytesThisRun = 0;
@@ -232,7 +237,6 @@ function initializeAndStartRefresh(tabs, sendResponse) {
     skippedTabs = [];
     tabStatuses = Object.fromEntries(tabsToRefresh.map(tab => [tab.id, 'pending']));
     startTime = new Date();
-    operationCancelled = false;
     operationFinalized = false;
     persistOperationState();
 
@@ -331,6 +335,7 @@ function migrateHistoryToLocalStorage() {
 function startRefreshOperation() {
     activeRefreshOperation = true;
     operationFinalized = false;
+    operationCancelled = false;
 
     // Update icon to indicate operation is in progress
     chrome.action.setIcon({
@@ -629,8 +634,10 @@ async function refreshTab(tab, retryCount = 0, loadingWaitStartedAt = Date.now()
                     return;
                 }
 
-                if (tabInfo.discarded) {
-                    // Reload discarded tabs without changing the user's active tab.
+                if (tabInfo.discarded || !hasSiteAccess) {
+                    // Discarded tabs reload without changing the user's active tab, and
+                    // have no live media to capture. Without site access the capture
+                    // injection would be rejected for every tab, so skip straight past it.
                     basicReload(tab, retryCount, resolve);
                 } else {
                     // Handle normal (non-discarded) tab

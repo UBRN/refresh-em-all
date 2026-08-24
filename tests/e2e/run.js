@@ -7,7 +7,7 @@ const {
   ensureOutputDirectory,
   writeJson
 } = require('./harness');
-const { runReliabilityScenario } = require('./reliability-scenario');
+const { runDeniedPathScenario, runReliabilityScenario } = require('./reliability-scenario');
 
 const TEST_CASES = [
   {
@@ -211,10 +211,26 @@ async function captureEssentialFailure(harness, name, error, popup, pages = []) 
 
 async function runTests() {
   console.log('Starting fast end-to-end suite...');
+  let failed = 0;
+
+  process.stdout.write('Running test: refreshes without optional site access and does not restore media... ');
+  try {
+    const deniedHarness = await createHarness({
+      profile: 'denied',
+      trace: false,
+      seedSiteAccess: false
+    });
+    await runDeniedPathScenario(deniedHarness, { closeHarness: true });
+    console.log('PASS');
+  } catch (error) {
+    failed++;
+    console.log('FAIL');
+    console.error(`  ${error.message}`);
+  }
+
   const harness = await createHarness({ profile: 'fast', trace: false });
   const timer = createPhaseTimer('fast', harness.basePhases, harness.startedAt);
   const outputDirectory = ensureOutputDirectory('fast');
-  let failed = 0;
   let harnessClosed = false;
 
   try {
@@ -259,11 +275,11 @@ async function runTests() {
     if (!harnessClosed) await harness.close();
     writeJson(path.join(outputDirectory, 'timings.json'), timer.snapshot(
       failed === 0 ? 'passed' : 'failed',
-      { essentialTests: TEST_CASES.length, includesSmoke: true }
+      { essentialTests: TEST_CASES.length + 1, includesSmoke: true }
     ));
   }
 
-  console.log(`Fast suite summary: ${TEST_CASES.length + 1 - failed} passed, ${failed} failed`);
+  console.log(`Fast suite summary: ${TEST_CASES.length + 2 - failed} passed, ${failed} failed`);
   return failed === 0;
 }
 

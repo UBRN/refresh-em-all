@@ -35,11 +35,14 @@ function renderPopupDom() {
         <div id="statsWeek"></div>
         <div id="statsMonth"></div>
         <div id="statsTotal"></div>
+        <p id="statsAccessHint" class="privacy-info" style="display:none"></p>
         <p id="statsNote" class="privacy-info"></p>
       </div>
     </div>
     <button id="settingsHeader" aria-expanded="false"></button>
     <div id="settingsContent" style="display:none">
+      <button id="grantAccess" style="display:none"></button>
+      <p id="grantAccessExplain" class="privacy-info" style="display:none"></p>
       <button id="resetStats"></button>
       <p class="privacy-info"></p>
     </div>
@@ -47,7 +50,20 @@ function renderPopupDom() {
   `;
 }
 
-function executePopupJs({ operationState = { active: false }, history = [], cacheStats } = {}) {
+async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function executePopupJs({
+  operationState = { active: false },
+  history = [],
+  cacheStats,
+  siteAccess = true,
+  mediaAccessAsked = false,
+  requestAccessResult = false
+} = {}) {
   renderPopupDom();
   chrome.runtime.onMessage.callbackQueue = [];
   chrome.runtime.onMessage.addListener.mockImplementation(callback => {
@@ -60,8 +76,14 @@ function executePopupJs({ operationState = { active: false }, history = [], cach
     return Promise.resolve({});
   });
   chrome.storage.local.get.mockImplementation((keys, callback) => {
-    callback(keys.includes('cacheStats') ? { cacheStats } : { refreshHistory: history });
+    if (keys.includes('cacheStats')) callback({ cacheStats });
+    else if (keys.includes('mediaAccessAsked')) callback({ mediaAccessAsked });
+    else callback({ refreshHistory: history });
   });
+  chrome.permissions = {
+    contains: jest.fn().mockResolvedValue(siteAccess),
+    request: jest.fn().mockResolvedValue(requestAccessResult)
+  };
 
   new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
   return chrome.runtime.onMessage.callbackQueue[0];
@@ -76,8 +98,9 @@ describe('Popup controller', () => {
     resetTestEnvironment();
   });
 
-  test('starts a refresh through the background worker and disables duplicate starts', () => {
+  test('starts a refresh through the background worker and disables duplicate starts', async () => {
     executePopupJs();
+    await flushPromises();
 
     document.getElementById('refreshAll').click();
 
@@ -87,6 +110,55 @@ describe('Popup controller', () => {
     );
     expect(document.getElementById('refreshAll').disabled).toBe(true);
     expect(document.getElementById('cancelRefresh').style.display).toBe('inline-block');
+  });
+
+  test('requests optional site access from the settings button', async () => {
+    executePopupJs({ siteAccess: false, requestAccessResult: true });
+    await flushPromises();
+
+    document.getElementById('grantAccess').click();
+    await flushPromises();
+
+    expect(chrome.permissions.request).toHaveBeenCalledWith({ origins: ['<all_urls>'] });
+  });
+
+  test('first refresh requests access once and still starts when refused', async () => {
+    executePopupJs({ siteAccess: false, mediaAccessAsked: false, requestAccessResult: false });
+    await flushPromises();
+
+    document.getElementById('refreshAll').click();
+    await flushPromises();
+
+    expect(chrome.permissions.request).toHaveBeenCalledTimes(1);
+    expect(chrome.storage.local.set).toHaveBeenCalledWith({ mediaAccessAsked: true });
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'startRefresh' },
+      expect.any(Function)
+    );
+  });
+
+  test('later refresh does not request access automatically', async () => {
+    executePopupJs({ siteAccess: false, mediaAccessAsked: true });
+    await flushPromises();
+
+    document.getElementById('refreshAll').click();
+
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'startRefresh' },
+      expect.any(Function)
+    );
+  });
+
+  test.each([
+    [true, 'none'],
+    [false, 'block']
+  ])('renders optional-access controls for granted=%s', async (siteAccess, display) => {
+    executePopupJs({ siteAccess });
+    await flushPromises();
+
+    expect(document.getElementById('grantAccess').style.display).toBe(display);
+    expect(document.getElementById('statsAccessHint').style.display).toBe(display);
   });
 
   test('renders per-tab success, failure, skipped state, and processed progress', () => {

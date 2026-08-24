@@ -11,6 +11,10 @@ Each requested tab reload bypasses local cache for that reload. This does not
 delete cached browsing data or modify cookies, Cache Storage, service workers,
 or other site data.
 
+All-sites host access is optional and requested at runtime. Refreshing works
+without it. Preserving media playback state and measuring freshened cache
+require that optional access.
+
 ## Information handled by the extension
 
 To perform a refresh, Chrome provides the extension with information about open
@@ -20,12 +24,12 @@ metadata supplied by the Chrome Tabs API. Refresh Em All uses this information
 to identify refreshable tabs, avoid restricted browser pages, refresh tabs, and
 show progress in the popup.
 
-Before reloading an accessible page, the extension checks its video and audio
-elements. It may temporarily handle the media source URL, current playback
-position, paused or playing state, muted state, volume, and playback rate. On
-YouTube pages it may also handle the current video identifier and the time at
-which state was captured. The extension does not read arbitrary page text or
-form contents for this feature.
+When optional site access is granted, the extension checks an accessible page's
+video and audio elements before reloading it. It may temporarily handle the
+media source URL, current playback position, paused or playing state, muted
+state, volume, and playback rate. On YouTube pages it may also handle the
+current video identifier and the time at which state was captured. The
+extension does not read arbitrary page text or form contents for this feature.
 
 The same pre-reload check also reads the page's Resource Timing entries to
 total the byte sizes of resources the page loaded from cache. It reads only
@@ -49,6 +53,9 @@ Refresh Em All uses the following browser-managed storage:
   only: the most recent operation, an all-time total, and at most 31 daily
   totals keyed by local date. It contains no URLs, hostnames, per-site, or
   per-tab data. The reset control in the popup clears it.
+- `chrome.storage.local` holds the Boolean `mediaAccessAsked` flag so the popup
+  asks automatically for optional site access at most once. The Settings button
+  remains available if the user wants to request access later.
 - The relevant page's `sessionStorage` temporarily holds media state under the
   `refreshEmAllMediaState` key so it can survive that page's reload. The bundled
   content script removes the entry when it reads it. If it cannot be consumed,

@@ -65,6 +65,9 @@ describe('Background refresh worker', () => {
     chrome.scripting = {
       executeScript: jest.fn((details, callback) => callback?.([]))
     };
+    chrome.permissions = {
+      contains: jest.fn().mockResolvedValue(true)
+    };
     chrome.tabs.get.mockImplementation((tabId, callback) => callback({ id: tabId, status: 'complete', discarded: false }));
     chrome.tabs.reload.mockImplementation((tabId, options, callback) => callback());
   });
@@ -191,6 +194,25 @@ describe('Background refresh worker', () => {
       success: true,
       details: expect.objectContaining({ successfulTabs: 1, skippedCount: 1, processedTabs: 2 })
     }));
+  });
+
+  test('reloads every ordinary tab without scripting when site access is missing', async () => {
+    chrome.permissions.contains.mockResolvedValue(false);
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 25, title: 'One', url: 'https://example.com/one', discarded: false },
+      { id: 26, title: 'Two', url: 'https://example.com/two', discarded: false }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expect(chrome.permissions.contains).toHaveBeenCalledWith({ origins: ['<all_urls>'] });
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expect(chrome.tabs.reload).toHaveBeenCalledTimes(2);
+    for (const [, options] of chrome.tabs.reload.mock.calls) {
+      expect(options).toEqual({ bypassCache: true });
+    }
   });
 
   test('reports a tab with no readable URL as reloadable, not skipped (evidence that "tabs" is required)', async () => {
