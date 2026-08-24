@@ -112,7 +112,7 @@ describe('Popup controller', () => {
     expect(document.getElementById('cancelRefresh').style.display).toBe('inline-block');
   });
 
-  test('requests optional site access from the settings button', async () => {
+  test('requests optional page-reading permission from the settings button', async () => {
     executePopupJs({ siteAccess: false, requestAccessResult: true });
     await flushPromises();
 
@@ -179,7 +179,7 @@ describe('Popup controller', () => {
     });
     // Every count differs, so any swapped argument order in the statusProgress call fails here.
     expect(document.getElementById('statusText').textContent)
-      .toBe('Processed 9/12 — 5 refreshed, 2 failed, 3 skipped');
+      .toBe('9 of 12 — 5 reloaded, 2 failed, 3 skipped');
 
     onMessage({
       action: 'refreshProgress', current: 3, total: 3, percent: 100,
@@ -270,6 +270,26 @@ describe('Popup controller', () => {
     jest.useRealTimers();
   });
 
+  test('one click expands a section hidden by the stylesheet, not two', () => {
+    // Production hides these sections through popup.html's stylesheet, not an inline
+    // style. The DOM stub above hides them inline, which masks the real starting state,
+    // so reproduce the stylesheet case explicitly.
+    executePopupJs();
+    const content = document.getElementById('historyContent');
+    const header = document.getElementById('historyHeader');
+    content.removeAttribute('style');
+    const sheet = document.createElement('style');
+    sheet.textContent = '#historyContent { display: none; }';
+    document.head.appendChild(sheet);
+
+    expect(window.getComputedStyle(content).display).toBe('none');
+
+    header.click();
+
+    expect(content.style.display).toBe('block');
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+  });
+
   test('renders sanitized local history without using stored tab markup', () => {
     executePopupJs({
       history: [{
@@ -283,7 +303,8 @@ describe('Popup controller', () => {
     });
 
     expect(chrome.storage.local.get).toHaveBeenCalledWith(['refreshHistory'], expect.any(Function));
-    expect(document.getElementById('historyContent').textContent).toContain('2/4 refreshed, 1 failed, 1 skipped');
+    expect(document.getElementById('historyContent').textContent)
+      .toContain('2 of 4 reloaded; 1 failed, 1 skipped');
     expect(document.getElementById('historyContent').querySelector('script')).toBeNull();
   });
 
@@ -307,15 +328,20 @@ describe('Popup controller', () => {
     });
 
     expect(document.getElementById('statsContainer').style.display).toBe('block');
-    expect(document.getElementById('statsToday').textContent).toBe('Today: at least 2.0 KB');
-    expect(document.getElementById('statsLastRun').textContent).toBe('Last run: at least 1.5 KB');
-    expect(document.getElementById('statsWeek').textContent).toBe('Last 7 days: at least 9.0 KB');
-    expect(document.getElementById('statsMonth').textContent).toBe('Last 30 days: at least 10.0 KB');
-    expect(document.getElementById('statsTotal').textContent).toBe('All time: at least 10.0 MB');
+    expect(document.getElementById('statsToday').textContent)
+      .toBe('Today: at least 2.0 KB');
+    expect(document.getElementById('statsLastRun').textContent)
+      .toBe('Last reload: at least 1.5 KB');
+    expect(document.getElementById('statsWeek').textContent)
+      .toBe('Last 7 days: at least 9.0 KB');
+    expect(document.getElementById('statsMonth').textContent)
+      .toBe('Last 30 days: at least 10.0 KB');
+    expect(document.getElementById('statsTotal').textContent)
+      .toBe('All time: at least 10.0 MB');
     jest.useRealTimers();
   });
 
-  test('resets local cache statistics with one click', () => {
+  test('resets locally measured saved-file figures with one click', () => {
     executePopupJs();
 
     document.getElementById('resetStats').click();
@@ -335,7 +361,7 @@ describe('Popup controller', () => {
     });
     expect(document.getElementById('statsRunLine').style.display).toBe('block');
     expect(document.getElementById('statsRunLine').textContent)
-      .toBe('Freshened at least 2.0 KB of stale cache.');
+      .toBe('At least 2.0 KB came from copies Chrome saved earlier and will now be downloaded again.');
 
     onMessage({ action: 'refreshStarted', tabs: [{ id: 1, title: 'Next' }] });
     onMessage({

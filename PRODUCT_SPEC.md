@@ -28,10 +28,16 @@ To provide the most reliable and safe method for bulk-refreshing browser tabs, e
 - **Result Semantics**: A tab is counted as refreshed when Chrome accepts the reload request without a `runtime.lastError`. This does not guarantee that the resulting page later finishes loading successfully.
 
 ### 3.2 State Preservation
-- **Media Preservation**: Before refreshing a normal accessible tab, the extension scans for `<video>` and `<audio>` elements. It attempts to capture playback position, play/pause, mute, volume, and playback rate in page `sessionStorage` for restoration after reload. Restoration is best effort and depends on the page's media implementation and Chrome's autoplay rules.
+- **Media Preservation**: Before refreshing a normal, non-discarded tab, the extension scans for `<video>` and `<audio>` elements when the optional `<all_urls>` host permission has been granted. It attempts to capture playback position, play/pause, mute, volume, and playback rate in the page's own `sessionStorage` for restoration after reload. The host page can read that state while it exists. Restoration is best effort and depends on the page's media implementation and Chrome's autoplay rules.
+- **No-Permission Path**: Without the optional host permission, the extension skips script injection and proceeds directly to a cache-bypassing reload. It does not capture media state or measure cached resource bytes on that path.
 - **Capture Failure Fallback**: If media capture is denied or throws, the tab is still reloaded with local-cache bypass; the fallback omits media preservation, not cache bypass.
 
-### 3.3 Error Management
+### 3.3 Cache Measurement
+- **Measurement**: Before each scripted reload, the injected `preserveMediaState` function reads `performance.getEntriesByType('resource')`. It sums `encodedBodySize` only when `transferSize === 0 && decodedBodySize > 0`; it does not read or retain timing values.
+- **Lower-Bound Semantics**: Every displayed cache figure is "at least" the recorded byte count. Some cross-origin resources do not expose their sizes, and Chrome's Resource Timing buffer holds 250 entries by default; the extension does not enlarge it. Both limits can cause undercounting, so the real number can be higher but not lower.
+- **Aggregation**: `chrome.storage.local.cacheStats` stores byte counts for `lastRun`, `total`, and at most 31 daily buckets keyed by local date. Completing a refresh without optional host access still records `lastRun: 0`; retained daily buckets continue to age through the rolling 7-day and 30-day windows.
+
+### 3.4 Error Management
 - **Robust Error Handling**:
   - Captures refresh failures (e.g., offline, crashed renderer).
   - Implements exponential backoff for retrying failed tabs.
@@ -39,34 +45,40 @@ To provide the most reliable and safe method for bulk-refreshing browser tabs, e
   - Retries route through the same cache-bypassing reload invariant, up to two retries after the initial attempt.
   - Continuously loading tabs receive a bounded wait before the cache-bypassing reload proceeds.
   - A per-tab timeout records a failure and continues the queue without issuing a standard cached fallback.
+- **Cancellation**: The popup can request cancellation. The worker stops before further queued work and records the processed, successful, failed, and skipped counts reached before cancellation.
+- **Interrupted-Operation Recovery**: Progress is persisted in `chrome.storage.session`. If the popup finds a stored operation marked active after the service worker no longer has an active operation, it marks and displays the run as interrupted rather than pretending it completed or resuming it automatically.
 - **Garbage Collection**: Explicitly hints for garbage collection after batches when run in environments exposing `gc()`.
 
-### 3.4 User Interface
+### 3.5 User Interface
 - **Popup Dashboard**:
   - **Start Button**: Single prominent action to initiate process.
+  - **Cancel Button**: Available during an active refresh and reports cancellation failures.
   - **Progress Visuals**:
     - Linear progress bar showing percentage complete.
     - Dynamic status text (`Refreshing 5/20 tabs...`).
     - Granular tab list showing status indicators (Loading, Success ✓, Error ✗) for every individual tab.
   - **Visual Feedback**: Confetti animation upon successful completion of all tabs.
 - **History Log**: Keeps a local record of the last 10 refresh operations, detailing success rates and timestamps.
+- **Cache Statistics**: Shows the last run, today, rolling 7-day, rolling 30-day, and all-time measured byte totals as lower-bound figures. Settings provides a local reset for `cacheStats`.
+- **Optional Host Access**: The first refresh on a fresh profile asks once for `<all_urls>` access. Settings keeps a permanent control for requesting it later, and refusal does not block reloads.
+- **Operation Recovery**: Reopening the popup restores active progress from session storage or reports that an operation was interrupted.
 - **Error Reporting**:
   - Detailed local view of specific tab errors in the UI.
   - No browsing data or telemetry is sent to external services.
 
-### 3.5 Developer & QA Features
+### 3.6 Developer & QA Features
 - **Localization**:
   - English and Turkish interface text via Chrome's built-in `chrome.i18n`.
   - Follows the browser UI language; English is the fallback locale.
-- **Debugger Detection**: Monitors for accidental "Paused in debugger" states (common in dev tools) and warns the user with actionable steps to unpause.
 
 ## 4. Technical Architecture
 - **Manifest Version**: V3
 - **Permissions Required**:
   - `tabs`: To query and manipulate tabs.
-  - `scripting`: To inject state-preservation scripts.
-  - `storage`: To save transient operation state, local summary history, and migrate legacy extension storage. Media state uses the relevant page's `sessionStorage`, not the Chrome `storage` permission.
-  - `<all_urls>` host access: To capture and restore supported media state on arbitrary accessible sites.
+  - `scripting`: To inject cache measurement and media capture before reload, then inject media restoration after reload when optional host access is available.
+  - `storage`: To save session operation state, local refresh history, `cacheStats`, and the one-time `mediaAccessAsked` prompt flag, and to migrate legacy extension storage. Media state uses the relevant page's `sessionStorage`, not the Chrome `storage` permission.
+- **Optional Host Permission**:
+  - `<all_urls>`: Requested at runtime from the first refresh or the permanent Settings control. It enables cache measurement and media capture/restoration on supported pages; reloads still proceed without it.
 - **Local Processing**: All logic runs client-side. No user data or telemetry is sent to external servers.
 
 ## 5. Non-Functional Requirements

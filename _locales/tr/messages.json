@@ -8,7 +8,7 @@
     "description": "BCP-47 language tag of THIS catalog. Resolved through Chrome's fallback chain so the popup's <html lang> always matches the language actually rendered, not the browser UI locale."
   },
   "appDescription": {
-    "message": "Bütün pencerelerdeki erişilebilir sekmeleri yerel önbelleği atlayarak yeniler, desteklenen medya durumunu korur.",
+    "message": "Tüm pencerelerdeki sekmeleri yeniden yükler; kayıtlı kopyalar yerine yeni dosyaları indirir. Medyayı olabildiğince yerinde tutar.",
     "description": "Extension description shown in the Chrome Web Store and on chrome://extensions."
   },
   "actionRefreshAll": {
@@ -20,45 +20,45 @@
     "description": "Label of the button that cancels a running refresh."
   },
   "refreshExplanation": {
-    "message": "Erişilebilir sekmeleri yerel önbelleği atlayarak yeniler. Site verileriniz olduğu gibi kalır.",
+    "message": "Yenileyebildiği sekmeleri yeniden yükler ve Chrome'un daha önce kaydettiği kopyalar yerine dosyaları yeniden indirir. Site verileriniz değişmez.",
     "description": "Short explanation under the buttons describing what a refresh does."
   },
   "progressLabel": {
-    "message": "Yenileme ilerlemesi",
+    "message": "Sekmeleri yeniden yükleme ilerlemesi",
     "description": "Accessible name of the progress bar."
   },
   "statusRefreshingTabs": {
-    "message": "Sekmeler yenileniyor…",
+    "message": "Sekmeleriniz yeniden yükleniyor…",
     "description": "Initial status line before the first progress update arrives."
   },
   "statusStarting": {
-    "message": "Yenileme başlatılıyor…",
+    "message": "Başlatılıyor…",
     "description": "Status shown while the refresh request is being sent."
   },
   "statusCancelling": {
-    "message": "Yenileme iptal ediliyor…",
+    "message": "Durduruluyor…",
     "description": "Status shown while a cancellation request is being sent."
   },
   "statusCancelFailed": {
-    "message": "Bu yenileme iptal edilemedi.",
+    "message": "Bu yenileme durdurulamadı.",
     "description": "Status shown when cancellation was rejected."
   },
   "statusStartFailed": {
-    "message": "Yenileme başlatılamadı: $ERROR$",
+    "message": "Başlatılamadı: $ERROR$",
     "description": "Status shown when the refresh could not be started.",
     "placeholders": {
       "error": { "content": "$1", "example": "Yenilenecek sekme yok" }
     }
   },
   "statusProcessedInitial": {
-    "message": "0/$TOTAL$ sekme işlendi…",
+    "message": "$TOTAL$ sekmeden 0 tanesi bitti…",
     "description": "Status shown right after the tab list is known and before any tab is processed.",
     "placeholders": {
       "total": { "content": "$1", "example": "8" }
     }
   },
   "statusProgress": {
-    "message": "$PROCESSED$/$TOTAL$ sekme işlendi — $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı",
+    "message": "$TOTAL$ sekmeden $PROCESSED$ tanesi bitti — $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı",
     "description": "Live progress status during a refresh.",
     "placeholders": {
       "processed": { "content": "$1", "example": "4" },
@@ -69,7 +69,7 @@
     }
   },
   "statusCancelled": {
-    "message": "$TOTAL$ sekmeden $PROCESSED$ tanesi işlendikten sonra yenileme iptal edildi.",
+    "message": "Yenileme durduruldu: $TOTAL$ sekmeden $PROCESSED$ tanesi bitti.",
     "description": "Final status after the user cancelled the refresh.",
     "placeholders": {
       "processed": { "content": "$1", "example": "4" },
@@ -77,7 +77,7 @@
     }
   },
   "statusCompleteMixed": {
-    "message": "$PROCESSED$/$TOTAL$ sekme işlendi: $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı.",
+    "message": "$TOTAL$ sekmeden $PROCESSED$ tanesi bitti: $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı.",
     "description": "Final status when at least one tab failed.",
     "placeholders": {
       "processed": { "content": "$1", "example": "8" },
@@ -88,34 +88,34 @@
     }
   },
   "statusCompleteSkipped": {
-    "message": "$REFRESHED$ sekme yenilendi; $SKIPPED$ kısıtlı sekme atlandı.",
-    "description": "Final status when nothing failed but restricted pages were skipped.",
+    "message": "$REFRESHED$ sekme yenilendi, $SKIPPED$ sekme atlandı.",
+    "description": "Final status when nothing failed but some tabs were skipped.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "6" },
       "skipped": { "content": "$2", "example": "2" }
     }
   },
   "statusCompleteAll": {
-    "message": "$REFRESHED$ sekmenin tamamı yenilendi!",
-    "description": "Final status when every tab was refreshed.",
+    "message": "$REFRESHED$ sekmenin tümü yenilendi.",
+    "description": "Final status when Chrome accepted a reload for every tab.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "8" }
     }
   },
   "statusInterrupted": {
-    "message": "Önceki yenileme yarıda kaldı.",
+    "message": "Son yenileme tamamlanmadan durdu.",
     "description": "Status shown when a refresh did not finish before the worker stopped."
   },
   "errorInterruptedTitle": {
-    "message": "Yenileme yarıda kaldı",
+    "message": "Yenileme durdu",
     "description": "Error box heading for an interrupted refresh."
   },
   "errorInterruptedDetail": {
-    "message": "Devam etmek için yeni bir yenileme başlatın.",
+    "message": "Hazır olduğunuzda yeniden başlatın.",
     "description": "Error box detail for an interrupted refresh."
   },
   "errorStartTitle": {
-    "message": "Yenileme başlatılamadı",
+    "message": "Başlatılamadı",
     "description": "Error box heading when the refresh never began."
   },
   "errorFailedSummaryOne": {
@@ -142,7 +142,7 @@
     }
   },
   "errorNoTabDetails": {
-    "message": "Sekmeye özel bir hata ayrıntısı bildirilmedi.",
+    "message": "Chrome belirli bir sekme için hata ayrıntısı vermedi.",
     "description": "Shown when a failure has no per-tab detail."
   },
   "tabFallbackTitle": {
@@ -163,18 +163,18 @@
   },
   "tabStatusSuccess": {
     "message": "yenilendi",
-    "description": "Tab indicator state: refreshed successfully."
+    "description": "Tab indicator state: Chrome accepted the reload."
   },
   "tabStatusError": {
-    "message": "başarısız",
+    "message": "yenileme başarısız",
     "description": "Tab indicator state: refresh failed."
   },
   "tabStatusSkipped": {
     "message": "atlandı",
-    "description": "Tab indicator state: restricted page, skipped."
+    "description": "Tab indicator state: the tab was skipped."
   },
   "historyToggle": {
-    "message": "Yenileme Geçmişini Göster",
+    "message": "Son Yenilemeleri Göster",
     "description": "Button that expands the local refresh history."
   },
   "historyUnknownDate": {
@@ -182,7 +182,7 @@
     "description": "Shown when a history entry has an unreadable timestamp."
   },
   "historyEntryCancelled": {
-    "message": "İptal edildi: $REFRESHED$/$TOTAL$ yenilendi",
+    "message": "Durduruldu: $TOTAL$ sekmeden $REFRESHED$ tanesi yenilendi",
     "description": "History line for a cancelled refresh.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "3" },
@@ -190,7 +190,7 @@
     }
   },
   "historyEntrySummary": {
-    "message": "$REFRESHED$/$TOTAL$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı",
+    "message": "$TOTAL$ sekmeden $REFRESHED$ tanesi yenilendi; $FAILED$ başarısız, $SKIPPED$ atlandı",
     "description": "History line for a completed refresh.",
     "placeholders": {
       "refreshed": { "content": "$1", "example": "6" },
@@ -200,8 +200,8 @@
     }
   },
   "statsToggle": {
-    "message": "Önbellek İstatistikleri",
-    "description": "Button that expands the local cache statistics."
+    "message": "Yeniden İndirilen Dosyalar",
+    "description": "Button that expands the locally measured saved-file figures."
   },
   "statsToday": {
     "message": "Bugün: en az $SIZE$",
@@ -211,7 +211,7 @@
     }
   },
   "statsLastRun": {
-    "message": "Son çalıştırma: en az $SIZE$",
+    "message": "Son yenileme: en az $SIZE$",
     "description": "Cache statistics row for the most recent refresh operation.",
     "placeholders": {
       "size": { "content": "$1", "example": "12,4 MB" }
@@ -239,8 +239,8 @@
     }
   },
   "statsRunLine": {
-    "message": "En az $SIZE$ bayat önbellek tazelendi.",
-    "description": "Completion line showing stale cache measured during the latest refresh.",
+    "message": "En az $SIZE$, Chrome'un daha önce kaydettiği kopyalardan geldi ve şimdi yeniden indirilecek.",
+    "description": "Completion line showing files measured from copies Chrome saved earlier during the latest reload.",
     "placeholders": {
       "size": { "content": "$1", "example": "12,4 MB" }
     }
@@ -250,27 +250,27 @@
     "description": "Button that clears locally stored cache statistics."
   },
   "statsNote": {
-    "message": "Bu toplamlar tarayıcınızda ölçülür ve cihazınızdan çıkmaz. Alt sınır niteliğindedir: Timing-Allow-Origin göndermeyen dosyalar sayfaya boyut bildirmediği için sayıma girmez.",
+    "message": "Her sayı en az gösterilen miktardır. Gerçek sayı daha yüksektir; bazı dosyalar boyutunu sayfaya bildirmez, ayrıca Chrome sayfanın yükleme kayıtlarından yalnızca sınırlı sayıda tutar. Refresh Em All bunları tarayıcınızda ölçer ve hiçbir yere göndermez.",
     "description": "Privacy and measurement-limit note below the cache statistics."
   },
   "permissionGrantAction": {
-    "message": "Medya korumasını etkinleştir",
-    "description": "Button that requests optional site access for media preservation and cache measurement."
+    "message": "Sayfaları Okumaya İzin Ver",
+    "description": "Button that requests permission to read refreshed pages for best-effort media restoration and saved-file measurement."
   },
   "permissionGrantExplain": {
-    "message": "Refresh Em All site erişimini yalnızca medya oynatma durumunu okuyup geri yüklemek ve tazelenen önbelleği ölçmek için ister. Yenileme bu izin olmadan da çalışır.",
-    "description": "Explanation shown beside the optional site-access button."
+    "message": "Bu isteğe bağlı izin, Refresh Em All'un yenilediğiniz sayfaları okumasını sağlar. Uzantı bu izni videoları ve sesleri elinden geldiğince bıraktığınız yerde tutmak ve Chrome'un kayıtlı kopyalardan sunduğu dosyaları ölçmek için kullanır. İzin vermeseniz de sekmeler yenilenir.",
+    "description": "Explanation shown beside the optional page-reading permission button."
   },
   "statsAccessHint": {
-    "message": "Ölçüm için site erişimi gerekiyor, bu yüzden toplamlar duraklatıldı.",
-    "description": "Notice shown above cache statistics while optional site access is missing."
+    "message": "Refresh Em All, yenilediğiniz sayfaları okuma iznine sahip olmadığı için yeni veri ölçülmüyor.",
+    "description": "Notice shown above the saved-file figures while optional page-reading permission is missing."
   },
   "settingsToggle": {
     "message": "Ayarlar",
     "description": "Button that expands the settings and privacy section."
   },
   "privacyNotice": {
-    "message": "Refresh Em All yenileme durumunu yalnızca cihazınızda işler. Telemetri ya da gezinme verisi hiçbir sunucuya gönderilmez.",
+    "message": "Bu uzantı gezinme verilerini, ölçümleri veya hata raporlarını hiçbir yere göndermez. Oynatmayı elinden geldiğince geri yüklemek için sayfanın kendi medya ayarlarını, sekme kapanınca temizlenen geçici depolamada kısa süre tutar; sayfa bu bilgiler silinene kadar onları okuyabilir.",
     "description": "Privacy statement inside the settings section."
   },
   "errorOperationInProgress": {
@@ -286,7 +286,7 @@
     "description": "Reason returned when every reported tab was unusable."
   },
   "errorStartGeneric": {
-    "message": "Yenileme işlemi başlatılamadı",
+    "message": "Yenileme başlatılamadı",
     "description": "Fallback reason when the refresh could not be started."
   },
   "errorStartFailureTabTitle": {

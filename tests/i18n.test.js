@@ -153,10 +153,10 @@ describe('Localization contracts', () => {
   test('chrome.i18n substitutes dynamic placeholders in the catalog order', () => {
     setTestLocale('en');
     expect(chrome.i18n.getMessage('statusProgress', ['4', '8', '3', '0', '1'])).toBe(
-      'Processed 4/8 — 3 refreshed, 0 failed, 1 skipped'
+      '4 of 8 — 3 reloaded, 0 failed, 1 skipped'
     );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
-      'All 8 tabs refreshed successfully!'
+      'All 8 tabs reloaded.'
     );
     expect(chrome.i18n.getMessage('errorTabLine', ['2', 'Example', 'Failed'])).toBe(
       '2. Example: Failed'
@@ -164,10 +164,10 @@ describe('Localization contracts', () => {
 
     setTestLocale('tr');
     expect(chrome.i18n.getMessage('statusProgress', ['4', '8', '3', '0', '1'])).toBe(
-      '4/8 sekme işlendi — 3 yenilendi, 0 başarısız, 1 atlandı'
+      '8 sekmeden 4 tanesi bitti — 3 yenilendi, 0 başarısız, 1 atlandı'
     );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
-      '8 sekmenin tamamı yenilendi!'
+      '8 sekmenin tümü yenilendi.'
     );
     expect(chrome.i18n.getMessage('errorTabLine', ['2', 'Örnek', 'Hata'])).toBe(
       '2. Örnek: Hata'
@@ -190,10 +190,10 @@ describe('Localization contracts', () => {
     expect(document.documentElement.lang).toBe('tr');
     expect(document.getElementById('refreshAll').textContent).toBe('Tüm Sekmeleri Yenile');
     expect(document.getElementById('settingsHeader').textContent).toBe('Ayarlar');
-    expect(document.getElementById('statsHeader').textContent).toBe('Önbellek İstatistikleri');
+    expect(document.getElementById('statsHeader').textContent).toBe('Yeniden İndirilen Dosyalar');
     expect(document.getElementById('resetStats').textContent).toBe('İstatistikleri sıfırla');
     expect(document.getElementById('statsNote').textContent).toBe(
-      'Bu toplamlar tarayıcınızda ölçülür ve cihazınızdan çıkmaz. Alt sınır niteliğindedir: Timing-Allow-Origin göndermeyen dosyalar sayfaya boyut bildirmediği için sayıma girmez.'
+      'Her sayı en az gösterilen miktardır. Gerçek sayı daha yüksektir; bazı dosyalar boyutunu sayfaya bildirmez, ayrıca Chrome sayfanın yükleme kayıtlarından yalnızca sınırlı sayıda tutar. Refresh Em All bunları tarayıcınızda ölçer ve hiçbir yere göndermez.'
     );
 
     onMessage({
@@ -202,16 +202,16 @@ describe('Localization contracts', () => {
     });
 
     expect(document.getElementById('statusText').textContent).toBe(
-      '2 sekme yenilendi; 1 kısıtlı sekme atlandı.'
+      '2 sekme yenilendi, 1 sekme atlandı.'
     );
     expect(document.getElementById('historyContent').textContent).toContain(
-      '2/4 yenilendi, 1 başarısız, 1 atlandı'
+      '4 sekmeden 2 tanesi yenilendi; 1 başarısız, 1 atlandı'
     );
   });
 
   test.each([
-    ['tr', 'Örnek: yenilendi', 'Yenileme ilerlemesi'],
-    ['en', 'Example: refreshed', 'Refresh progress']
+    ['tr', 'Örnek: yenilendi', 'Sekmeleri yeniden yükleme ilerlemesi'],
+    ['en', 'Example: reloaded', 'Tab reload progress']
   ])('renders localized accessibility labels in %s', (locale, tabLabel, progressLabel) => {
     setTestLocale(locale);
     const onMessage = executePopupJs();

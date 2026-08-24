@@ -2,13 +2,12 @@
 
 ## Current status
 
-- Unit/integration tests: **25/25 passing**
-- Fast browser suite: **6/6 passing** (5 essential scenarios plus the 8-tab smoke profile)
+- Jest unit/integration/contract suite: **59 tests across 6 suites**
+- Fast browser suite: **6 scenarios** (the denied-access path, 4 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
-- Statement coverage: **65.47%**
-- Line coverage: **67.72%**
 
 The unit tests instrument the extension scripts before executing them, so Jest now reports coverage for dynamically loaded extension code instead of 0%.
+Static coverage percentages are not kept here because an undated snapshot quickly becomes stale. Run `npm run test:coverage` for a current local report.
 
 ## Requirements
 
@@ -36,15 +35,18 @@ npm run verify
 npm run stress-test
 ```
 
-## Unit and integration coverage
+## Jest unit, integration, and contract coverage
 
 ### Background worker
 
 - Starts refreshes through popup messages
 - Separates refreshed, failed, and skipped tabs
 - Emits per-tab results and processed progress
+- Measures only cached resource `encodedBodySize` values whose `transferSize` is zero and whose `decodedBodySize` is positive
+- Merges `cacheStats`, records each run including zero-byte runs, and prunes daily totals to 31 local dates
 - Retries failures and reaches a terminal state
 - Bounds waits for continuously loading tabs
+- Reloads ordinary tabs without script injection when optional host access is absent
 - Requires `{ bypassCache: true }` on normal, discarded, media-capture
   fallback, synchronous fallback, loading-wait, retry, and timeout paths
 - Proves a stalled reload times out without issuing a standard cached fallback
@@ -54,9 +56,12 @@ npm run stress-test
 ### Popup
 
 - Prevents duplicate refresh starts
+- Requests optional host access from the first refresh only once and still starts after refusal
+- Provides the permanent Settings request path and renders both granted and denied states
 - Displays per-tab success, failure, and skipped states
 - Restores progress when the popup is reopened
 - Renders sanitized local history through DOM text nodes
+- Renders last-run, daily, rolling, and all-time cache statistics and resets them locally
 
 ### Localization
 
@@ -75,26 +80,42 @@ npm run stress-test
 - Avoids telemetry and browsing-data messages
 - Recovers from corrupted session state
 
+### E2E harness and release workflow contracts
+
+- Bounds harness concurrency while preserving result order and exercises the smoke, medium, and full profile ranges
+- Keeps release publication tag-only, explicitly targeted at GitHub, and limited to the required write permission
+
+## Cache measurement limits
+
+The cache-byte figures are lower bounds. Some cross-origin files do not expose their sizes, and Chrome keeps 250 Resource Timing entries by default. The extension reads the entries already present and never enlarges that buffer, so additional resources can be omitted. It reads only `transferSize`, `decodedBodySize`, and `encodedBodySize`; it does not collect timing values.
+
+Without optional host access, refreshes still run but no new cache bytes are measured. Completion records `lastRun` as zero, and the rolling 7-day and 30-day totals continue to change as retained daily buckets age out.
+
 ## Fast pull-request suite
 
-`npm run e2e` starts one localhost-only server and one extension-enabled browser.
-It runs the essential E2E scenarios sequentially, resets extension storage between
-scenarios, and finishes with the 8-tab, two-window smoke profile. It verifies:
+`npm run e2e` first creates a denied-access harness, then a normal harness. Each harness
+uses its own temporary extension copy, localhost-only server, isolated profile, and
+extension-enabled browser. The denied harness leaves optional host access ungranted. For
+the normal harness, setup temporarily replaces the copied v2.4.0 manifest with a pre-v2.4.0
+manifest that requires `<all_urls>`, launches Chrome to seed the grant, restores the shipped
+manifest, and relaunches Chrome on the same profile. The normal harness then runs the
+essential scenarios sequentially, resets extension storage between scenarios, and finishes
+with the 8-tab, two-window smoke profile. Together the harnesses verify:
 
-1. Two real pages reload exactly once.
-2. A JavaScript resource served with a one-day immutable cache lifetime remains
+1. Without optional host access, real pages still reload and media restoration is not injected.
+2. Two real pages reload exactly once while Chrome and extension pages are reported as skipped,
+   progress reaches 100%, and local history contains sanitized counts.
+3. A JavaScript resource served with a one-day immutable cache lifetime remains
    cached across a normal reload, then is requested from the server again after
    the extension reloads its page.
-3. Restricted browser and extension pages are reported as skipped, not refreshed.
-4. Progress reaches 100% and local history contains the correct sanitized counts.
-5. The settings UI accurately states that telemetry is disabled.
-6. Refresh history renders safely.
-7. Eight tabs across two windows reload once while paused and playing media state is preserved.
+4. The settings UI accurately states that telemetry is disabled.
+5. Refresh history renders safely.
+6. Eight tabs across two windows reload once while paused and playing media state is preserved.
 
 The browser suites launch Chrome with `--lang=en-US` because the popup is now
 localized and these scenarios assert English status text.
 
-The fast workflow runs unit/integration tests and this browser suite on every pull
+The fast workflow runs the Jest unit/integration/contract suite and this browser suite on every pull
 request and every push to `main`. It also runs `npm run e2e:package`, which builds
 the release ZIP, extracts it into a temporary directory, and loads that extracted
 directory in Chrome. The test verifies the packaged manifest version, popup, one
@@ -126,7 +147,7 @@ sites still require the manual autoplay-policy checks below.
 
 GitHub Actions uses three tiers:
 
-1. Fast CI runs unit/integration, essential E2E, and the 8-tab smoke profile on
+1. Fast CI runs the Jest unit/integration/contract suite, essential E2E, and the 8-tab smoke profile on
    every pull request and push to `main`.
 2. The 20-tab profile runs when pull requests or `main` pushes change extension,
    package, workflow, or E2E harness files.

@@ -12,8 +12,8 @@ delete cached browsing data or modify cookies, Cache Storage, service workers,
 or other site data.
 
 All-sites host access is optional and requested at runtime. Refreshing works
-without it. Preserving media playback state and measuring freshened cache
-require that optional access.
+without it. Preserving media playback state and measuring cached-resource byte
+totals require that optional access.
 
 ## Information handled by the extension
 
@@ -31,24 +31,26 @@ state, volume, and playback rate. On YouTube pages it may also handle the
 current video identifier and the time at which state was captured. The
 extension does not read arbitrary page text or form contents for this feature.
 
-The same pre-reload check also reads the page's Resource Timing entries to
-total the byte sizes of resources the page loaded from cache. It reads only
-sizes and timings recorded by the browser, not page content, text, or URLs
-beyond those already described above.
+The same pre-reload check also reads three size fields from the page's Resource
+Timing entries: `transferSize`, `decodedBodySize`, and `encodedBodySize`. It
+adds `encodedBodySize` only when `transferSize` is zero and `decodedBodySize`
+is greater than zero. For cache measurement, it does not read timing values or
+any other Resource Timing fields, including resource URLs.
 
 ## Local storage and retention
 
 Refresh Em All uses the following browser-managed storage:
 
 - `chrome.storage.session` temporarily holds the active refresh-operation
-  snapshot. This can include the current tab records, progress, per-tab status,
-  and local failure details. The extension removes this snapshot when an
-  operation finishes. If Chrome interrupts the operation, the snapshot is used
-  only to report that interruption and remains session-scoped.
-- `chrome.storage.local` holds at most ten refresh-history summaries. Each
-  summary contains a timestamp, tab totals, successful, failed, and skipped
-  counts, and whether the operation was cancelled. History summaries do not
-  contain tab URLs or titles.
+  snapshot under `refreshOperationState`. This can include the current tab
+  records, progress, per-tab status, and local failure details. The extension
+  removes this snapshot when an operation finishes. If Chrome interrupts the
+  operation, the snapshot is used only to report that interruption and remains
+  session-scoped.
+- `chrome.storage.local` holds at most ten refresh-history summaries under
+  `refreshHistory`. Each summary contains a timestamp, tab totals, successful,
+  failed, and skipped counts, and whether the operation was cancelled. History
+  summaries do not contain tab URLs or titles.
 - `chrome.storage.local` also holds `cacheStats`, which contains byte totals
   only: the most recent operation, an all-time total, and at most 31 daily
   totals keyed by local date. It contains no URLs, hostnames, per-site, or
@@ -60,7 +62,9 @@ Refresh Em All uses the following browser-managed storage:
   `refreshEmAllMediaState` key so it can survive that page's reload. The bundled
   content script removes the entry when it reads it. If it cannot be consumed,
   the entry remains limited to that page's session and origin and expires with
-  the page session.
+  the page session. Because this storage belongs to the page, scripts running
+  on that website can read the website's own stored playback state while the
+  entry exists.
 
 Current versions do not write refresh information to Chrome Sync. To clean up
 data created by older versions, the extension checks for legacy refresh history
@@ -80,9 +84,11 @@ The popup can display a favicon URL supplied by Chrome for an open tab. Chrome
 may load or reuse that icon from the site that provides it; Refresh Em All does
 not attach its stored refresh, media, or error information to that request.
 
-Refresh Em All does not sell user data, share it for advertising, use it for
-creditworthiness or lending, or use it to build profiles. No developer or third
-party is given access to the locally handled data.
+Refresh Em All does not sell user data, share it with data brokers,
+advertisers, or analytics services, use it for creditworthiness or lending, or
+use it to build profiles. The developer does not receive the locally handled
+data. As disclosed above, scripts running on a website can read that website's
+own playback state while it exists in the page's `sessionStorage`.
 
 ## Remote code
 
@@ -102,7 +108,9 @@ following a reload.
 The use of information received from Chrome APIs adheres to the Chrome Web
 Store User Data Policy, including the Limited Use requirements. Refresh Em All
 uses that information only to provide its single purpose: refreshing the user's
-open tabs and preserving supported media playback state during that refresh.
+open tabs, measuring the byte sizes of files served from browser cache as part
+of that refresh, and preserving supported media playback state during that
+refresh.
 
 ## Contact
 

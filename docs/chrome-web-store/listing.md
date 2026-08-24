@@ -12,49 +12,57 @@ grant. Dashboard-only items are tracked separately in
 
 **Extension name:** Refresh Em All
 
-**Short description (112 characters):** Reload all accessible tabs in every
-window while bypassing the local cache and preserving supported media state.
+**Short description (106 characters):** Reload every tab in all your windows
+and fetch fresh files instead of reusing copies Chrome saved earlier.
 
 **Detailed description:**
 
-Refresh Em All performs a cache-bypassing reload of accessible tabs across
-every browser window when you click Refresh All Tabs. It is similar in purpose
-to a hard refresh such as Command+Shift+R on macOS, applied across your open
-tabs.
+Refresh Em All reloads the tabs it can reload across every browser window when
+you click Refresh All Tabs. Each reload asks Chrome to fetch fresh files instead
+of reusing the copies Chrome saved earlier.
 
-Each reload bypasses the browser's local cache for that load. Refresh Em All
-does not delete cached browsing data or modify cookies, Cache Storage, service
-workers, or other site data.
+This does not delete cached browsing data or free disk space. It does not
+modify cookies, Cache Storage, service workers, or other site data.
 
-Tabs are processed in small batches to keep the browser responsive. The popup
-shows refreshed, failed, and skipped counts. Known browser-internal and
-extension pages that cannot be reloaded are skipped; tabs rejected by Chrome
-may be reported as failed.
+Refresh Em All handles a few tabs at a time to keep Chrome responsive. The
+popup shows how many reload requests Chrome accepted and how many tabs failed
+or were skipped. Accepted means Chrome accepted the reload request; it does not
+mean the page finished loading. Chrome's own pages, which no extension can
+reload, and other extension pages are skipped. Other tabs Chrome rejects are
+reported as failed.
 
-Before reloading a normal accessible page, Refresh Em All attempts to preserve
-supported video and audio state, including playback position, play/pause, mute,
+Before reloading a normal page, Refresh Em All tries to keep videos and audio
+where you left them. This includes playback position, play or pause, mute,
 volume, and playback rate. Restoration is best effort and depends on the page,
-its media player, and Chrome's autoplay rules. Discarded tabs are reloaded
-without bringing them to the foreground, but their unloaded media state cannot
-be captured first.
+its media player, and Chrome's autoplay rules. Sleeping tabs reload without
+coming to the foreground, but their unloaded media cannot be checked first.
 
 The interface is available in English and Turkish, and follows your browser's
 language automatically.
 
-Refresh Em All now totals, on your device, how much stale cached data each
-refresh freshens. The popup shows the last run, today, the last 7 and 30 days,
-and all time. The figure is a lower bound because files served without
-Timing-Allow-Origin report no size to the page. Nothing is transmitted, and
-the totals can be reset from Settings.
+Before each reload, Refresh Em All uses the load records Chrome already keeps
+for the page. It adds up the sizes of files served from the copies Chrome saved
+earlier. The popup reports at least the amount found for the last run, today,
+the last 7 days, the last 30 days, and all time. These figures do not say how
+much cache was deleted or how much disk space was freed. They show files that
+were served from saved copies and will now be downloaded again.
 
-The v2.3.0 cache measurement depends on the same optional site-access grant as
-media preservation. Without the grant, refreshing still works and the displayed
-totals remain paused at their previously measured values.
+Every figure says "at least" because some files do not tell the page their
+size, so they are not counted. Chrome also keeps only a limited number of load
+records for a page, 250 by default, and Refresh Em All does not raise that
+limit. When either limit applies, the real number is higher. You can reset the
+totals from Settings.
 
-Refresh progress and up to ten summary-only history entries remain in
-browser-managed storage on your device. Refresh Em All does not send browsing
-data, telemetry, analytics, or error reports to the developer or to advertising
-or analytics services.
+Keeping videos and audio where you left them and measuring these files require
+permission to read the pages you refresh. Without that permission, Refresh Em
+All still reloads your tabs and fetches fresh files instead of reusing saved
+copies. No new cache data is measured. The last-run figure becomes at least 0
+bytes, while the last 7 days and last 30 days keep changing as older days fall
+outside those periods.
+
+Refresh progress and up to ten summary-only history entries remain in storage
+Chrome manages on your device. Refresh Em All sends none of this stored
+information, browsing data, or error information anywhere.
 
 Refresh Em All is open source under the MIT License:
 https://github.com/UBRN/refresh-em-all
@@ -74,45 +82,61 @@ listing, which is maintained separately.
 
 **Uzantı adı:** Refresh Em All
 
-**Kısa açıklama (112 karakter):** Bütün pencerelerdeki erişilebilir sekmeleri
-yerel önbelleği atlayarak yeniler, desteklenen medya durumunu korur.
+**Kısa açıklama (102 karakter):** Bütün pencerelerdeki sekmeleri tek tıkla
+yeniler; kayıtlı kopyalar yerine dosyaların yenisini indirir.
 
 **Ayrıntılı açıklama:**
 
-Refresh Em All, "Tüm Sekmeleri Yenile" düğmesine bastığınızda bütün tarayıcı
-pencerelerindeki erişilebilir sekmeleri yerel önbelleği atlayarak yeniden
-yükler. Yaptığı iş, macOS'ta Command+Shift+R ile yapılan tam yeniden yüklemenin
-açık sekmelerinizin tamamına uygulanmış hâline benzer.
+Refresh Em All, "Tüm Sekmeleri Yenile" düğmesine bastığınızda Chrome'un yeniden
+yükleyebildiği sekmeleri bütün pencerelerde yeniden yükler. Her yeniden
+yüklemede Chrome'dan daha önce kaydettiği kopyaları kullanmak yerine dosyaları
+yeniden indirmesini ister.
 
-Her yenileme o yükleme için tarayıcının yerel önbelleğini atlar. Refresh Em All
-önbellekteki gezinme verilerini silmez; çerezlere, Cache Storage'a, service
-worker'lara ya da diğer site verilerine dokunmaz.
+Bu işlem önbellekteki gezinme verilerini silmez veya diskte yer açmaz. Çerezlere,
+Cache Storage'a, service worker'lara ya da diğer site verilerine dokunmaz.
 
-Sekmeler tarayıcıyı yormamak için küçük gruplar hâlinde işlenir. Açılır pencere
-yenilenen, başarısız olan ve atlanan sekme sayılarını gösterir. Yeniden
-yüklenemeyen tarayıcı içi sayfalar ve uzantı sayfaları atlanır; Chrome'un yeniden
-yükleme isteğini geri çevirdiği sekmeler başarısız olarak bildirilir.
+Refresh Em All, Chrome'u yormamak için bir seferde birkaç sekmeyi işler. Açılır
+pencere Chrome'un kaç yeniden yükleme isteğini kabul ettiğini, kaç sekmenin
+başarısız olduğunu ve kaç sekmenin atlandığını gösterir. Başarılı sayılması
+yalnızca Chrome'un isteği kabul ettiği anlamına gelir; sayfanın yüklenmeyi
+bitirdiği anlamına gelmez. Chrome'un kendi sayfalarını hiçbir uzantı yeniden
+yükleyemez. Bunlar ve diğer uzantı sayfaları atlanır. Chrome'un geri çevirdiği
+diğer sekmeler başarısız sayılır.
 
-Erişilebilir normal bir sayfayı yenilemeden önce Refresh Em All, desteklenen
-video ve ses durumunu korumaya çalışır: oynatma konumu, oynat/duraklat, sessize
-alma, ses düzeyi ve oynatma hızı. Bu geri yükleme garanti değildir; sayfaya, medya
-oynatıcısına ve Chrome'un otomatik oynatma kurallarına göre değişir. Devre dışı
-bırakılmış (bellekten çıkarılmış) sekmeler öne getirilmeden yeniden yüklenir, ama
-bu sekmelerin medya durumu önceden okunamaz.
+Refresh Em All normal bir sayfayı yeniden yüklemeden önce videoları ve sesleri
+bıraktığınız yerde tutmaya çalışır. Buna oynatma konumu, oynatma veya duraklatma,
+sessize alma, ses düzeyi ve oynatma hızı dahildir. Bu geri yükleme için elinden
+geleni yapar; sonuç sayfaya, medya oynatıcısına ve Chrome'un otomatik oynatma
+kurallarına bağlıdır. Uyuyan sekmeler öne getirilmeden yeniden yüklenir, ancak
+henüz yüklenmemiş medyaları önceden denetlenemez.
 
 Arayüz İngilizce ve Türkçe olarak sunulur ve tarayıcınızın diline göre kendini
 ayarlar.
 
-Refresh Em All artık her yenilemede tazelenen bayat önbellek verisinin miktarını
-cihazınızda toplar. Açılır pencere son çalıştırma, bugün, son 7 ve 30 gün ile tüm
-zamanların toplamını gösterir. Bu değer alt sınırdır; Timing-Allow-Origin
-göndermeyen dosyalar sayfaya boyut bildirmediği için hesaba katılmaz. Hiçbir veri
-gönderilmez; toplamlar Ayarlar'dan sıfırlanabilir.
+Refresh Em All her yeniden yüklemeden önce Chrome'un sayfa için tuttuğu yükleme
+kayıtlarına bakar. Chrome'un daha önce kaydettiği kopyalardan sunulan dosyaların
+boyutlarını toplar. Açılır penceredeki her değer en az miktarı gösterir: son
+çalıştırma, bugün, son 7 gün, son 30 gün ve tüm zamanlar. Bu değerler önbellekten
+ne kadar veri silindiğini veya diskte ne kadar yer açıldığını göstermez. Daha
+önce kaydedilmiş kopyalardan sunulan ve şimdi yeniden indirilecek dosyaları
+gösterir.
 
-Yenileme ilerlemesi ve en fazla on adet özet geçmiş kaydı yalnızca cihazınızda,
-tarayıcının yönettiği depolamada kalır. Refresh Em All gezinme verisi,
-telemetri, analitik veya hata raporu göndermez; ne geliştiriciye ne de reklam
-ya da analiz hizmetlerine.
+Her değerde "en az" yazar. Çünkü bazı dosyalar boyutlarını sayfaya bildirmez ve
+hesaba katılmaz. Chrome ayrıca bir sayfa için sınırlı sayıda yükleme kaydı tutar;
+varsayılan sınır 250'dir ve Refresh Em All bu sınırı artırmaz. Bu sınırlardan
+biri devreye girdiğinde gerçek miktar daha yüksektir. Toplamları Ayarlar'dan
+sıfırlayabilirsiniz.
+
+Videoları ve sesleri bıraktığınız yerde tutmak ve bu dosyaları ölçmek,
+yenilediğiniz sayfaları okuma izni gerektirir. İzin vermezseniz Refresh Em All
+sekmelerinizi yine yeniden yükler ve Chrome'un daha önce kaydettiği kopyaları
+kullanmak yerine dosyaları yeniden indirir. Yeni önbellek verisi ölçülmez. Son
+çalıştırma değeri en az 0 bayt olur; eski günler dönem dışına çıktıkça son 7 ve
+son 30 gün değerleri değişmeye devam eder.
+
+Yenileme ilerlemesi ve en fazla on özet geçmiş kaydı yalnızca cihazınızda,
+Chrome'un yönettiği depolamada kalır. Refresh Em All bu saklanan bilgilerin,
+gezinme verilerinin veya hata bilgilerinin hiçbirini hiçbir yere göndermez.
 
 Refresh Em All açık kaynaklıdır ve MIT Lisansı ile dağıtılır:
 https://github.com/UBRN/refresh-em-all
@@ -136,7 +160,7 @@ cache-bypassing tab reloads.
 | `tabs` | `background.js` queries all tabs, gets current tab records, reads URL/title/favicon/status/discarded metadata, and performs cache-bypassing reloads. URLs identify restricted pages; titles and favicons support popup status. | **Used; retain.** The `tabs` permission gates the *fields* `url`, `title`, and `favIconUrl`, not the `query`/`get`/`reload` methods. Removing it hides `tab.url` for exactly the browser-internal pages `<all_urls>` cannot match, so those pages stop being classified as skipped and lose their titles in the popup. See "Permission reduction attempts" below. |
 | `scripting` | When optional host access is granted, `background.js` calls `chrome.scripting.executeScript` with the packaged `preserveMediaState` function before reloading an accessible tab, then injects packaged `content-script.js` after that refreshed tab finishes loading when captured media state may exist. | **Used; retain.** Required for the optional best-effort media-state capture and just-in-time restoration. It is not used when host access is absent. |
 | `storage` | The extension uses `chrome.storage.session` for active-operation recovery, `chrome.storage.local` for the ten-entry summary history, cache statistics, the one-time automatic permission-prompt flag, and legacy cleanup, and `chrome.storage.sync` only to migrate and delete old-version keys. | **Used; retain.** Required for operation continuity, local history and statistics, prompt behavior, and removal of legacy synced state. |
-| Host access / `<all_urls>` | Declared in `optional_host_permissions` and requested from the popup at runtime on the first refresh, with a permanent Settings button for later requests. It authorizes packaged media capture/restoration and the v2.3.0 cache measurement on accessible websites. | **Optional; request at runtime.** A refusal leaves cache-bypassing refresh fully operational. Media preservation and cache measurement pause until access is granted. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
+| Host access / `<all_urls>` | Declared in `optional_host_permissions` and requested from the popup at runtime on the first refresh, with a permanent Settings button for later requests. It authorizes packaged media capture/restoration and the v2.3.0 cache measurement on accessible websites. | **Optional; request at runtime.** A refusal leaves cache-bypassing refresh fully operational. Media preservation stops and no new page data is measured. `cacheStats.lastRun` is still written as zero, and rolling windows continue to change as days age out. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
 | Programmatic media restoration | The bundled `content-script.js` is not declared as a permanent content script. When optional host access is present, `background.js` injects it only after a tab this extension refreshed reaches `complete` and media capture may have saved state. | **Used only with optional host access.** Without the grant, the worker goes directly to a cache-bypassing reload and performs no page injection. |
 
 No required permission is unused. The optional host permission has a disclosed,
@@ -159,9 +183,10 @@ access.**
   Settings keeps a permanent user-triggered way to request access later.
 - *Behavior without access.* The worker resolves permission once at the start
   of each operation. Without access it performs the same cache-bypassing reloads
-  and does not attempt page injection. Media-state preservation and the v2.3.0
-  cache measurement pause; cache statistics still record a normal last-run
-  value of zero. Refusing access never cancels the refresh.
+  and does not attempt page injection. Media-state preservation stops and no
+  new page data is measured; cache statistics still record a normal last-run
+  value of zero, and rolling windows continue to change as days age out.
+  Refusing access never cancels the refresh.
 - *Fresh-install warning.* With required `<all_urls>` removed, the install
   warning drops from "Read and change all your data on all websites" to the
   `tabs` warning, "Read your browsing history." It does not disappear because
@@ -261,15 +286,17 @@ change".
   function in an accessible tab immediately before that tab is reloaded and to
   inject packaged `content-script.js` for restoration after that refreshed tab
   finishes loading.
-- **storage:** Needed for temporary refresh-operation recovery, up to ten local
-  summary history entries, and cleanup of legacy storage created by older
-  versions.
+- **storage:** Needed for temporary operation recovery in
+  `refreshOperationState`, up to ten local summaries in `refreshHistory`, byte
+  totals in `cacheStats`, the one-time automatic permission-prompt flag in
+  `mediaAccessAsked`, and cleanup of legacy storage created by older versions.
 - **optional host access (`<all_urls>`):** Requested at runtime from the user's
   first refresh action, and available later from Settings. It is used only to
   capture and restore supported media state and to perform the v2.3.0 cache
   measurement on accessible sites. If the user refuses, all accessible tabs are
-  still refreshed with local-cache bypass; only media preservation and cache
-  measurement pause.
+  still refreshed with local-cache bypass; media preservation stops and no new
+  page data is measured. Cache statistics still record a last-run value of zero,
+  and rolling windows continue to change as days age out.
 - **programmatic media restoration:** Packaged `content-script.js` is injected
   only into a tab this extension just refreshed, after that tab finishes loading.
   It reads only the extension's media-state session key and supported
@@ -301,7 +328,9 @@ Declare these categories:
   refresh tabs. The extension does not build or transmit a browsing-history log.
 - **Website content:** Supported audio/video element properties, media source
   URLs, and the extension's media-state value in page `sessionStorage` are
-  processed locally to preserve playback state across a refresh.
+  processed locally to preserve playback state across a refresh. The
+  `transferSize`, `decodedBodySize`, and `encodedBodySize` fields in Resource
+  Timing entries are processed locally to measure cached-resource byte totals.
 
 Do not declare personally identifiable information, health information,
 financial/payment information, authentication information, personal
@@ -390,7 +419,7 @@ dashboard fact that cannot be verified from this repository.
 
 ### Nomination step
 
-Featured nomination is manual. After the public v2.1.0 version is live and
+Featured nomination is manual. After the public v2.4.0 version is live and
 stable, submit it through **One Stop Support** in the Developer Dashboard. There
 is no API and no automatic nomination.
 
@@ -400,11 +429,17 @@ described as earning, the badge.
 
 ## Visual assets
 
-The reviewed listing assets and their reproducible sources live under
+The listing assets and their reproducible sources live under
 `docs/chrome-web-store/assets/`. They are documentation-only Store inputs and
 are not included in the extension package.
 
-- The deterministic v2.1.0 package is `refresh-em-all-v2.1.0.zip`, **111,659
+The records below are historical v2.1.0 evidence only. They do not verify the
+v2.4.0 submission package or its screenshots. Before submitting v2.4.0, build
+the actual release package, record its verified filename, byte size, and
+SHA-256, and regenerate or revalidate the listing assets against that package.
+
+- The historical deterministic v2.1.0 package is
+  `refresh-em-all-v2.1.0.zip`, **111,659
   bytes**, with SHA-256
   `b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5`.
   It contains 17 entries, including `_locales/en/messages.json` and
@@ -439,21 +474,21 @@ Repository-verifiable items are ticked only where this release actually verified
 them. Dashboard-only items live in
 [`dashboard-checklist.md`](dashboard-checklist.md) and are **not** ticked here.
 
-- [x] Regenerate five 1280×800 English PNG screenshots from the verified v2.1.0
-      package, showing the popup before, during, and after a refresh plus local
-      history and privacy settings. Human visual approval is still required.
-- [x] Generate the matching five Turkish 1280×800 screenshots from the same
-      verified package with a Turkish browser UI locale. Human visual approval
-      is still required.
+- [ ] Generate five 1280×800 English PNG screenshots from the actual verified
+      v2.4.0 package, showing the popup before, during, and after a refresh plus
+      local history and privacy settings. Human visual approval is still
+      required.
+- [ ] Generate the matching five Turkish 1280×800 screenshots from the same
+      verified v2.4.0 package with a Turkish browser UI locale. Human visual
+      approval is still required.
 - [x] Generate the required 440×280 PNG promotional image from its repository
       SVG source. Human visual approval is still required.
-- [x] Validate the packaged 128×128 icon against current Store guidance. It is
-      a valid, exact-size PNG but uses opaque rather than transparent padding;
-      retain it unchanged for v2.1.0 and treat transparency as a future package
-      improvement.
-- [x] Confirm the package contains both locale catalogs and nothing undeclared.
-      The packaging allowlist now fails closed on an undeclared locale, a stray
-      file inside `_locales/`, or a missing default-locale catalog.
+- [ ] Validate the 128×128 icon in the actual v2.4.0 package against current
+      Store guidance. Record any retained opaque padding as a known limitation.
+- [ ] Confirm the actual v2.4.0 package contains both locale catalogs and
+      nothing undeclared. The packaging allowlist fails closed on an undeclared
+      locale, a stray file inside `_locales/`, or a missing default-locale
+      catalog.
 - [ ] Select **Productivity** and confirm the extension name and descriptions in
       both English and Turkish.
 - [ ] Enter each permission justification exactly consistently with the uploaded
@@ -464,13 +499,14 @@ them. Dashboard-only items live in
 - [ ] Add reviewer notes explaining that refresh begins only after the user
       clicks **Refresh All Tabs**, each actual reload bypasses local cache,
       cached browsing data and site data are not deleted, restricted pages are
-      skipped, media restoration is best effort, the all-sites content script
-      exits when no saved state is present, the interface is localized with
-      Chrome's built-in `chrome.i18n` using packaged static catalogs, and no
-      remote code or external reporting endpoint exists.
-- [ ] Upload the verified `refresh-em-all-v2.1.0.zip` only after confirming its
-      SHA-256 is
-      `b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5`.
+      skipped, media restoration is best effort, packaged `content-script.js`
+      is injected programmatically only after a tab with captured media state
+      finishes reloading, the interface is localized with Chrome's built-in
+      `chrome.i18n` using packaged static catalogs, and no remote code or
+      external reporting endpoint exists.
+- [ ] Build the actual v2.4.0 package, record its verified filename, byte size,
+      and SHA-256, then upload only that exact artifact. No v2.4.0 package hash
+      or size has been verified in this proposal.
 - [ ] Work through [`dashboard-checklist.md`](dashboard-checklist.md) in full.
 - [ ] Review the current Chrome Web Store dashboard wording immediately before
       submission because policy labels and required fields can change.

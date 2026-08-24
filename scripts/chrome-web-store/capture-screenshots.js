@@ -404,6 +404,13 @@ async function main() {
       throw new Error(`Requested locale ${locale} but the popup resolved @@ui_locale=${runtimeLocale}`);
     }
 
+    // Answer the optional site-access question before any refresh click. On a fresh capture
+    // profile the first click would otherwise open Chrome's native permission dialog, which
+    // automation cannot dismiss, and the progress freeze below would time out. popup.js reads
+    // the flag once at startup, so the page has to load again to observe it.
+    await popup.evaluate(() => chrome.storage.local.set({ mediaAccessAsked: true }));
+    await popup.reload({ waitUntil: 'domcontentloaded' });
+
     const layouts = {};
     layouts.ready = await capture(popup, screenshotDirectory, screenshotNames.ready);
 

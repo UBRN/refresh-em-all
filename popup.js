@@ -403,23 +403,20 @@ function showOperationError(summary, details) {
     errorDetails.textContent = details;
 }
 
-historyHeader.addEventListener('click', () => {
-    const expanded = historyContent.style.display !== 'none';
-    historyContent.style.display = expanded ? 'none' : 'block';
-    historyHeader.setAttribute('aria-expanded', String(!expanded));
-});
+// Read the computed style, not the inline one. These sections start hidden via the
+// stylesheet, so an inline-only check sees "" on the first click, concludes the section
+// is open, and closes an already-closed section — the first click did nothing.
+function bindSection(header, content) {
+    header.addEventListener('click', () => {
+        const expanded = getComputedStyle(content).display !== 'none';
+        content.style.display = expanded ? 'none' : 'block';
+        header.setAttribute('aria-expanded', String(!expanded));
+    });
+}
 
-statsHeader.addEventListener('click', () => {
-    const expanded = statsContent.style.display !== 'none';
-    statsContent.style.display = expanded ? 'none' : 'block';
-    statsHeader.setAttribute('aria-expanded', String(!expanded));
-});
-
-settingsHeader.addEventListener('click', () => {
-    const expanded = settingsContent.style.display !== 'none';
-    settingsContent.style.display = expanded ? 'none' : 'block';
-    settingsHeader.setAttribute('aria-expanded', String(!expanded));
-});
+bindSection(historyHeader, historyContent);
+bindSection(statsHeader, statsContent);
+bindSection(settingsHeader, settingsContent);
 
 resetStats.addEventListener('click', () => {
     chrome.storage.local.remove(['cacheStats'], initializeStats);

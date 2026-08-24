@@ -22,6 +22,17 @@ only that directory in an isolated Chrome for Testing profile, uses neutral
 localhost fixtures, and removes the profile and extracted files afterward.
 The Store icon inside the package remains unchanged.
 
+## Current v2.4.0 capture note
+
+This document remains the provenance record for the published v2.1.0 assets. For a v2.4.0
+capture, pin the new ZIP and SHA-256 and pass `--expect-version 2.4.0`. Review the popup's
+new optional-access and cache-statistics UI in addition to the existing states.
+
+Before clicking refresh, `scripts/chrome-web-store/capture-screenshots.js` now seeds
+`mediaAccessAsked` in `chrome.storage.local` because automation cannot dismiss Chrome's
+native permission dialog. This suppresses the automatic prompt; it does not grant the
+optional host permission.
+
 ## Generate and verify
 
 Use Node.js 24 and the locked dependencies:
@@ -39,7 +50,8 @@ npm run store-assets:capture -- \
 npm run store-assets:promo
 npm run store-assets:verify -- \
   --zip /absolute/path/to/refresh-em-all-v2.1.0.zip \
-  --sha256 b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5
+  --sha256 b7c1459f5263afca94e54add6458f5e15531f239e31b09e76b7c8805d46b56d5 \
+  --expect-version 2.1.0
 ```
 
 Generated diagnostics and downscaled review copies are written beneath

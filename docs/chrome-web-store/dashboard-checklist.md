@@ -1,4 +1,4 @@
-# Manual Developer Dashboard checklist — Refresh Em All v2.1.0
+# Manual Developer Dashboard checklist — Refresh Em All v2.4.0
 
 Everything in this file lives in the Chrome Web Store Developer Dashboard or in Google's
 publisher records. **None of it can be verified from this repository**, so nothing here is
@@ -47,13 +47,14 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
 ## 5. Privacy and data use
 
 - [ ] Single-purpose description matches `listing.md` exactly.
-- [ ] A justification is entered for **each** permission (`tabs`, `scripting`, `storage`,
-      host access, and the all-sites content script), copied from `listing.md`
+- [ ] A justification is entered for **each** declared permission (`tabs`, `scripting`,
+      `storage`, and the optional `<all_urls>` host permission), copied from `listing.md`
       §"Reviewer-facing permission text", and each one matches the uploaded manifest.
 - [ ] **No, I am not using remote code** is selected.
 - [ ] Data-use declarations are exactly **Web history** and **Website content**; no other
       category is selected.
-- [ ] All three Limited Use certifications are checked.
+- [ ] All four substantive Limited Use elements are certified: allowed use, allowed
+      transfer, prohibited advertising, and prohibited human access.
 - [ ] Privacy policy URL is entered **and loads publicly**:
       `https://github.com/UBRN/refresh-em-all/blob/main/PRIVACY.md`
 
@@ -70,12 +71,12 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
 - [ ] The uploaded ZIP is the exact artifact recorded in `listing.md` — confirm the filename,
       byte size, and SHA-256 before uploading. Do not upload a rebuilt or re-zipped copy
       without re-recording its hash.
-- [ ] After upload, the dashboard shows version **2.1.0**.
+- [ ] After upload, the dashboard shows version **2.4.0**.
 - [ ] Reviewer notes are filled in from `listing.md` §"Submission checklist".
 
 ## 8. After the public version is live
 
-- [ ] The v2.1.0 update has finished review and is actually serving to users.
+- [ ] The v2.4.0 update has finished review and is actually serving to users.
 - [ ] Give the public version time to stabilise (no crash reports, no policy warnings, no
       spike in uninstalls) **before** nominating it for Featured.
 - [ ] Submit the Featured nomination manually through **One Stop Support** in the Developer
