@@ -169,14 +169,23 @@ function deriveExtensionId(loadedExtensionPath) {
     .join('');
 }
 
+const WORKER_WAIT_MS = 15000;
+
+const isExtensionWorker = target =>
+  target.type() === 'service_worker' && target.url().startsWith('chrome-extension://');
+
+function describeTargets(browser) {
+  const targets = browser.targets().map(target => [target.type(), target.url()]);
+  if (!targets.length) return '  (no targets)';
+  return targets.map(([type, url]) => `  ${type} ${url}`).join('\n');
+}
+
 async function findExtensionId(browser, loadedExtensionPath) {
   // Prefer the ID Chrome actually assigned. The worker may not have started yet at launch,
   // so wait briefly for it rather than falling straight through to path derivation.
+  // A timeout here is not fatal: the path-derived ID is the same ID Chrome computes.
   try {
-    const target = await browser.waitForTarget(candidate =>
-      candidate.type() === 'service_worker'
-      && candidate.url().startsWith('chrome-extension://'),
-    { timeout: 15000 });
+    const target = await browser.waitForTarget(isExtensionWorker, { timeout: WORKER_WAIT_MS });
     return new URL(target.url()).host;
   } catch (error) {
     return deriveExtensionId(loadedExtensionPath);
@@ -225,13 +234,28 @@ async function seedHostPermission(runtimePath, userDataDir) {
   delete seedManifest.optional_host_permissions;
   fs.writeFileSync(manifestPath, `${JSON.stringify(seedManifest, null, 4)}\n`);
 
+  const attempts = 2;
   let browser;
   try {
-    browser = await launchExtension(runtimePath, userDataDir);
-    await browser.waitForTarget(target =>
-      target.type() === 'service_worker'
-      && target.url().startsWith('chrome-extension://'),
-    { timeout: 15000 });
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      browser = await launchExtension(runtimePath, userDataDir);
+      try {
+        await browser.waitForTarget(isExtensionWorker, { timeout: WORKER_WAIT_MS });
+        return;
+      } catch (error) {
+        // Cold-start flake: on a fresh CI runner the MV3 worker sometimes misses the window.
+        // A relaunch clears it, where a longer timeout would only fail more slowly.
+        if (attempt === attempts) {
+          throw new Error(
+            `seedHostPermission: extension service worker never registered after ${attempts}`
+            + ` attempts of ${WORKER_WAIT_MS}ms each. Targets present on the last attempt:\n`
+            + describeTargets(browser)
+          );
+        }
+        await browser.close();
+        browser = undefined;
+      }
+    }
   } finally {
     if (browser) await browser.close();
     fs.writeFileSync(manifestPath, shippedManifest);
