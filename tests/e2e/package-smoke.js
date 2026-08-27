@@ -210,6 +210,9 @@ async function main() {
     // popup.js caches the flag at startup, so it has to load again to observe it.
     await popup.reload({ waitUntil: 'load' });
 
+    // The popup keeps this control disabled until it has resolved site access and
+    // any restored operation. Clicking before that fires no event at all.
+    await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
     await popup.click('#refreshAll');
     await testPage.waitForFunction(
       () => Number(sessionStorage.packageSmokeLoads) === 3 && window.cacheProbeGeneration === 2,

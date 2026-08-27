@@ -25,6 +25,9 @@ const TEST_CASES = [
           pageB.goto(`${harness.baseUrl}/b`)
         ]);
         await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
+        // The popup keeps this control disabled until it has resolved site access and
+        // any restored operation. Clicking before that fires no event at all.
+        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
         await popup.click('#refreshAll');
         await popup.waitForFunction(async () => {
           const status = document.querySelector('#statusText')?.textContent || '';
@@ -113,6 +116,9 @@ const TEST_CASES = [
         }
 
         await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
+        // The popup keeps this control disabled until it has resolved site access and
+        // any restored operation. Clicking before that fires no event at all.
+        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
         await popup.click('#refreshAll');
         await page.waitForFunction(() =>
           Number(sessionStorage.refreshAuditLoads) === 3 && window.cacheProbeGeneration === 2,
