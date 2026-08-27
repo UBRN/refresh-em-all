@@ -7,6 +7,58 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="alternate icon" href="favicon.png" type="image/png">
     <style>
+        :root {
+            color-scheme: light dark;
+
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-pill: 999px;
+
+            --bg: #ffffff;
+            --surface: #f5f7fa;
+            --surface-alt: #f0f0f0;
+            --border: #dddddd;
+            --border-subtle: #eeeeee;
+            --text: #202124;
+            --text-muted: #5f6368;
+            --accent: #1558d6;
+            --accent-hover: #0f3f9e;
+            --accent-active: #0b3b8c;
+            --accent-text: #ffffff;
+            --disabled-bg: #f0f0f0;
+            --disabled-text: #5f6368;
+            --success: #137333;
+            --danger: #c5221f;
+            --danger-bg: #ffebee;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #202124;
+                --surface: #292a2d;
+                --surface-alt: #35363a;
+                --border: #3c4043;
+                --border-subtle: #303134;
+                --text: #e8eaed;
+                --text-muted: #9aa0a6;
+                --accent: #8ab4f8;
+                --accent-hover: #aecbfa;
+                --accent-active: #c3ddfd;
+                --accent-text: #202124;
+                --disabled-bg: #35363a;
+                --disabled-text: #9aa0a6;
+                --success: #81c995;
+                --danger: #f28b82;
+                --danger-bg: #3b1f1e;
+            }
+        }
+
         body {
             width: 350px;
             height: auto;
@@ -14,54 +66,57 @@
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            font-family: sans-serif;
-            padding: 10px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            padding: var(--space-3);
         }
 
         .header {
             display: flex;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: var(--space-4);
         }
 
         .header img {
             width: 32px;
             height: 32px;
-            margin-right: 10px;
+            margin-right: var(--space-3);
         }
 
         button {
-            padding: 10px 20px;
+            padding: var(--space-3) var(--space-4);
             font-size: 14px;
             cursor: pointer;
-            background-color: #1558d6;
-            color: white;
+            background-color: var(--accent);
+            color: var(--accent-text);
             border: none;
-            border-radius: 4px;
+            border-radius: var(--radius-sm);
             transition: background-color 0.3s;
             position: relative;
             overflow: hidden;
         }
 
         button:hover {
-            background-color: #0f3f9e;
+            background-color: var(--accent-hover);
         }
 
         button:disabled {
-            background-color: #a9a9a9;
+            background-color: var(--disabled-bg);
+            color: var(--disabled-text);
             cursor: not-allowed;
         }
 
         .action-buttons {
             display: flex;
-            gap: 8px;
+            gap: var(--space-2);
             flex-wrap: wrap;
             justify-content: center;
         }
 
         .refresh-explanation {
-            margin: 8px 0 0;
-            color: #5f6368;
+            margin: var(--space-2) 0 0;
+            color: var(--text-muted);
             font-size: 12px;
             line-height: 1.4;
             text-align: center;
@@ -69,29 +124,29 @@
 
         #cancelRefresh {
             display: none;
-            background-color: #5f6368;
+            background-color: var(--text-muted);
         }
 
         #loadingContainer {
             width: 100%;
-            margin-top: 15px;
+            margin-top: var(--space-4);
             display: none;
         }
 
         #progressBar {
             width: 100%;
             height: 10px;
-            background-color: #f0f0f0;
-            border-radius: 5px;
+            background-color: var(--surface-alt);
+            border-radius: var(--radius-md);
             overflow: hidden;
-            margin-bottom: 10px;
+            margin-bottom: var(--space-3);
         }
 
         #progressFill {
             height: 100%;
             width: 0%;
-            background-color: #1558d6;
-            border-radius: 5px;
+            background-color: var(--accent);
+            border-radius: var(--radius-md);
             transition: width 75ms linear;
         }
 
@@ -100,21 +155,21 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: flex-start;
-            gap: 8px;
-            margin-top: 10px;
+            gap: var(--space-2);
+            margin-top: var(--space-3);
         }
 
         .tab-item {
             position: relative;
             width: 30px;
             height: 30px;
-            background-color: #f0f0f0;
-            border-radius: 4px;
+            background-color: var(--surface-alt);
+            border-radius: var(--radius-sm);
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border);
         }
 
         .tab-item img {
@@ -136,28 +191,28 @@
         .loading-circle {
             width: 20px;
             height: 20px;
-            border: 2px solid transparent;
-            border-top-color: #1558d6;
-            border-radius: 50%;
+            border: 2px solid var(--surface-alt);
+            border-top-color: var(--accent);
+            border-radius: var(--radius-pill);
             animation: spin 1s linear infinite;
         }
 
         .tab-success {
-            color: #137333;
+            color: var(--success);
             font-size: 18px;
             display: none;
             animation: fadeIn 0.15s ease;
         }
 
         .tab-error {
-            color: #c5221f;
+            color: var(--danger);
             font-size: 18px;
             display: none;
             animation: fadeIn 0.15s ease;
         }
 
         .tab-skipped {
-            color: #5f6368;
+            color: var(--text-muted);
             font-size: 20px;
             display: none;
             animation: fadeIn 0.15s ease;
@@ -165,17 +220,17 @@
 
         #errorContainer {
             width: 100%;
-            margin-top: 15px;
-            padding: 10px;
-            background-color: #ffebee;
-            border-radius: 4px;
+            margin-top: var(--space-4);
+            padding: var(--space-3);
+            background-color: var(--danger-bg);
+            border-radius: var(--radius-sm);
             display: none;
         }
 
         #historyContainer,
         #statsContainer {
             width: 100%;
-            margin-top: 15px;
+            margin-top: var(--space-4);
             display: none;
         }
 
@@ -190,8 +245,8 @@
             width: 100%;
             max-height: 150px;
             overflow-y: auto;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            padding-top: var(--space-3);
         }
 
         /* Five fixed rows plus the measurement note: capping this the way the
@@ -203,9 +258,9 @@
 
         #settingsContainer {
             width: 100%;
-            margin-top: 15px;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
+            margin-top: var(--space-4);
+            border-top: 1px solid var(--border);
+            padding-top: var(--space-3);
         }
 
         #settingsHeader {
@@ -215,22 +270,22 @@
         #settingsContent {
             display: none;
             width: 100%;
-            padding: 10px 0;
+            padding: var(--space-3) 0;
         }
 
         .privacy-info {
             font-size: 12px;
-            color: #666;
-            margin-top: 5px;
+            color: var(--text-muted);
+            margin-top: var(--space-1);
         }
 
         .section-header {
             appearance: none;
             width: 100%;
-            padding: 5px;
+            padding: var(--space-1);
             border: 0;
-            background: transparent;
-            color: #1558d6;
+            background: none;
+            color: var(--accent);
             text-align: left;
             font-size: 14px;
             cursor: pointer;
@@ -238,12 +293,12 @@
         }
 
         .section-header:hover {
-            background: #f5f7fa;
+            background: var(--surface);
         }
 
         button:focus-visible,
         .section-header:focus-visible {
-            outline: 3px solid #0b3b8c;
+            outline: 3px solid var(--accent-active);
             outline-offset: 2px;
         }
 
@@ -252,7 +307,7 @@
         }
 
         .history-entry {
-            padding: 5px 0;
+            padding: var(--space-1) 0;
             font-size: 12px;
         }
 
@@ -263,16 +318,16 @@
         #grantAccess,
         #resetStats {
             font-size: 12px;
-            padding: 6px 12px;
-            margin-bottom: 10px;
+            padding: var(--space-2) var(--space-3);
+            margin-bottom: var(--space-3);
         }
 
         .history-success {
-            color: #137333;
+            color: var(--success);
         }
 
         .history-failure {
-            color: #c5221f;
+            color: var(--danger);
         }
 
         @keyframes spin {
@@ -342,13 +397,13 @@
             <div id="progressFill"></div>
         </div>
         <div id="statusText" aria-live="polite">Reloading your tabs...</div>
-        <div id="statsRunLine" style="display: none; margin-top: 6px; font-size: 12px; color: #5f6368;"></div>
+        <div id="statsRunLine" style="display: none; margin-top: var(--space-2); font-size: 12px; color: var(--text-muted);"></div>
         <div id="tabsContainer"></div>
     </div>
 
     <div id="errorContainer">
         <div id="errorSummary"></div>
-        <div id="errorDetails" style="margin-top: 5px; font-size: 12px;"></div>
+        <div id="errorDetails" style="margin-top: var(--space-1); font-size: 12px;"></div>
     </div>
 
     <div id="historyContainer">

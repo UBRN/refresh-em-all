@@ -308,10 +308,18 @@ describe('Popup controller', () => {
     expect(document.getElementById('historyContent').querySelector('script')).toBeNull();
   });
 
-  test('hides absent statistics and renders five localized totals when seeded', () => {
+  test('shows the statistics section without page access so the hint is visible', async () => {
+    executePopupJs({ siteAccess: false });
+    await flushPromises();
+    expect(document.getElementById('statsContainer').style.display).toBe('block');
+    expect(document.getElementById('statsAccessHint').style.display).toBe('block');
+  });
+
+  test('hides absent statistics and renders five localized totals when seeded', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date(2026, 7, 24, 12));
     executePopupJs();
+    await flushPromises();
     expect(document.getElementById('statsContainer').style.display).toBe('none');
 
     executePopupJs({
