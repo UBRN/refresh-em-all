@@ -94,6 +94,7 @@ let refreshedTabs = 0;
 let failedTabs = [];
 let skippedTabs = 0;
 let siteAccessGranted = false;
+let measuredTotalBytes = 0;
 let mediaAccessAsked = false;
 
 initializeSiteAccess();
@@ -179,6 +180,9 @@ function renderSiteAccess(granted) {
     grantAccess.style.display = display;
     grantAccessExplain.style.display = display;
     statsAccessHint.style.display = display;
+    // Without page access nothing is ever measured, so the section would stay
+    // hidden and take the hint explaining why along with it.
+    statsContainer.style.display = (measuredTotalBytes > 0 || !granted) ? 'block' : 'none';
 }
 
 function requestSiteAccess() {
@@ -464,7 +468,8 @@ function initializeStats() {
         statsWeek.textContent = t('statsWeek', formatBytes(week));
         statsMonth.textContent = t('statsMonth', formatBytes(month));
         statsTotal.textContent = t('statsTotal', formatBytes(total));
-        statsContainer.style.display = total > 0 ? 'block' : 'none';
+        measuredTotalBytes = total;
+        renderSiteAccess(siteAccessGranted);
     });
 }
 
@@ -474,7 +479,7 @@ function updateHistoryDisplay(history) {
     history.forEach((item, index) => {
         const entry = document.createElement('div');
         entry.className = 'history-entry';
-        if (index < history.length - 1) entry.style.borderBottom = '1px solid #eee';
+        if (index < history.length - 1) entry.style.borderBottom = '1px solid var(--border-subtle)';
 
         const date = document.createElement('div');
         const parsedDate = new Date(item.timestamp);
