@@ -95,12 +95,19 @@ let failedTabs = [];
 let skippedTabs = 0;
 let siteAccessGranted = false;
 let measuredTotalBytes = 0;
+// Which worker operation this popup is showing. A completed or cancelled run can
+// broadcast after a newer refresh started, and acting on it would report the wrong
+// run as finished.
+let operationGeneration = 0;
 let mediaAccessAsked = false;
 
-initializeSiteAccess();
+refreshButton.disabled = true;
+const siteAccessInitialization = initializeSiteAccess();
 initializeHistory();
 initializeStats();
-restoreOperationStatus();
+Promise.allSettled([siteAccessInitialization, restoreOperationStatus()]).then(() => {
+    if (!activeRefreshOperation) refreshButton.disabled = false;
+});
 
 refreshButton.addEventListener('click', () => {
     if (activeRefreshOperation) return;
@@ -125,6 +132,7 @@ cancelButton.addEventListener('click', () => {
     cancelButton.disabled = true;
     statusText.textContent = t('statusCancelling');
     chrome.runtime.sendMessage({ action: 'cancelOperation' }, (response) => {
+        if (!activeRefreshOperation) return;
         if (chrome.runtime.lastError || !response?.success) {
             cancelButton.disabled = false;
             statusText.textContent = t('statusCancelFailed');
@@ -134,10 +142,16 @@ cancelButton.addEventListener('click', () => {
 
 chrome.runtime.onMessage.addListener((message) => {
     if (message.action === 'refreshStarted') {
+        if (isObsoleteOperation(message)) return;
+        operationGeneration = Number.isFinite(message.generation)
+            ? message.generation
+            : operationGeneration;
         initializeRefreshUI(message.tabs || []);
     } else if (message.action === 'refreshProgress') {
+        if (isObsoleteOperation(message)) return;
         updateProgressUI(message);
     } else if (message.action === 'refreshComplete') {
+        if (isObsoleteOperation(message)) return;
         handleRefreshComplete(message);
     } else if (message.action === 'tabSucceeded') {
         updateTabStatus(message.tabId, 'success');
@@ -147,6 +161,12 @@ chrome.runtime.onMessage.addListener((message) => {
         updateTabStatus(message.tabId, 'skipped');
     }
 });
+
+// An older worker sends no generation at all, so an absent one is always accepted:
+// filtering it out would leave the popup stuck waiting for a message never coming.
+function isObsoleteOperation(message) {
+    return Number.isFinite(message.generation) && message.generation < operationGeneration;
+}
 
 function requestRefresh() {
     activeRefreshOperation = true;
@@ -186,15 +206,13 @@ function renderSiteAccess(granted) {
 }
 
 function requestSiteAccess() {
+    refreshButton.disabled = true;
     let request;
     try {
         request = chrome.permissions.request({ origins: ['<all_urls>'] });
     } catch (error) {
-        siteAccessGranted = false;
-        renderSiteAccess(false);
-        return Promise.resolve(false);
+        request = false;
     }
-
     return Promise.resolve(request).then(granted => {
         siteAccessGranted = !chrome.runtime.lastError && granted === true;
         renderSiteAccess(siteAccessGranted);
@@ -203,17 +221,23 @@ function requestSiteAccess() {
         siteAccessGranted = false;
         renderSiteAccess(false);
         return false;
+    }).finally(() => {
+        if (!activeRefreshOperation) refreshButton.disabled = false;
     });
 }
 
 function initializeSiteAccess() {
-    chrome.storage.local.get(['mediaAccessAsked'], (result) => {
-        mediaAccessAsked = result.mediaAccessAsked === true;
+    const storedAccess = new Promise((resolve) => {
+        chrome.storage.local.get(['mediaAccessAsked'], (result) => {
+            mediaAccessAsked = result.mediaAccessAsked === true;
+            resolve();
+        });
     });
-    hasSiteAccess().then(granted => {
+    const currentAccess = hasSiteAccess().then(granted => {
         siteAccessGranted = granted;
         renderSiteAccess(granted);
     });
+    return Promise.allSettled([storedAccess, currentAccess]);
 }
 
 function initializeRefreshUI(tabs, statuses = {}) {
@@ -237,6 +261,11 @@ function initializeRefreshUI(tabs, statuses = {}) {
     applyTabStatuses(statuses);
 }
 
+function setProgress(percent) {
+    progressBar.style.width = `${percent}%`;
+    progressBar.parentElement?.setAttribute('aria-valuenow', String(percent));
+}
+
 function updateProgressUI(data) {
     if (!activeRefreshOperation) return;
 
@@ -246,8 +275,7 @@ function updateProgressUI(data) {
     const failedCount = Number(data.failed) || 0;
     const percent = Number(data.percent) || 0;
 
-    progressBar.style.width = `${percent}%`;
-    progressBar.parentElement?.setAttribute('aria-valuenow', String(percent));
+    setProgress(percent);
     statusText.textContent = t('statusProgress', processedTabs, data.total, refreshedTabs, failedCount, skippedTabs);
 }
 
@@ -267,20 +295,19 @@ function handleRefreshComplete(data) {
     processedTabs = Number(details.processedTabs) || successfulCount + failedCount + skippedCount;
 
     const finalPercent = totalTabs > 0 ? Math.round((processedTabs / totalTabs) * 100) : 0;
-    progressBar.style.width = `${finalPercent}%`;
-    progressBar.parentElement?.setAttribute('aria-valuenow', String(finalPercent));
+    setProgress(finalPercent);
 
     if (cancelled) {
         statusText.textContent = t('statusCancelled', processedTabs, totalTabs);
     } else if (failedCount > 0) {
         statusText.textContent = t('statusCompleteMixed', processedTabs, totalTabs, successfulCount, failedCount, skippedCount);
-        showErrors();
     } else if (skippedCount > 0) {
         statusText.textContent = t('statusCompleteSkipped', successfulCount, skippedCount);
     } else {
         statusText.textContent = t('statusCompleteAll', successfulCount);
         showConfetti();
     }
+    if (failedCount > 0 || failedTabs.length > 0) showErrors();
 
     const staleBytes = Number.isFinite(details.staleBytes) ? details.staleBytes : 0;
     if (staleBytes > 0) {
@@ -296,10 +323,14 @@ function handleRefreshComplete(data) {
 }
 
 function restoreOperationStatus() {
-    chrome.runtime.sendMessage({ action: 'getOperationStatus' }, (state) => {
-        if (chrome.runtime.lastError || !state) return;
+    return new Promise((resolve) => chrome.runtime.sendMessage({ action: 'getOperationStatus' }, (state) => {
+        if (chrome.runtime.lastError || !state) {
+            resolve();
+            return;
+        }
 
         if (state.active) {
+            if (Number.isFinite(state.generation)) operationGeneration = state.generation;
             initializeRefreshUI(state.currentTabs || [], state.tabStatuses || {});
             updateProgressUI({
                 current: state.processedTabs,
@@ -311,11 +342,12 @@ function restoreOperationStatus() {
             });
         } else if (state.interrupted) {
             loadingContainer.style.display = 'block';
-            progressBar.style.width = `${Number(state.progress) || 0}%`;
+            setProgress(Number(state.progress) || 0);
             statusText.textContent = t('statusInterrupted');
             showOperationError(t('errorInterruptedTitle'), t('errorInterruptedDetail'));
         }
-    });
+        resolve();
+    }));
 }
 
 function toggleOperationControls(active) {
@@ -409,7 +441,7 @@ function showOperationError(summary, details) {
 
 // Read the computed style, not the inline one. These sections start hidden via the
 // stylesheet, so an inline-only check sees "" on the first click, concludes the section
-// is open, and closes an already-closed section — the first click did nothing.
+// is open, and closes an already-closed section: the first click did nothing.
 function bindSection(header, content) {
     header.addEventListener('click', () => {
         const expanded = getComputedStyle(content).display !== 'none';

@@ -54,6 +54,10 @@ async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 function executePopupJs({
@@ -137,6 +141,26 @@ describe('Popup controller', () => {
     );
   });
 
+  test('keeps refresh disabled during initialization and a refused permission request', async () => {
+    let finishInitialization;
+    let refusePermission;
+    executePopupJs({
+      siteAccess: new Promise(resolve => { finishInitialization = resolve; }),
+      requestAccessResult: new Promise(resolve => { refusePermission = resolve; })
+    });
+
+    expect(document.getElementById('refreshAll').disabled).toBe(true);
+    finishInitialization(false);
+    await flushPromises();
+    expect(document.getElementById('refreshAll').disabled).toBe(false);
+
+    document.getElementById('grantAccess').click();
+    expect(document.getElementById('refreshAll').disabled).toBe(true);
+    refusePermission(false);
+    await flushPromises();
+    expect(document.getElementById('refreshAll').disabled).toBe(false);
+  });
+
   test('later refresh does not request access automatically', async () => {
     executePopupJs({ siteAccess: false, mediaAccessAsked: true });
     await flushPromises();
@@ -179,7 +203,7 @@ describe('Popup controller', () => {
     });
     // Every count differs, so any swapped argument order in the statusProgress call fails here.
     expect(document.getElementById('statusText').textContent)
-      .toBe('9 of 12 — 5 reloaded, 2 failed, 3 skipped');
+      .toBe('9 of 12: 5 reloaded, 2 failed, 3 skipped');
 
     onMessage({
       action: 'refreshProgress', current: 3, total: 3, percent: 100,
@@ -197,6 +221,114 @@ describe('Popup controller', () => {
     expect(document.getElementById('progressFill').style.width).toBe('100%');
     expect(document.getElementById('statusText').textContent).toContain('1 failed');
     expect(document.getElementById('errorDetails').textContent).toContain('Reload failed');
+  });
+
+  test('ignores a failed cancel callback after the operation completes', () => {
+    const onMessage = executePopupJs();
+    let cancelCallback;
+    onMessage({ action: 'refreshStarted', tabs: [{ id: 1, title: 'One' }] });
+    chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+      if (message.action === 'cancelOperation') cancelCallback = callback;
+    });
+
+    document.getElementById('cancelRefresh').click();
+    onMessage({
+      action: 'refreshComplete', success: true,
+      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1 }
+    });
+    const completedStatus = document.getElementById('statusText').textContent;
+    cancelCallback({ success: false });
+
+    expect(document.getElementById('statusText').textContent).toBe(completedStatus);
+  });
+
+  test('ignores a completion message from an older operation generation', () => {
+    const onMessage = executePopupJs();
+    onMessage({
+      action: 'refreshStarted',
+      generation: 5,
+      tabs: [{ id: 20, title: 'Current' }]
+    });
+    const currentStatus = document.getElementById('statusText').textContent;
+
+    onMessage({
+      action: 'refreshComplete',
+      generation: 4,
+      success: true,
+      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1 }
+    });
+
+    expect(document.getElementById('statusText').textContent).toBe(currentStatus);
+    expect(document.getElementById('refreshAll').disabled).toBe(true);
+    expect(document.getElementById('cancelRefresh').style.display).toBe('inline-block');
+  });
+
+  test('ignores old progress after restoring a newer operation generation', () => {
+    const onMessage = executePopupJs({
+      operationState: {
+        active: true,
+        generation: 8,
+        currentTabs: [{ id: 21, title: 'Restored' }],
+        tabStatuses: { 21: 'pending' },
+        processedTabs: 1,
+        totalTabs: 2,
+        progress: 50,
+        refreshedTabs: 1,
+        failedTabs: 0,
+        skippedTabs: 0
+      }
+    });
+    const restoredStatus = document.getElementById('statusText').textContent;
+
+    onMessage({
+      action: 'refreshProgress',
+      generation: 7,
+      current: 2,
+      total: 2,
+      percent: 100,
+      successful: 2,
+      failed: 0,
+      skipped: 0
+    });
+
+    expect(document.getElementById('statusText').textContent).toBe(restoredStatus);
+    expect(document.getElementById('progressFill').style.width).toBe('50%');
+  });
+
+  test('accepts a completion message without a generation field', () => {
+    const onMessage = executePopupJs();
+    onMessage({
+      action: 'refreshStarted',
+      generation: 9,
+      tabs: [{ id: 22, title: 'Current' }]
+    });
+
+    onMessage({
+      action: 'refreshComplete',
+      success: true,
+      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1 }
+    });
+
+    expect(document.getElementById('refreshAll').disabled).toBe(false);
+    expect(document.getElementById('statusText').textContent).toBe(
+      chrome.i18n.getMessage('statusCompleteAll', ['1'])
+    );
+  });
+
+  test('renders errors collected before cancellation', () => {
+    const onMessage = executePopupJs();
+
+    onMessage({
+      action: 'refreshComplete', success: false,
+      details: { totalTabs: 3, processedTabs: 2, successfulTabs: 1, failedCount: 1, cancelled: true },
+      failedTabs: [{ id: 2, title: 'Two', error: 'Reload failed before cancellation' }]
+    });
+
+    expect(document.getElementById('statusText').textContent).toBe(
+      chrome.i18n.getMessage('statusCancelled', ['2', '3'])
+    );
+    expect(document.getElementById('errorDetails').textContent)
+      .toContain('Reload failed before cancellation');
   });
 
   test('restores an active operation when the popup is reopened', () => {
@@ -217,6 +349,15 @@ describe('Popup controller', () => {
     expect(document.getElementById('progressFill').style.width).toBe('50%');
     expect(document.querySelector('#tab-9 .tab-success').style.display).toBe('block');
     expect(document.getElementById('refreshAll').disabled).toBe(true);
+  });
+
+  test('restores interrupted progress consistently for assistive technology', () => {
+    executePopupJs({
+      operationState: { active: false, interrupted: true, progress: 40 }
+    });
+
+    expect(document.getElementById('progressFill').style.width).toBe('40%');
+    expect(document.getElementById('progressBar').getAttribute('aria-valuenow')).toBe('40');
   });
 
   test('does not activate stress mode after five settings clicks', () => {

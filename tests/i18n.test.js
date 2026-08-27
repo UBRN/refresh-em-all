@@ -153,7 +153,7 @@ describe('Localization contracts', () => {
   test('chrome.i18n substitutes dynamic placeholders in the catalog order', () => {
     setTestLocale('en');
     expect(chrome.i18n.getMessage('statusProgress', ['4', '8', '3', '0', '1'])).toBe(
-      '4 of 8 — 3 reloaded, 0 failed, 1 skipped'
+      '4 of 8: 3 reloaded, 0 failed, 1 skipped'
     );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
       'All 8 tabs reloaded.'
@@ -164,7 +164,7 @@ describe('Localization contracts', () => {
 
     setTestLocale('tr');
     expect(chrome.i18n.getMessage('statusProgress', ['4', '8', '3', '0', '1'])).toBe(
-      '8 sekmeden 4 tanesi bitti — 3 yenilendi, 0 başarısız, 1 atlandı'
+      '8 sekmeden 4 tanesi bitti: 3 yenilendi, 0 başarısız, 1 atlandı'
     );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
       '8 sekmenin tümü yenilendi.'
@@ -227,7 +227,7 @@ describe('Localization contracts', () => {
     setTestLocale('fr');
     executePopupJs();
 
-    // Chrome renders the default catalog here, so the document language must say English —
+    // Chrome renders the default catalog here, so the document language must say English:
     // labelling English text as French would mislead assistive technology.
     expect(document.documentElement.lang).toBe('en');
     expect(document.getElementById('refreshAll').textContent).toBe('Refresh All Tabs');

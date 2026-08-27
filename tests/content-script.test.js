@@ -92,6 +92,46 @@ describe('Content-script media restoration', () => {
     expect(audio.pause).toHaveBeenCalled();
   });
 
+  test('does not restore audio state when reordered sources no longer match', () => {
+    document.body.innerHTML = [
+      '<audio src="https://example.com/two.mp3"></audio>',
+      '<audio src="https://example.com/one.mp3"></audio>'
+    ].join('');
+    const [firstAudio, secondAudio] = document.querySelectorAll('audio');
+    [firstAudio, secondAudio].forEach(audio => {
+      Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+      audio.pause = jest.fn();
+      audio.play = jest.fn(() => Promise.resolve());
+    });
+
+    executeContentScript(JSON.stringify({
+      audio_0: { paused: true, currentTime: 11, src: 'https://example.com/one.mp3' },
+      audio_1: { paused: false, currentTime: 22, src: 'https://example.com/two.mp3' }
+    }));
+
+    expect(firstAudio.currentTime).toBe(0);
+    expect(secondAudio.currentTime).toBe(0);
+  });
+
+  test('restores audio without a current source', () => {
+    document.body.innerHTML = '<audio></audio>';
+    const audio = document.querySelector('audio');
+    Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+    audio.pause = jest.fn();
+    audio.play = jest.fn(() => Promise.resolve());
+
+    executeContentScript(JSON.stringify({
+      audio_0: {
+        paused: true,
+        currentTime: 13,
+        src: 'https://example.com/previous.mp3'
+      }
+    }));
+
+    expect(audio.currentTime).toBe(13);
+    expect(audio.pause).toHaveBeenCalled();
+  });
+
   test('observes dynamically inserted media for a bounded period', () => {
     prepareMedia();
     const observer = { observe: jest.fn(), disconnect: jest.fn() };

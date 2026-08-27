@@ -1,4 +1,4 @@
-# Manual Developer Dashboard checklist — Refresh Em All v2.4.0
+# Manual Developer Dashboard checklist: Refresh Em All v2.4.2
 
 Everything in this file lives in the Chrome Web Store Developer Dashboard or in Google's
 publisher records. **None of it can be verified from this repository**, so nothing here is
@@ -24,7 +24,7 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
 
 ## 3. Distribution
 
-- [ ] Visibility is set to **Public** (not Unlisted or Private) — required before the
+- [ ] Visibility is set to **Public** (not Unlisted or Private), required before the
       extension can be nominated as Featured.
 - [ ] Distribution regions match your intent. Leave all regions selected unless you have a
       documented reason to limit them.
@@ -38,7 +38,7 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
 - [ ] **Turkish (Türkçe)** is added as an additional language, and its title, summary, and
       detailed description are entered from `listing.md` §"Listing content (Turkish)".
       The Store keeps localized listing text separately from the extension's own
-      `_locales/` catalogs — shipping `_locales/tr` does **not** populate the listing.
+      `_locales/` catalogs. Shipping `_locales/tr` does **not** populate the listing.
 - [ ] Turkish screenshots are uploaded under the Turkish language tab
       (`docs/chrome-web-store/assets/screenshots/tr/`), and English screenshots under the
       English tab. Confirm each set renders under the right language.
@@ -52,7 +52,8 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
       §"Reviewer-facing permission text", and each one matches the uploaded manifest.
 - [ ] **No, I am not using remote code** is selected.
 - [ ] Data-use declarations are exactly **Web history** and **Website content**; no other
-      category is selected.
+      category is selected. Web history covers locally handled open-tab details, and Website
+      content covers locally handled media properties and Resource Timing size fields.
 - [ ] All four substantive Limited Use elements are certified: allowed use, allowed
       transfer, prohibited advertising, and prohibited human access.
 - [ ] Privacy policy URL is entered **and loads publicly**:
@@ -68,20 +69,20 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
 
 ## 7. Package upload
 
-- [ ] The uploaded ZIP is the exact artifact recorded in `listing.md` — confirm the filename,
+- [ ] The uploaded ZIP is the exact artifact recorded in `listing.md`: confirm the filename,
       byte size, and SHA-256 before uploading. Do not upload a rebuilt or re-zipped copy
       without re-recording its hash.
-- [ ] After upload, the dashboard shows version **2.4.0**.
+- [ ] After upload, the dashboard shows version **2.4.2**.
 - [ ] Reviewer notes are filled in from `listing.md` §"Submission checklist".
 
 ## 8. After the public version is live
 
-- [ ] The v2.4.0 update has finished review and is actually serving to users.
+- [ ] The v2.4.2 update has finished review and is actually serving to users.
 - [ ] Give the public version time to stabilise (no crash reports, no policy warnings, no
       spike in uninstalls) **before** nominating it for Featured.
 - [ ] Submit the Featured nomination manually through **One Stop Support** in the Developer
       Dashboard. There is no automatic nomination and no API for it.
-- [ ] Re-read the nomination form's prerequisites at the moment you submit — Google edits
+- [ ] Re-read the nomination form's prerequisites at the moment you submit: Google edits
       them without notice. The set recorded in `listing.md` is what applied when this
       release was prepared, and the live form is authoritative over it.
 - [ ] Check the nomination frequency limit before submitting (reported as one
@@ -90,13 +91,13 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
 
 ## 9. Things you wait for rather than do
 
-- [ ] **Enhanced Safe Browsing trust** — this accrues from publisher history, not from
+- [ ] **Enhanced Safe Browsing trust**: this accrues from publisher history, not from
       anything in the package. A new publisher typically waits **several months** of
       compliant presence in the Store. Nothing in this release accelerates it, and removing
       permissions does not buy it. See `listing.md` §"Trust, badges, and what this release
       can and cannot change".
-- [ ] **Established Publisher badge** — depends on verified publisher identity plus a
+- [ ] **Established Publisher badge**: depends on verified publisher identity plus a
       compliance track record, and appears to also require a **verified related
       website**. Verify site ownership early; it is the slowest part to arrange.
-- [ ] **Featured badge** — manually reviewed by the Chrome Web Store team. Meeting every
+- [ ] **Featured badge**: manually reviewed by the Chrome Web Store team. Meeting every
       prerequisite makes an item *eligible*, not selected. It is not guaranteed.

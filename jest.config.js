@@ -14,7 +14,7 @@ module.exports = {
     '!jest.config.js'
   ],
   coverageReporters: ['html', 'text', 'text-summary', 'lcov'],
-  testPathIgnorePatterns: ['/node_modules/'],
+  testPathIgnorePatterns: ['/node_modules/', '/\.claude/worktrees/'],
   verbose: true,
   transform: {}
 };

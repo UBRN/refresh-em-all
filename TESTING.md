@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **61 tests across 6 suites**
+- Jest unit/integration/contract suite: **91 tests across 6 suites**
 - Fast browser suite: **6 scenarios** (the denied-access path, 4 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
@@ -47,10 +47,24 @@ npm run stress-test
 - Retries failures and reaches a terminal state
 - Bounds waits for continuously loading tabs
 - Reloads ordinary tabs without script injection when optional host access is absent
+- Refreshes a tab that navigated away from a restricted URL before its turn instead of skipping it
+- Skips a tab that navigated to a restricted URL before its turn
 - Requires `{ bypassCache: true }` on normal, discarded, media-capture
   fallback, synchronous fallback, loading-wait, retry, and timeout paths
 - Proves a stalled reload times out without issuing a standard cached fallback
 - Cancels active operations
+- Finalizes cancellation immediately and prevents stale callbacks and retries from mutating a replacement refresh
+- Resumes active session snapshots from their processed-tab cursor and caps repeated resumes
+- Ignores inactive snapshots and safely reconciles completed, capped, and malformed session state
+- Excludes late script measurements from the replacement refresh's cache statistics
+- Discards a tab query or permission result that belongs to a cancelled generation
+- Cancels a restored operation whose permission lookup is still pending
+- Refuses to capture or reload for a tab whose generation was cancelled mid-callback
+- Serializes back-to-back finalizations so neither run loses statistics or history order
+- Carries the operation generation in worker state and in every progress broadcast
+- Filters malformed tab records out of a restored snapshot and normalizes it for the popup
+- Resets the resume budget when a new manual refresh starts
+- Drops tab records when reconciling an interrupted operation
 - Migrates old Chrome Sync history without retaining titles or URLs
 
 ### Popup
@@ -62,6 +76,11 @@ npm run stress-test
 - Restores progress when the popup is reopened
 - Renders sanitized local history through DOM text nodes
 - Renders last-run, daily, rolling, and all-time cache statistics and resets them locally
+- Keeps the refresh control disabled until initialization settles and re-enables it after a refused permission request
+- Ignores a late cancel callback that arrives after the run has already finished
+- Renders errors that were collected before a run was cancelled
+- Sets `aria-valuenow` to match the progress bar width when a restored run was interrupted
+- Ignores progress and completion messages from an older operation generation
 
 ### Localization
 
@@ -79,6 +98,8 @@ npm run stress-test
 - Handles dynamically inserted media
 - Avoids telemetry and browsing-data messages
 - Recovers from corrupted session state
+- Skips restoring audio state when reordered sources no longer match the saved source
+- Restores a source-less audio element from saved state
 
 ### E2E harness and release workflow contracts
 
@@ -96,8 +117,8 @@ Without optional host access, refreshes still run but no new cache bytes are mea
 `npm run e2e` first creates a denied-access harness, then a normal harness. Each harness
 uses its own temporary extension copy, localhost-only server, isolated profile, and
 extension-enabled browser. The denied harness leaves optional host access ungranted. For
-the normal harness, setup temporarily replaces the copied v2.4.0 manifest with a pre-v2.4.0
-manifest that requires `<all_urls>`, launches Chrome to seed the grant, restores the shipped
+the normal harness, setup temporarily replaces the copied shipped manifest with one that
+requires `<all_urls>` instead of declaring it optional, launches Chrome to seed the grant, restores the shipped
 manifest, and relaunches Chrome on the same profile. The normal harness then runs the
 essential scenarios sequentially, resets extension storage between scenarios, and finishes
 with the 8-tab, two-window smoke profile. Together the harnesses verify:
@@ -164,8 +185,8 @@ setting is managed by this repository change.
 The E2E harness records phase timings under `test-results/e2e/<profile>/timings.json`.
 Fast-suite failures are stored in a separate directory for each scenario so one
 failure cannot overwrite another. On failure the harness retains screenshots before
-closing the popup, browser and extension state, console errors, and—on the full
-profile—a Chrome trace. CI uploads these diagnostics for 14 days.
+closing the popup, browser and extension state, console errors, and, on the full
+profile, a Chrome trace. CI uploads these diagnostics for 14 days.
 
 ## Verification and stress tests
 

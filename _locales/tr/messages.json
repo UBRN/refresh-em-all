@@ -58,7 +58,7 @@
     }
   },
   "statusProgress": {
-    "message": "$TOTAL$ sekmeden $PROCESSED$ tanesi bitti — $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı",
+    "message": "$TOTAL$ sekmeden $PROCESSED$ tanesi bitti: $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı",
     "description": "Live progress status during a refresh.",
     "placeholders": {
       "processed": { "content": "$1", "example": "4" },

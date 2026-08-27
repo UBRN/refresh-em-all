@@ -353,7 +353,7 @@ async function main() {
   let secondWindowId;
 
   // The default locale writes into the shared root, which also holds the other locales'
-  // subdirectories — so clear only this locale's own files rather than the whole tree.
+  // subdirectories, so clear only this locale's own files rather than the whole tree.
   fs.mkdirSync(screenshotDirectory, { recursive: true });
   for (const filename of Object.values(screenshotNames)) {
     fs.rmSync(path.join(screenshotDirectory, filename), { force: true });

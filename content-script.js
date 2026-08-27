@@ -92,7 +92,14 @@
             });
 
             document.querySelectorAll('audio').forEach((audio, index) => {
-                restoreElement(audio, mediaStates[`audio_${index}`]);
+                const savedState = mediaStates[`audio_${index}`];
+                if (!savedState) return;
+
+                const sourceMatches = !audio.src || audio.src === savedState.src;
+
+                if (sourceMatches) {
+                    restoreElement(audio, savedState);
+                }
             });
 
             restoreYouTubePlayerState();

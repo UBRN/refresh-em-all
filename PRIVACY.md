@@ -43,10 +43,19 @@ Refresh Em All uses the following browser-managed storage:
 
 - `chrome.storage.session` temporarily holds the active refresh-operation
   snapshot under `refreshOperationState`. This can include the current tab
-  records, progress, per-tab status, and local failure details. The extension
-  removes this snapshot when an operation finishes. If Chrome interrupts the
-  operation, the snapshot is used only to report that interruption and remains
-  session-scoped.
+  records (each with the tab id, URL, title, and favicon URL that Chrome
+  supplies), progress, the processed-tab cursor, per-tab status, and local
+  failure details. The snapshot exists so an open popup can redraw a run in
+  progress, and so a run whose service worker Chrome shuts down mid-refresh can
+  continue with the tabs it had not reached yet. The extension removes the full
+  snapshot when an operation finishes. If a continuation is not safe, for
+  example because the run was cancelled or has already been continued three
+  times, the full snapshot is replaced with an interrupted marker holding only
+  progress and counts, with no tab records, URLs, titles, favicons, or per-tab
+  statuses; that marker can remain for the rest of the browser session so the
+  popup can report the interruption. `chrome.storage.session` is memory-backed,
+  is never synced, is not readable by web pages, and Chrome discards it when
+  the browser session ends.
 - `chrome.storage.local` holds at most ten refresh-history summaries under
   `refreshHistory`. Each summary contains a timestamp, tab totals, successful,
   failed, and skipped counts, and whether the operation was cancelled. History

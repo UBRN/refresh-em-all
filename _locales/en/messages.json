@@ -58,7 +58,7 @@
     }
   },
   "statusProgress": {
-    "message": "$PROCESSED$ of $TOTAL$ — $REFRESHED$ reloaded, $FAILED$ failed, $SKIPPED$ skipped",
+    "message": "$PROCESSED$ of $TOTAL$: $REFRESHED$ reloaded, $FAILED$ failed, $SKIPPED$ skipped",
     "description": "Live progress status during a refresh.",
     "placeholders": {
       "processed": { "content": "$1", "example": "4" },
