@@ -1,11 +1,16 @@
 # Chrome Web Store Listing Proposal
 
 This document contains proposed submission text and a code-backed declaration
-audit for Refresh Em All v2.4.2. It does not authorize publication.
+audit for Refresh Em All v2.4.3. It does not authorize publication.
 
-v2.4.2 makes all-sites host access optional and requests it at runtime for
-media preservation and cache measurement. Refreshing continues without that
-grant. Dashboard-only items are tracked separately in
+v2.4.3 is a bug-fix release. It corrects media identity so an element that
+selects its resource through a `<source>` child is matched by its resolved URL,
+which stops a reordered page from receiving another resource's saved playback
+position. It changes no permission, no interface, and no data handling.
+
+The permission model below is unchanged since v2.4.2, which made all-sites host
+access optional and requested it at runtime for media preservation and cache
+measurement. Refreshing continues without that grant. Dashboard-only items are tracked separately in
 [`dashboard-checklist.md`](dashboard-checklist.md).
 
 ## Listing content (English)
@@ -194,7 +199,7 @@ yerel HTTP önbelleğini atlayarak yeniden yüklemektir.
 
 ## Permission justifications and audit
 
-The v2.4.2 manifest keeps `tabs`, `scripting`, and `storage` required while
+The v2.4.3 manifest keeps `tabs`, `scripting`, and `storage` required while
 moving `<all_urls>` from `host_permissions` to `optional_host_permissions`.
 The popup requests that host access at runtime; refusing it does not prevent
 cache-bypassing tab reloads.
@@ -213,7 +218,7 @@ the optional host permission support the single cache-bypassing reload purpose.
 ### Permission reduction attempts in this release
 
 Chrome's guidance is to request relevant, least-privilege, and where possible
-optional permissions. v2.4.2 ships the all-sites host permission as optional,
+optional permissions. v2.4.3 ships the all-sites host permission as optional,
 while retaining `tabs` for the separate restricted-page classification and
 display-metadata behavior established by Candidate 1.
 
@@ -293,7 +298,7 @@ access.**
   nor restoration injection is attempted.
 - *What this buys.* `content-script.js` does not execute at `document_idle` on
   every navigation. With access granted it runs only on tabs the user just
-  asked to refresh; without access it does not run at all. v2.4.2's optional
+  asked to refresh; without access it does not run at all. v2.4.3's optional
   host declaration is the mechanism that removes the broad install-time host
   warning while preserving this programmatic design after consent.
 - *Implementation boundary.* The `chrome.tabs.onUpdated` and
@@ -468,7 +473,7 @@ dashboard fact that cannot be verified from this repository.
 
 ### Nomination step
 
-Featured nomination is manual. After the public v2.4.2 version is live and
+Featured nomination is manual. After the public v2.4.3 version is live and
 stable, submit it through **One Stop Support** in the Developer Dashboard. There
 is no API and no automatic nomination.
 
@@ -555,7 +560,7 @@ them. Dashboard-only items live in
       finishes reloading, the interface is localized with Chrome's built-in
       `chrome.i18n` using packaged static catalogs, and no remote code or
       external reporting endpoint exists.
-- [ ] The v2.4.2 package has been built and verified (filename, byte size, and
+- [ ] The v2.4.3 package has been built and verified (filename, byte size, and
       SHA-256 recorded above under Visual assets). Before upload, confirm the
       SHA-256 of the exact file being uploaded matches that recorded hash.
 - [ ] Work through [`dashboard-checklist.md`](dashboard-checklist.md) in full.

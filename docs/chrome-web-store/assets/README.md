@@ -1,19 +1,19 @@
 # Chrome Web Store visual assets
 
-These files are reviewable listing inputs for Refresh Em All v2.4.1. They are
+These files are reviewable listing inputs for Refresh Em All v2.4.3. They are
 not part of the extension runtime package and must not be added to the package
 allowlist in `scripts/package-extension.js`.
 
 ## Provenance
 
-The screenshots are captured from `refresh-em-all-v2.4.1.zip` (130,215 bytes)
+The screenshots are captured from `refresh-em-all-v2.4.3.zip` (144,398 bytes)
 after requiring this SHA-256:
 
 ```text
-372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc
+30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a
 ```
 
-Each capture run also asserts that the loaded extension reports version 2.4.1
+Each capture run also asserts that the loaded extension reports version 2.4.3
 and that the popup's resolved `@@ui_locale` matches the requested `--locale`,
 so a localized set cannot silently be a copy of another language.
 
@@ -24,12 +24,20 @@ The Store icon inside the package remains unchanged.
 
 ## Capture viewport
 
-The capture viewport is 880x550 CSS pixels at a device scale factor of
-1280/880, which renders to exactly 1280x800. It used to be 640x400 at 2x, which
-stopped fitting once the popup gained the cache-statistics section: the tallest
-state is the Turkish settings panel at roughly 524 CSS pixels. The viewport is
-sized for that worst case and the card is centred, so shorter states show even
-slack above and below rather than a card clipped at the top.
+The capture viewport is 1024x640 CSS pixels at a device scale factor of 1.25,
+which renders to exactly 1280x800. It has grown twice, each time because the
+popup outgrew the frame and the capture failed closed rather than shipping a
+clipped card: 640x400 at 2x stopped fitting when the cache-statistics section
+landed, and 880x550 stopped fitting for v2.4.3 because the v2.4.2 retheme took
+the tallest state to roughly 589 CSS pixels. The viewport is sized for that
+worst case and the card is centred, so shorter states show even slack above and
+below rather than a card clipped at the top.
+
+The capture pins `prefers-color-scheme: light`. The popup gained a dark theme in
+v2.4.2, and the framing applied at capture time forces a white card, so on a
+machine reporting a dark preference the shots came out as near-white text on
+white. Pinning the scheme keeps the captures legible and deterministic across
+machines.
 
 Before clicking refresh, `scripts/chrome-web-store/capture-screenshots.js` seeds
 `mediaAccessAsked` in `chrome.storage.local` because automation cannot dismiss
@@ -44,18 +52,18 @@ Use Node.js 24 and the locked dependencies:
 ```bash
 npm ci --legacy-peer-deps
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.1.zip \
-  --sha256 372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc \
-  --expect-version 2.4.1 --locale en
+  --zip /absolute/path/to/refresh-em-all-v2.4.3.zip \
+  --sha256 30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a \
+  --expect-version 2.4.3 --locale en
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.1.zip \
-  --sha256 372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc \
-  --expect-version 2.4.1 --locale tr
+  --zip /absolute/path/to/refresh-em-all-v2.4.3.zip \
+  --sha256 30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a \
+  --expect-version 2.4.3 --locale tr
 npm run store-assets:promo
 npm run store-assets:verify -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.1.zip \
-  --sha256 372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc \
-  --expect-version 2.4.1
+  --zip /absolute/path/to/refresh-em-all-v2.4.3.zip \
+  --sha256 30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a \
+  --expect-version 2.4.3
 ```
 
 Generated diagnostics and downscaled review copies are written beneath
@@ -64,8 +72,8 @@ Generated diagnostics and downscaled review copies are written beneath
 ## Outputs
 
 - `screenshots/*.png`: five 1280×800, full-bleed, page-level captures in the
-  default locale (English). The underlying viewport is 640×400 CSS pixels at a
-  2× device scale factor.
+  default locale (English). The underlying viewport is 1024×640 CSS pixels at a
+  1.25× device scale factor.
 - `screenshots/tr/*.png`: the same five states captured with a Turkish browser
   UI locale. Every additional Store language gets a sibling subdirectory named
   after its locale; `store-assets:verify` requires a complete set for every
