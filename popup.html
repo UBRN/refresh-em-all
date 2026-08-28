@@ -413,7 +413,7 @@
         .stat-row {
             display: flex;
             align-items: baseline;
-            justify-content: space-between;
+            justify-content: flex-start;
             gap: var(--space-2);
             padding: var(--space-1) 0;
         }
@@ -425,6 +425,12 @@
         .stat-label {
             color: var(--text-muted);
             font-size: var(--text-sm);
+            margin-right: auto;
+        }
+
+        .stat-caveat {
+            color: var(--text-muted);
+            font-size: var(--text-xs);
         }
 
         .stat-value {
@@ -450,9 +456,12 @@
             line-height: 1.2;
         }
 
+        .stat-hero .stat-caveat {
+            margin-right: var(--space-1);
+            font-size: var(--text-sm);
+        }
+
         .stat-hero .stat-value {
-            display: block;
-            margin-top: 2px;
             font-size: var(--text-hero);
             font-weight: 650;
             line-height: 1.1;

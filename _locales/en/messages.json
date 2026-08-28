@@ -223,12 +223,9 @@
     "message": "All time",
     "description": "Label for the all-time measured byte total."
   },
-  "statsValueAtLeast": {
-    "message": "at least $SIZE$",
-    "description": "Value shown for each lower-bound cache statistic.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12.4 MB" }
-    }
+  "statsAtLeastPrefix": {
+    "message": "at least",
+    "description": "Small qualifier shown before a lower-bound cache statistic value."
   },
   "statsRunLine": {
     "message": "At least $SIZE$ came from copies Chrome saved earlier and will now be downloaded again.",

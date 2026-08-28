@@ -223,12 +223,9 @@
     "message": "Tüm zamanlar",
     "description": "Label for the all-time measured byte total."
   },
-  "statsValueAtLeast": {
-    "message": "en az $SIZE$",
-    "description": "Value shown for each lower-bound cache statistic.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12,4 MB" }
-    }
+  "statsAtLeastPrefix": {
+    "message": "en az",
+    "description": "Kucuk gosterge, alt sinir istatistik degerinden once gosterilir."
   },
   "statsRunLine": {
     "message": "En az $SIZE$, Chrome'un daha önce kaydettiği kopyalardan geldi ve şimdi yeniden indirilecek.",

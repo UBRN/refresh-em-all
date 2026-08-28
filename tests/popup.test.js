@@ -509,15 +509,20 @@ describe('Popup controller', () => {
 
     expect(document.getElementById('statsContainer').style.display).toBe('block');
     expect(document.querySelector('#statsToday .stat-label').textContent).toBe('Today');
-    expect(document.querySelector('#statsToday .stat-value').textContent).toBe('at least 2.0 KB');
+    expect(document.querySelector('#statsToday .stat-caveat').textContent).toBe('at least');
+    expect(document.querySelector('#statsToday .stat-value').textContent).toBe('2.0 KB');
     expect(document.querySelector('#statsLastRun .stat-label').textContent).toBe('Last reload');
-    expect(document.querySelector('#statsLastRun .stat-value').textContent).toBe('at least 1.5 KB');
+    expect(document.querySelector('#statsLastRun .stat-caveat').textContent).toBe('at least');
+    expect(document.querySelector('#statsLastRun .stat-value').textContent).toBe('1.5 KB');
     expect(document.querySelector('#statsWeek .stat-label').textContent).toBe('Last 7 days');
-    expect(document.querySelector('#statsWeek .stat-value').textContent).toBe('at least 9.0 KB');
+    expect(document.querySelector('#statsWeek .stat-caveat').textContent).toBe('at least');
+    expect(document.querySelector('#statsWeek .stat-value').textContent).toBe('9.0 KB');
     expect(document.querySelector('#statsMonth .stat-label').textContent).toBe('Last 30 days');
-    expect(document.querySelector('#statsMonth .stat-value').textContent).toBe('at least 10.0 KB');
+    expect(document.querySelector('#statsMonth .stat-caveat').textContent).toBe('at least');
+    expect(document.querySelector('#statsMonth .stat-value').textContent).toBe('10.0 KB');
     expect(document.querySelector('#statsTotal .stat-label').textContent).toBe('All time');
-    expect(document.querySelector('#statsTotal .stat-value').textContent).toBe('at least 10.0 MB');
+    expect(document.querySelector('#statsTotal .stat-caveat').textContent).toBe('at least');
+    expect(document.querySelector('#statsTotal .stat-value').textContent).toBe('10.0 MB');
     jest.useRealTimers();
   });
 

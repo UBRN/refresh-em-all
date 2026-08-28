@@ -473,11 +473,15 @@ function renderStat(element, labelKey, bytes) {
     label.className = 'stat-label';
     label.textContent = t(labelKey);
 
+    const caveat = document.createElement('span');
+    caveat.className = 'stat-caveat';
+    caveat.textContent = t('statsAtLeastPrefix');
+
     const value = document.createElement('span');
     value.className = 'stat-value';
-    value.textContent = t('statsValueAtLeast', formatBytes(bytes));
+    value.textContent = formatBytes(bytes);
 
-    element.append(label, value);
+    element.append(label, caveat, value);
 }
 
 function initializeStats() {
