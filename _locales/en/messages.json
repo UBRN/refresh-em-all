@@ -203,40 +203,29 @@
     "message": "Files Downloaded Again",
     "description": "Button that expands the locally measured saved-file figures."
   },
-  "statsToday": {
-    "message": "Today: at least $SIZE$",
-    "description": "Cache statistics row for the current local date.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12.4 MB" }
-    }
+  "statsTodayLabel": {
+    "message": "Today",
+    "description": "Label for the cache statistics row for the current local date."
   },
-  "statsLastRun": {
-    "message": "Last reload: at least $SIZE$",
-    "description": "Cache statistics row for the most recent refresh operation.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12.4 MB" }
-    }
+  "statsLastRunLabel": {
+    "message": "Last reload",
+    "description": "Label for the cache statistics row for the most recent refresh operation."
   },
-  "statsWeek": {
-    "message": "Last 7 days: at least $SIZE$",
-    "description": "Cache statistics row for the current and previous six local dates.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12.4 MB" }
-    }
+  "statsWeekLabel": {
+    "message": "Last 7 days",
+    "description": "Label for the cache statistics row for the current and previous six local dates."
   },
-  "statsMonth": {
-    "message": "Last 30 days: at least $SIZE$",
-    "description": "Cache statistics row for the current and previous 29 local dates.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12.4 MB" }
-    }
+  "statsMonthLabel": {
+    "message": "Last 30 days",
+    "description": "Label for the cache statistics row for the current and previous 29 local dates."
   },
-  "statsTotal": {
-    "message": "All time: at least $SIZE$",
-    "description": "Cache statistics row for the all-time measured byte total.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12.4 MB" }
-    }
+  "statsTotalLabel": {
+    "message": "All time",
+    "description": "Label for the all-time measured byte total."
+  },
+  "statsAtLeastPrefix": {
+    "message": "at least",
+    "description": "Small qualifier shown before a lower-bound cache statistic value."
   },
   "statsRunLine": {
     "message": "At least $SIZE$ came from copies Chrome saved earlier and will now be downloaded again.",

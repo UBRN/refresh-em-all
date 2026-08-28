@@ -34,11 +34,11 @@ function renderPopupDom() {
     <div id="statsContainer" style="display:none">
       <button id="statsHeader" aria-expanded="false"></button>
       <div id="statsContent" style="display:none">
-        <div id="statsToday"></div>
-        <div id="statsLastRun"></div>
-        <div id="statsWeek"></div>
-        <div id="statsMonth"></div>
-        <div id="statsTotal"></div>
+        <div id="statsTotal" class="stat-hero"></div>
+        <div id="statsToday" class="stat-row"></div>
+        <div id="statsLastRun" class="stat-row"></div>
+        <div id="statsWeek" class="stat-row"></div>
+        <div id="statsMonth" class="stat-row"></div>
         <p id="statsAccessHint" class="privacy-info" style="display:none"></p>
         <p id="statsNote" class="privacy-info"></p>
       </div>

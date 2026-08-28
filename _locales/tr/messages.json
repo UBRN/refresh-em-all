@@ -203,40 +203,29 @@
     "message": "Yeniden İndirilen Dosyalar",
     "description": "Button that expands the locally measured saved-file figures."
   },
-  "statsToday": {
-    "message": "Bugün: en az $SIZE$",
-    "description": "Cache statistics row for the current local date.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12,4 MB" }
-    }
+  "statsTodayLabel": {
+    "message": "Bugün",
+    "description": "Label for the cache statistics row for the current local date."
   },
-  "statsLastRun": {
-    "message": "Son yenileme: en az $SIZE$",
-    "description": "Cache statistics row for the most recent refresh operation.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12,4 MB" }
-    }
+  "statsLastRunLabel": {
+    "message": "Son yenileme",
+    "description": "Label for the cache statistics row for the most recent refresh operation."
   },
-  "statsWeek": {
-    "message": "Son 7 gün: en az $SIZE$",
-    "description": "Cache statistics row for the current and previous six local dates.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12,4 MB" }
-    }
+  "statsWeekLabel": {
+    "message": "Son 7 gün",
+    "description": "Label for the cache statistics row for the current and previous six local dates."
   },
-  "statsMonth": {
-    "message": "Son 30 gün: en az $SIZE$",
-    "description": "Cache statistics row for the current and previous 29 local dates.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12,4 MB" }
-    }
+  "statsMonthLabel": {
+    "message": "Son 30 gün",
+    "description": "Label for the cache statistics row for the current and previous 29 local dates."
   },
-  "statsTotal": {
-    "message": "Tüm zamanlar: en az $SIZE$",
-    "description": "Cache statistics row for the all-time measured byte total.",
-    "placeholders": {
-      "size": { "content": "$1", "example": "12,4 MB" }
-    }
+  "statsTotalLabel": {
+    "message": "Tüm zamanlar",
+    "description": "Label for the all-time measured byte total."
+  },
+  "statsAtLeastPrefix": {
+    "message": "en az",
+    "description": "Kucuk gosterge, alt sinir istatistik degerinden once gosterilir."
   },
   "statsRunLine": {
     "message": "En az $SIZE$, Chrome'un daha önce kaydettiği kopyalardan geldi ve şimdi yeniden indirilecek.",
