@@ -110,6 +110,53 @@ describe('Background refresh worker', () => {
     }
   });
 
+  test('captures the resolved source of media that uses <source> children', async () => {
+    // The injected capture stored element.src, which is empty whenever the
+    // resource comes from a <source> child. That wrote a placeholder instead of
+    // an identity, so the restore side had nothing to compare against.
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 41, title: 'Podcast', url: 'https://example.com/podcast', discarded: false }
+    ]));
+    let injectedFunction;
+    chrome.scripting.executeScript.mockImplementation((details, callback) => {
+      injectedFunction = details.function;
+      callback([{ result: { success: true, count: 0 } }]);
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(0);
+
+    document.body.innerHTML = [
+      '<video><source src="https://example.com/clip.mp4"></video>',
+      '<audio><source src="https://example.com/track.mp3"></audio>'
+    ].join('');
+    const video = document.querySelector('video');
+    const audio = document.querySelector('audio');
+    Object.defineProperty(video, 'currentSrc', {
+      value: 'https://example.com/clip.mp4', configurable: true
+    });
+    Object.defineProperty(audio, 'currentSrc', {
+      value: 'https://example.com/track.mp3', configurable: true
+    });
+
+    sessionStorage.setItem.mockClear();
+
+    let saved;
+    try {
+      const result = injectedFunction();
+      expect(result.count).toBe(2);
+      saved = JSON.parse(sessionStorage.setItem.mock.calls[0][1]);
+    } finally {
+      // Later tests in this file assert on an empty page, so the injected
+      // capture must not find leftover media elements.
+      document.body.innerHTML = '';
+    }
+
+    expect(saved.video_0.src).toBe('https://example.com/clip.mp4');
+    expect(saved.audio_0.src).toBe('https://example.com/track.mp3');
+  });
+
   test('measures only stale cached resource encoded byte sizes', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 23, title: 'Cached', url: 'https://example.com/cached', discarded: false }

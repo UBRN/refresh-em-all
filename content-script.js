@@ -75,6 +75,17 @@
         }
     }
 
+    // A media element that selects its resource through a <source> child reports
+    // an empty .src, so .src alone made those elements look sourceless and the
+    // mismatch guard below never ran. .currentSrc is the resolved resource, with
+    // .src as the fallback for elements whose selection has not happened yet.
+    // ponytail: an element whose resource selection has not run yet still reports
+    // both as empty and falls back to the permissive branch. Gate the match on
+    // loadedmetadata if that timing window ever proves to matter in practice.
+    function mediaSource(media) {
+        return media.currentSrc || media.src;
+    }
+
     function restoreMedia() {
         try {
             document.querySelectorAll('video').forEach((video, index) => {
@@ -82,8 +93,9 @@
                 if (!savedState) return;
 
                 const isYouTube = window.location.hostname.includes('youtube.com');
-                const sourceMatches = !video.src
-                    || video.src === savedState.src
+                const source = mediaSource(video);
+                const sourceMatches = !source
+                    || source === savedState.src
                     || (isYouTube && savedState.isYouTube);
 
                 if (sourceMatches) {
@@ -95,7 +107,8 @@
                 const savedState = mediaStates[`audio_${index}`];
                 if (!savedState) return;
 
-                const sourceMatches = !audio.src || audio.src === savedState.src;
+                const source = mediaSource(audio);
+                const sourceMatches = !source || source === savedState.src;
 
                 if (sourceMatches) {
                     restoreElement(audio, savedState);

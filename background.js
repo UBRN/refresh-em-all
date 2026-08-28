@@ -1019,12 +1019,15 @@ function preserveMediaState() {
         const audios = document.querySelectorAll('audio');
         let mediaStates = {};
 
-        // Store video states - with special handling for YouTube
+        // Store video states - with special handling for YouTube.
+        // currentSrc leads because it is the only identity a <source> child
+        // exposes; .src stays empty for those elements. It falls back to .src
+        // for elements whose resource selection has not run yet.
         videos.forEach((video, index) => {
             const isYouTube = window.location.hostname.includes('youtube.com');
 
             mediaStates[`video_${index}`] = {
-                src: video.src || (isYouTube ? 'youtube_video' : 'video_element'),
+                src: video.currentSrc || video.src || (isYouTube ? 'youtube_video' : 'video_element'),
                 currentTime: video.currentTime,
                 paused: video.paused,
                 muted: video.muted,
@@ -1038,7 +1041,7 @@ function preserveMediaState() {
         audios.forEach((audio, index) => {
             // Capture audio state even if src is empty
             mediaStates[`audio_${index}`] = {
-                src: audio.src || 'audio_element',
+                src: audio.currentSrc || audio.src || 'audio_element',
                 currentTime: audio.currentTime,
                 paused: audio.paused,
                 muted: audio.muted,

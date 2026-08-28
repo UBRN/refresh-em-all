@@ -113,6 +113,56 @@ describe('Content-script media restoration', () => {
     expect(secondAudio.currentTime).toBe(0);
   });
 
+  test('does not restore audio state when reordered <source> children no longer match', () => {
+    // Elements that select their resource through a <source> child report an
+    // empty .src, so matching on .src alone made every such element look
+    // sourceless and skipped the mismatch guard entirely. Identity has to come
+    // from the resolved .currentSrc for these.
+    document.body.innerHTML = [
+      '<audio><source src="https://example.com/two.mp3"></audio>',
+      '<audio><source src="https://example.com/one.mp3"></audio>'
+    ].join('');
+    const [firstAudio, secondAudio] = document.querySelectorAll('audio');
+    const resolved = ['https://example.com/two.mp3', 'https://example.com/one.mp3'];
+    [firstAudio, secondAudio].forEach((audio, index) => {
+      Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+      // jsdom never runs resource selection, so currentSrc is stubbed the way a
+      // real browser would report it once the <source> child is chosen.
+      Object.defineProperty(audio, 'currentSrc', { value: resolved[index], configurable: true });
+      audio.pause = jest.fn();
+      audio.play = jest.fn(() => Promise.resolve());
+    });
+
+    executeContentScript(JSON.stringify({
+      audio_0: { paused: true, currentTime: 11, src: 'https://example.com/one.mp3' },
+      audio_1: { paused: false, currentTime: 22, src: 'https://example.com/two.mp3' }
+    }));
+
+    expect(firstAudio.currentTime).toBe(0);
+    expect(secondAudio.currentTime).toBe(0);
+    expect(firstAudio.play).not.toHaveBeenCalled();
+    expect(secondAudio.play).not.toHaveBeenCalled();
+  });
+
+  test('restores audio that still plays the same <source> child', () => {
+    document.body.innerHTML = '<audio><source src="https://example.com/one.mp3"></audio>';
+    const audio = document.querySelector('audio');
+    Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+    Object.defineProperty(audio, 'currentSrc', {
+      value: 'https://example.com/one.mp3',
+      configurable: true
+    });
+    audio.pause = jest.fn();
+    audio.play = jest.fn(() => Promise.resolve());
+
+    executeContentScript(JSON.stringify({
+      audio_0: { paused: true, currentTime: 17, src: 'https://example.com/one.mp3' }
+    }));
+
+    expect(audio.currentTime).toBe(17);
+    expect(audio.pause).toHaveBeenCalled();
+  });
+
   test('restores audio without a current source', () => {
     document.body.innerHTML = '<audio></audio>';
     const audio = document.querySelector('audio');
