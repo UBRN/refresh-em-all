@@ -49,6 +49,8 @@ function expectEveryReloadToBypassLocalCache(tabId, expectedCalls = 1) {
 }
 
 describe('Background refresh worker', () => {
+  let sessionStore;
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
@@ -60,8 +62,20 @@ describe('Background refresh worker', () => {
     chrome.storage.local.get.mockImplementation((keys, callback) => callback({ refreshHistory: [] }));
     chrome.storage.local.set.mockImplementation((data, callback) => callback?.());
     chrome.storage.local.remove.mockImplementation(() => {});
-    chrome.storage.session.get.mockImplementation((keys, callback) => callback({}));
-    chrome.storage.session.set.mockImplementation((data, callback) => callback?.());
+    sessionStore = {};
+    chrome.storage.session.get.mockImplementation((keys, callback) => {
+      callback(Object.fromEntries(keys
+        .filter(key => Object.hasOwn(sessionStore, key))
+        .map(key => [key, sessionStore[key]])));
+    });
+    chrome.storage.session.set.mockImplementation((data, callback) => {
+      Object.assign(sessionStore, data);
+      callback?.();
+    });
+    chrome.storage.session.remove.mockImplementation((keys, callback) => {
+      keys.forEach(key => delete sessionStore[key]);
+      callback?.();
+    });
     chrome.scripting = {
       executeScript: jest.fn((details, callback) => callback?.([]))
     };
@@ -83,6 +97,37 @@ describe('Background refresh worker', () => {
     expect(self.addEventListener).toHaveBeenCalledWith('error', expect.any(Function));
     expect(self.addEventListener).toHaveBeenCalledWith('unhandledrejection', expect.any(Function));
     expect(onMessage).toEqual(expect.any(Function));
+  });
+
+  test('restores scheduled media after the worker is reloaded', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 122, title: 'Media', url: 'https://example.com/media', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.(
+      details.function ? [{ result: { success: true, count: 1, staleBytes: 0 } }] : []
+    ));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(0);
+    const { onUpdated } = executeBackgroundJs();
+    chrome.scripting.executeScript.mockClear();
+    await onUpdated(122, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
+      target: { tabId: 122 },
+      files: ['content-script.js']
+    }, expect.any(Function));
+  });
+
+  test('does not restore media after the pending entry expires', async () => {
+    jest.setSystemTime(new Date('2026-08-29T12:00:00.000Z'));
+    sessionStore.pendingMediaRestores = { 123: Date.now() - 1 };
+    const { onUpdated } = executeBackgroundJs();
+
+    await onUpdated(123, { status: 'complete' });
+
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
   });
 
   test('keeps the toolbar icon colorful through a completed refresh', async () => {
@@ -488,7 +533,7 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
-    onUpdated(14, { status: 'complete' });
+    await onUpdated(14, { status: 'complete' });
 
     expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
       target: { tabId: 14 },
@@ -508,7 +553,7 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
-    onUpdated(15, { status: 'loading' });
+    await onUpdated(15, { status: 'loading' });
 
     expect(chrome.scripting.executeScript).not.toHaveBeenCalledWith({
       target: { tabId: 15 },
@@ -516,11 +561,11 @@ describe('Background refresh worker', () => {
     }, expect.any(Function));
   });
 
-  test('does not inject media restoration for a tab that was never refreshed', () => {
+  test('does not inject media restoration for a tab that was never refreshed', async () => {
     const { onUpdated } = executeBackgroundJs();
 
     expect(onUpdated).toEqual(expect.any(Function));
-    onUpdated(16, { status: 'complete' });
+    await onUpdated(16, { status: 'complete' });
 
     expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
   });
@@ -537,7 +582,7 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
-    onUpdated(17, { status: 'complete' });
+    await onUpdated(17, { status: 'complete' });
 
     expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
   });
@@ -551,7 +596,7 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
-    onUpdated(18, { status: 'complete' });
+    await onUpdated(18, { status: 'complete' });
 
     expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
       target: { tabId: 18 },
@@ -572,8 +617,8 @@ describe('Background refresh worker', () => {
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
     expect(onRemoved).toEqual(expect.any(Function));
-    onRemoved(19);
-    onUpdated(19, { status: 'complete' });
+    await onRemoved(19);
+    await onUpdated(19, { status: 'complete' });
 
     expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
   });
@@ -590,8 +635,8 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
-    onUpdated(20, { status: 'complete' });
-    onUpdated(20, { status: 'complete' });
+    await onUpdated(20, { status: 'complete' });
+    await onUpdated(20, { status: 'complete' });
 
     expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(2);
   });
@@ -612,7 +657,7 @@ describe('Background refresh worker', () => {
 
     onMessage({ action: 'startRefresh' }, {}, jest.fn());
     await jest.advanceTimersByTimeAsync(5000);
-    onUpdated(21, { status: 'complete' });
+    await onUpdated(21, { status: 'complete' });
 
     expect(chrome.scripting.executeScript).not.toHaveBeenCalledWith({
       target: { tabId: 21 },

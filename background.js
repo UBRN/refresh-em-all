@@ -20,6 +20,8 @@ let operationFinalized = false;
 // generation it was started for and checks it before touching shared state, so
 // a timer or callback left over from a cancelled or finished run cannot mutate
 // the run that replaced it.
+// At one refresh per second, reaching 2^53 increments would take about 285
+// million years, so wrapping is unreachable. Wraparound logic would add a branch that never runs.
 let currentGeneration = 0;
 let operationResumeCount = 0;
 // Finalization does a read-modify-write of cacheStats and refreshHistory. Two runs
@@ -30,11 +32,9 @@ let batchTimeoutId = null;
 let staleBytesThisRun = 0;
 let hasSiteAccess = false;
 
-// Tabs this worker just reloaded that are still waiting for media restoration.
-// ponytail: in-memory only, if the MV3 worker is evicted between the reload
-// and the tab reaching "complete", that tab's restore is skipped. Move to
-// chrome.storage.session if that gap shows up in practice.
-const pendingMediaRestores = new Map(); // tabId -> timeout id
+// Tabs the extension just reloaded that are still waiting for media restoration.
+const pendingMediaRestores = {};
+let pendingMediaRestoreQueue = Promise.resolve();
 const MEDIA_RESTORE_TIMEOUT_MS = 30000;
 
 // Constants for tab processing
@@ -53,18 +53,58 @@ function isStaleGeneration(generation) {
     return generation !== currentGeneration || operationFinalized;
 }
 
+function readPendingMediaRestores() {
+    if (!chrome.storage.session) return Promise.resolve({ ...pendingMediaRestores });
+
+    return new Promise(resolve => {
+        chrome.storage.session.get(['pendingMediaRestores'], result => {
+            const stored = result.pendingMediaRestores;
+            resolve(stored && typeof stored === 'object' && !Array.isArray(stored)
+                ? { ...stored }
+                : {});
+        });
+    });
+}
+
+function writePendingMediaRestores(restores) {
+    const now = Date.now();
+    const current = Object.fromEntries(Object.entries(restores)
+        .filter(([, expiresAt]) => Number.isFinite(expiresAt) && now < expiresAt));
+
+    if (!chrome.storage.session) {
+        Object.keys(pendingMediaRestores).forEach(tabId => delete pendingMediaRestores[tabId]);
+        Object.assign(pendingMediaRestores, current);
+        return Promise.resolve();
+    }
+
+    return new Promise(resolve => {
+        chrome.storage.session.set({ pendingMediaRestores: current }, () => {
+            void chrome.runtime.lastError;
+            resolve();
+        });
+    });
+}
+
+function updatePendingMediaRestores(update) {
+    pendingMediaRestoreQueue = pendingMediaRestoreQueue.then(async () => {
+        const restores = await readPendingMediaRestores();
+        const result = update(restores);
+        await writePendingMediaRestores(restores);
+        return result;
+    });
+    return pendingMediaRestoreQueue;
+}
+
 function clearPendingMediaRestore(tabId) {
-    const timeoutId = pendingMediaRestores.get(tabId);
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
-    pendingMediaRestores.delete(tabId);
+    return updatePendingMediaRestores(restores => {
+        delete restores[tabId];
+    });
 }
 
 function scheduleMediaRestore(tabId) {
-    clearPendingMediaRestore(tabId);
-    pendingMediaRestores.set(
-        tabId,
-        setTimeout(() => pendingMediaRestores.delete(tabId), MEDIA_RESTORE_TIMEOUT_MS)
-    );
+    return updatePendingMediaRestores(restores => {
+        restores[tabId] = Date.now() + MEDIA_RESTORE_TIMEOUT_MS;
+    });
 }
 
 function restoreMediaStateInTab(tabId) {
@@ -110,12 +150,15 @@ self.addEventListener('unhandledrejection', (event) => {
     reportError('unhandled_promise_rejection', errorDetails);
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     if (changeInfo.status !== 'complete') return;
-    if (!pendingMediaRestores.has(tabId)) return;
 
-    clearPendingMediaRestore(tabId);
-    restoreMediaStateInTab(tabId);
+    const shouldRestore = await updatePendingMediaRestores(restores => {
+        const expiresAt = restores[tabId];
+        delete restores[tabId];
+        return Number.isFinite(expiresAt) && Date.now() < expiresAt;
+    });
+    if (shouldRestore) restoreMediaStateInTab(tabId);
 });
 
 chrome.tabs.onRemoved.addListener(clearPendingMediaRestore);
