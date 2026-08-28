@@ -1,12 +1,13 @@
 # Chrome Web Store Listing Proposal
 
 This document contains proposed submission text and a code-backed declaration
-audit for Refresh Em All v2.4.3. It does not authorize publication.
+audit for Refresh Em All v2.4.4. It does not authorize publication.
 
-v2.4.3 is a bug-fix release. It corrects media identity so an element that
-selects its resource through a `<source>` child is matched by its resolved URL,
-which stops a reordered page from receiving another resource's saved playback
-position. It changes no permission, no interface, and no data handling.
+v2.4.4 is a packaging release. The Store icon declared in `manifest.json`
+`icons` moves from the monochrome set to the colorful set the toolbar already
+used, so the listing, the extensions page, and the toolbar now show one
+artwork. The monochrome files are no longer referenced and no longer ship. It
+changes no permission, no interface, and no data handling.
 
 The permission model below is unchanged since v2.4.2, which made all-sites host
 access optional and requested it at runtime for media preservation and cache
@@ -199,7 +200,7 @@ yerel HTTP önbelleğini atlayarak yeniden yüklemektir.
 
 ## Permission justifications and audit
 
-The v2.4.3 manifest keeps `tabs`, `scripting`, and `storage` required while
+The v2.4.4 manifest keeps `tabs`, `scripting`, and `storage` required while
 moving `<all_urls>` from `host_permissions` to `optional_host_permissions`.
 The popup requests that host access at runtime; refusing it does not prevent
 cache-bypassing tab reloads.
@@ -218,7 +219,7 @@ the optional host permission support the single cache-bypassing reload purpose.
 ### Permission reduction attempts in this release
 
 Chrome's guidance is to request relevant, least-privilege, and where possible
-optional permissions. v2.4.3 ships the all-sites host permission as optional,
+optional permissions. v2.4.4 ships the all-sites host permission as optional,
 while retaining `tabs` for the separate restricted-page classification and
 display-metadata behavior established by Candidate 1.
 
@@ -298,7 +299,7 @@ access.**
   nor restoration injection is attempted.
 - *What this buys.* `content-script.js` does not execute at `document_idle` on
   every navigation. With access granted it runs only on tabs the user just
-  asked to refresh; without access it does not run at all. v2.4.3's optional
+  asked to refresh; without access it does not run at all. v2.4.4's optional
   host declaration is the mechanism that removes the broad install-time host
   warning while preserving this programmatic design after consent.
 - *Implementation boundary.* The `chrome.tabs.onUpdated` and
@@ -473,7 +474,7 @@ dashboard fact that cannot be verified from this repository.
 
 ### Nomination step
 
-Featured nomination is manual. After the public v2.4.3 version is live and
+Featured nomination is manual. After the public v2.4.4 version is live and
 stable, submit it through **One Stop Support** in the Developer Dashboard. There
 is no API and no automatic nomination.
 
@@ -487,17 +488,18 @@ The listing assets and their reproducible sources live under
 `docs/chrome-web-store/assets/`. They are documentation-only Store inputs and
 are not included in the extension package.
 
-The icon record below is historical v2.1.0 evidence only and does not verify
-the v2.4.3 submission package's icon. The screenshots are current: all ten were
-recaptured for v2.4.3 from the artifact recorded below. The v2.4.1 set they
-replace was stale, because v2.4.2 rethemed the popup. The submission artifact
-was rebuilt from this working tree and recorded as follows:
+The icon record below is verified against the v2.4.4 submission package
+itself: asset validation reads `icons.128` out of that ZIP and audits the file
+it names. The screenshots are current: all ten were recaptured for v2.4.4 from
+the artifact recorded below, so their provenance matches the package being
+submitted. The submission artifact was rebuilt from this working tree and
+recorded as follows:
 
-- **ZIP filename:** `refresh-em-all-v2.4.3.zip`
-- **Byte size:** 144398 bytes
+- **ZIP filename:** `refresh-em-all-v2.4.4.zip`
+- **Byte size:** 129691 bytes
 - **SHA-256:**
-  `30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a`
-- All ten 1280×800 screenshots were captured from the v2.4.3 package described
+  `641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0`
+- All ten 1280×800 screenshots were captured from the v2.4.4 package described
   above, after the capture script verified its hash and reported version.
   - English: `assets/screenshots/*.png` (5 files)
   - Turkish: `assets/screenshots/tr/*.png` (5 files)
@@ -517,9 +519,12 @@ was rebuilt from this working tree and recorded as follows:
   capture's white card, which produced illegible screenshots.
 - The required 440×280 promotional PNG is rendered from a self-contained SVG
   source with repository-local tooling and no external fonts or images.
-- The packaged 128×128 icon remains unchanged for v2.1.0. Its opaque padding is
-  documented as a possible future improvement; correcting it would require a
-  separately scoped package version rather than replacing a published ZIP.
+- The packaged 128×128 icon is `assets/icon-refresh-em-colorful-128.png` as of
+  v2.4.4, the same artwork the toolbar shows. The audit records a valid 128×128
+  PNG with artwork bounds of 95×78 px. Its padding is still opaque, which
+  remains documented as a possible future improvement; correcting it would
+  require a separately scoped package version rather than replacing a published
+  ZIP.
 
 See `docs/chrome-web-store/assets/README.md` for provenance, commands, output
 dimensions, and review constraints.
@@ -531,17 +536,19 @@ them. Dashboard-only items live in
 [`dashboard-checklist.md`](dashboard-checklist.md) and are **not** ticked here.
 
 - [x] Generate five 1280×800 English PNG screenshots from the actual verified
-      v2.4.3 package, showing the popup before, during, and after a refresh plus
+      v2.4.4 package, showing the popup before, during, and after a refresh plus
       local history and privacy settings. Human visual approval is still
       required.
 - [x] Generate the matching five Turkish 1280×800 screenshots from the same
-      verified v2.4.3 package with a Turkish browser UI locale. Human visual
+      verified v2.4.4 package with a Turkish browser UI locale. Human visual
       approval is still required.
 - [x] Generate the required 440×280 PNG promotional image from its repository
       SVG source. Human visual approval is still required.
-- [ ] Validate the 128×128 icon in the actual v2.4.3 package against current
+- [x] Validate the 128×128 icon in the actual v2.4.4 package against current
       Store guidance. Record any retained opaque padding as a known limitation.
-- [ ] Confirm the actual v2.4.3 package contains both locale catalogs and
+      The audit is written to `test-results/chrome-web-store/icon-audit.json`;
+      human visual approval is still required.
+- [ ] Confirm the actual v2.4.4 package contains both locale catalogs and
       nothing undeclared. The packaging allowlist fails closed on an undeclared
       locale, a stray file inside `_locales/`, or a missing default-locale
       catalog.
@@ -560,7 +567,7 @@ them. Dashboard-only items live in
       finishes reloading, the interface is localized with Chrome's built-in
       `chrome.i18n` using packaged static catalogs, and no remote code or
       external reporting endpoint exists.
-- [ ] The v2.4.3 package has been built and verified (filename, byte size, and
+- [ ] The v2.4.4 package has been built and verified (filename, byte size, and
       SHA-256 recorded above under Visual assets). Before upload, confirm the
       SHA-256 of the exact file being uploaded matches that recorded hash.
 - [ ] Work through [`dashboard-checklist.md`](dashboard-checklist.md) in full.

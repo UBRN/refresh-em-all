@@ -1,4 +1,4 @@
-# Manual Developer Dashboard checklist: Refresh Em All v2.4.3
+# Manual Developer Dashboard checklist: Refresh Em All v2.4.4
 
 Everything in this file lives in the Chrome Web Store Developer Dashboard or in Google's
 publisher records. **None of it can be verified from this repository**, so nothing here is
@@ -72,12 +72,15 @@ permissions, privacy behaviour) is covered in [`listing.md`](listing.md).
 - [ ] The uploaded ZIP is the exact artifact recorded in `listing.md`: confirm the filename,
       byte size, and SHA-256 before uploading. Do not upload a rebuilt or re-zipped copy
       without re-recording its hash.
-- [ ] After upload, the dashboard shows version **2.4.3**.
+- [ ] After upload, the dashboard shows version **2.4.4**.
+- [ ] The **Store icon** on the listing page is the colorful artwork. That field is not
+      uploaded separately; it is read from `manifest.json` `icons` inside the package, so a
+      stale icon there means the wrong ZIP was uploaded.
 - [ ] Reviewer notes are filled in from `listing.md` §"Submission checklist".
 
 ## 8. After the public version is live
 
-- [ ] The v2.4.3 update has finished review and is actually serving to users.
+- [ ] The v2.4.4 update has finished review and is actually serving to users.
 - [ ] Give the public version time to stabilise (no crash reports, no policy warnings, no
       spike in uninstalls) **before** nominating it for Featured.
 - [ ] Submit the Featured nomination manually through **One Stop Support** in the Developer

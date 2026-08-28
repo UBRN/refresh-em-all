@@ -1,26 +1,26 @@
 # Chrome Web Store visual assets
 
-These files are reviewable listing inputs for Refresh Em All v2.4.3. They are
+These files are reviewable listing inputs for Refresh Em All v2.4.4. They are
 not part of the extension runtime package and must not be added to the package
 allowlist in `scripts/package-extension.js`.
 
 ## Provenance
 
-The screenshots are captured from `refresh-em-all-v2.4.3.zip` (144,398 bytes)
+The screenshots are captured from `refresh-em-all-v2.4.4.zip` (129,691 bytes)
 after requiring this SHA-256:
 
 ```text
-30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a
+641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0
 ```
 
-Each capture run also asserts that the loaded extension reports version 2.4.3
+Each capture run also asserts that the loaded extension reports version 2.4.4
 and that the popup's resolved `@@ui_locale` matches the requested `--locale`,
 so a localized set cannot silently be a copy of another language.
 
 The capture script safely extracts the ZIP into a temporary directory, loads
 only that directory in an isolated Chrome for Testing profile, uses neutral
 localhost fixtures, and removes the profile and extracted files afterward.
-The Store icon inside the package remains unchanged.
+The capture does not touch the Store icon inside the package.
 
 ## Capture viewport
 
@@ -52,18 +52,18 @@ Use Node.js 24 and the locked dependencies:
 ```bash
 npm ci --legacy-peer-deps
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.3.zip \
-  --sha256 30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a \
-  --expect-version 2.4.3 --locale en
+  --zip /absolute/path/to/refresh-em-all-v2.4.4.zip \
+  --sha256 641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0 \
+  --expect-version 2.4.4 --locale en
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.3.zip \
-  --sha256 30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a \
-  --expect-version 2.4.3 --locale tr
+  --zip /absolute/path/to/refresh-em-all-v2.4.4.zip \
+  --sha256 641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0 \
+  --expect-version 2.4.4 --locale tr
 npm run store-assets:promo
 npm run store-assets:verify -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.3.zip \
-  --sha256 30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a \
-  --expect-version 2.4.3
+  --zip /absolute/path/to/refresh-em-all-v2.4.4.zip \
+  --sha256 641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0 \
+  --expect-version 2.4.4
 ```
 
 Generated diagnostics and downscaled review copies are written beneath
@@ -92,7 +92,9 @@ both 1280×800 and 640×400, and review the promo at both 440×280 and 220×140.
 
 ## Deferred icon improvement
 
-The packaged 128×128 Store icon is a valid PNG with exact dimensions, but its
-padding is opaque rather than transparent. It is intentionally unchanged for
-v2.1.0. Any future transparent-padding correction must be a separately scoped
-package version and must not replace an already published ZIP.
+v2.4.4 points `manifest.json` `icons` at the colorful set, so the packaged
+Store icon is now `assets/icon-refresh-em-colorful-128.png`, the artwork the
+toolbar already used. It is a valid PNG with exact dimensions, but its padding
+is opaque rather than transparent. Any future transparent-padding correction
+must be a separately scoped package version and must not replace an already
+published ZIP.
