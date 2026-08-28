@@ -1,6 +1,6 @@
 {
   "name": "refresh-em-all",
-  "version": "2.4.2",
+  "version": "2.4.3",
   "description": "Reload all accessible tabs in every window while bypassing the local cache and preserving supported media state.",
   "main": "background.js",
   "scripts": {

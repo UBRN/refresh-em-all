@@ -483,21 +483,17 @@ The listing assets and their reproducible sources live under
 are not included in the extension package.
 
 The icon record below is historical v2.1.0 evidence only and does not verify
-the v2.4.2 submission package's icon. The screenshot records below are v2.4.1
-evidence: they were captured from `refresh-em-all-v2.4.1.zip` (130,215 bytes,
-SHA-256 `372f7e2712b7d0f80870b39936e803c827876dc1546ca7ccea1d8b2fc23a93fc`) and
-predate the v2.4.2 artifact recorded below. They were not recaptured for
-v2.4.2, so a publisher who considers the popup's appearance changed since
-v2.4.1 should recapture them before upload. The submission artifact was
-rebuilt from this working tree and recorded as follows:
+the v2.4.3 submission package's icon. The screenshots are current: all ten were
+recaptured for v2.4.3 from the artifact recorded below. The v2.4.1 set they
+replace was stale, because v2.4.2 rethemed the popup. The submission artifact
+was rebuilt from this working tree and recorded as follows:
 
-- **ZIP filename:** `refresh-em-all-v2.4.2.zip`
-- **Byte size:** 143393 bytes
+- **ZIP filename:** `refresh-em-all-v2.4.3.zip`
+- **Byte size:** 144398 bytes
 - **SHA-256:**
-  `df32254a9679c83225709c7fcd9459935d9960a473f7bbb1964c1eca7c437f51`
-- All ten 1280×800 screenshots were captured from the v2.4.1 package described
-  above, not the v2.4.2 artifact, after the capture script verified its hash
-  and reported version; they were not recaptured for this release.
+  `30294f1646c66cd74d29a1382c30a37f81d64cce935d7a07bdc3e8c8ea6db86a`
+- All ten 1280×800 screenshots were captured from the v2.4.3 package described
+  above, after the capture script verified its hash and reported version.
   - English: `assets/screenshots/*.png` (5 files)
   - Turkish: `assets/screenshots/tr/*.png` (5 files)
 - Each capture run also asserts the popup's resolved `@@ui_locale` matches the
@@ -507,9 +503,13 @@ rebuilt from this working tree and recorded as follows:
   settings states using neutral localhost fixtures and an isolated browser
   profile. Browser chrome, URLs, personal data, local paths, DevTools,
   automation banners, and test identifiers are excluded.
-- Measured popup geometry is identical in both locales at 372×217–349 CSS px
-  inside a 640×400 viewport, with no horizontal overflow, so the longer Turkish
-  strings fit the 350 px popup without clipping.
+- The capture viewport is 1024×640 CSS px at a 1.25 device scale factor, which
+  is exactly the 1280×800 the Store requires. It was widened from 880×550 for
+  v2.4.3 because the rethemed popup is 589 CSS px tall and no longer fitted the
+  old frame. Both locales fit without clipping or horizontal overflow.
+- The capture pins `prefers-color-scheme: light`. The popup gained a dark theme
+  in v2.4.2, and on a runner reporting dark it rendered near-white text onto the
+  capture's white card, which produced illegible screenshots.
 - The required 440×280 promotional PNG is rendered from a self-contained SVG
   source with repository-local tooling and no external fonts or images.
 - The packaged 128×128 icon remains unchanged for v2.1.0. Its opaque padding is
@@ -525,18 +525,18 @@ Repository-verifiable items are ticked only where this release actually verified
 them. Dashboard-only items live in
 [`dashboard-checklist.md`](dashboard-checklist.md) and are **not** ticked here.
 
-- [ ] Generate five 1280×800 English PNG screenshots from the actual verified
-      v2.4.2 package, showing the popup before, during, and after a refresh plus
+- [x] Generate five 1280×800 English PNG screenshots from the actual verified
+      v2.4.3 package, showing the popup before, during, and after a refresh plus
       local history and privacy settings. Human visual approval is still
       required.
-- [ ] Generate the matching five Turkish 1280×800 screenshots from the same
-      verified v2.4.2 package with a Turkish browser UI locale. Human visual
+- [x] Generate the matching five Turkish 1280×800 screenshots from the same
+      verified v2.4.3 package with a Turkish browser UI locale. Human visual
       approval is still required.
 - [x] Generate the required 440×280 PNG promotional image from its repository
       SVG source. Human visual approval is still required.
-- [ ] Validate the 128×128 icon in the actual v2.4.2 package against current
+- [ ] Validate the 128×128 icon in the actual v2.4.3 package against current
       Store guidance. Record any retained opaque padding as a known limitation.
-- [ ] Confirm the actual v2.4.2 package contains both locale catalogs and
+- [ ] Confirm the actual v2.4.3 package contains both locale catalogs and
       nothing undeclared. The packaging allowlist fails closed on an undeclared
       locale, a stray file inside `_locales/`, or a missing default-locale
       catalog.

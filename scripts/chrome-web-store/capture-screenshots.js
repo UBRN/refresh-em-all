@@ -164,6 +164,10 @@ async function createFixtureServer() {
 }
 
 async function applyCapturePresentation(page) {
+  // The popup gained a prefers-color-scheme dark theme, and the framing below
+  // forces a white card. Without pinning the scheme, a runner that reports dark
+  // renders near-white text on that white card and the shots ship illegible.
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
   await page.addStyleTag({ content: `
     html {
       width: 100%;
@@ -200,15 +204,15 @@ async function applyCapturePresentation(page) {
 
 async function capture(page, screenshotDirectory, filename) {
   await applyCapturePresentation(page);
-  await page.mouse.move(10, 540);
+  await page.mouse.move(10, 630);
   const layout = await page.evaluate(() => ({
     bodyWidth: document.body.getBoundingClientRect().width,
     bodyHeight: document.body.getBoundingClientRect().height,
     scrollWidth: document.documentElement.scrollWidth,
     scrollHeight: document.documentElement.scrollHeight
   }));
-  if (layout.bodyWidth > 860 || layout.bodyHeight > 540) {
-    throw new Error(`Popup does not fit the 880x550 capture viewport: ${JSON.stringify(layout)}`);
+  if (layout.bodyWidth > 1004 || layout.bodyHeight > 630) {
+    throw new Error(`Popup does not fit the 1024x640 capture viewport: ${JSON.stringify(layout)}`);
   }
   await page.screenshot({
     path: path.join(screenshotDirectory, filename),
@@ -369,7 +373,7 @@ async function main() {
     browser = await puppeteer.launch({
       headless: false,
       userDataDir: userDataDirectory,
-      defaultViewport: { width: 880, height: 550, deviceScaleFactor: 1.4545454545454546 },
+      defaultViewport: { width: 1024, height: 640, deviceScaleFactor: 1.25 },
       env: { ...process.env, TZ: 'UTC', LANG: locale === 'en' ? 'en_US.UTF-8' : `${locale}_${locale.toUpperCase()}.UTF-8` },
       args: [
         `--disable-extensions-except=${extensionPath}`,
@@ -378,7 +382,7 @@ async function main() {
         // instead, so the app's NSUserDefaults language list has to be overridden there.
         `--lang=${locale}`,
         ...(process.platform === 'darwin' ? ['-AppleLanguages', `(${locale})`] : []),
-        '--window-size=880,550',
+        '--window-size=1024,640',
         '--disable-background-networking',
         '--disable-component-update',
         '--disable-default-apps',
@@ -390,7 +394,7 @@ async function main() {
     const extensionId = extensionIdForPath(extensionPath);
     const initialPages = await browser.pages();
     let popup = initialPages[0] || await browser.newPage();
-    await popup.setViewport({ width: 880, height: 550, deviceScaleFactor: 1.4545454545454546 });
+    await popup.setViewport({ width: 1024, height: 640, deviceScaleFactor: 1.25 });
     await popup.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
     const attachPopupDiagnostics = targetPage => {
       targetPage.on('pageerror', error => diagnostics.popupErrors.push(error.message));
@@ -435,7 +439,7 @@ async function main() {
 
     await popup.close();
     popup = await browser.newPage();
-    await popup.setViewport({ width: 880, height: 550, deviceScaleFactor: 1.4545454545454546 });
+    await popup.setViewport({ width: 1024, height: 640, deviceScaleFactor: 1.25 });
     attachPopupDiagnostics(popup);
     await popup.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
 
@@ -484,8 +488,8 @@ async function main() {
         extensionId,
         locale: runtimeLocale,
         timezone: 'UTC',
-        viewportCss: { width: 880, height: 550 },
-        deviceScaleFactor: 1.4545454545454546,
+        viewportCss: { width: 1024, height: 640 },
+        deviceScaleFactor: 1.25,
         outputPixels: { width: 1280, height: 800 }
       },
       fixture: {
