@@ -30,11 +30,11 @@ function renderPopupDom() {
     <div id="statsContainer" style="display:none">
       <button id="statsHeader" aria-expanded="false"></button>
       <div id="statsContent" style="display:none">
-        <div id="statsToday"></div>
-        <div id="statsLastRun"></div>
-        <div id="statsWeek"></div>
-        <div id="statsMonth"></div>
-        <div id="statsTotal"></div>
+        <div id="statsTotal" class="stat-hero"></div>
+        <div id="statsToday" class="stat-row"></div>
+        <div id="statsLastRun" class="stat-row"></div>
+        <div id="statsWeek" class="stat-row"></div>
+        <div id="statsMonth" class="stat-row"></div>
         <p id="statsAccessHint" class="privacy-info" style="display:none"></p>
         <p id="statsNote" class="privacy-info"></p>
       </div>
@@ -411,6 +411,37 @@ describe('Popup controller', () => {
     jest.useRealTimers();
   });
 
+  test.each([
+    [
+      'skipped tabs',
+      { totalTabs: 3, processedTabs: 3, successfulTabs: 2, failedCount: 0, skippedCount: 1 },
+      true
+    ],
+    [
+      'cancellation',
+      { totalTabs: 3, processedTabs: 2, successfulTabs: 2, failedCount: 0, skippedCount: 0, cancelled: true },
+      false
+    ],
+    [
+      'failures',
+      { totalTabs: 3, processedTabs: 3, successfulTabs: 2, failedCount: 1, skippedCount: 0 },
+      false
+    ]
+  ])('shows confetti only after a failure-free completion with %s', (_case, details, expected) => {
+    jest.useFakeTimers();
+    const onMessage = executePopupJs();
+
+    onMessage({ action: 'refreshComplete', success: expected, details });
+
+    expect(document.querySelectorAll('#confetti .confetti-piece').length > 0).toBe(expected);
+    if (details.skippedCount > 0) {
+      expect(document.getElementById('statusText').textContent).toBe(
+        chrome.i18n.getMessage('statusCompleteSkipped', ['2', '1'])
+      );
+    }
+    jest.useRealTimers();
+  });
+
   test('one click expands a section hidden by the stylesheet, not two', () => {
     // Production hides these sections through popup.html's stylesheet, not an inline
     // style. The DOM stub above hides them inline, which masks the real starting state,
@@ -477,16 +508,16 @@ describe('Popup controller', () => {
     });
 
     expect(document.getElementById('statsContainer').style.display).toBe('block');
-    expect(document.getElementById('statsToday').textContent)
-      .toBe('Today: at least 2.0 KB');
-    expect(document.getElementById('statsLastRun').textContent)
-      .toBe('Last reload: at least 1.5 KB');
-    expect(document.getElementById('statsWeek').textContent)
-      .toBe('Last 7 days: at least 9.0 KB');
-    expect(document.getElementById('statsMonth').textContent)
-      .toBe('Last 30 days: at least 10.0 KB');
-    expect(document.getElementById('statsTotal').textContent)
-      .toBe('All time: at least 10.0 MB');
+    expect(document.querySelector('#statsToday .stat-label').textContent).toBe('Today');
+    expect(document.querySelector('#statsToday .stat-value').textContent).toBe('at least 2.0 KB');
+    expect(document.querySelector('#statsLastRun .stat-label').textContent).toBe('Last reload');
+    expect(document.querySelector('#statsLastRun .stat-value').textContent).toBe('at least 1.5 KB');
+    expect(document.querySelector('#statsWeek .stat-label').textContent).toBe('Last 7 days');
+    expect(document.querySelector('#statsWeek .stat-value').textContent).toBe('at least 9.0 KB');
+    expect(document.querySelector('#statsMonth .stat-label').textContent).toBe('Last 30 days');
+    expect(document.querySelector('#statsMonth .stat-value').textContent).toBe('at least 10.0 KB');
+    expect(document.querySelector('#statsTotal .stat-label').textContent).toBe('All time');
+    expect(document.querySelector('#statsTotal .stat-value').textContent).toBe('at least 10.0 MB');
     jest.useRealTimers();
   });
 

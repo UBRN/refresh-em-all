@@ -16,66 +16,86 @@
             --space-2: 8px;
             --space-3: 12px;
             --space-4: 16px;
-            --radius-sm: 4px;
-            --radius-md: 6px;
+            --space-5: 20px;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
             --radius-pill: 999px;
+            --dur: 150ms;
+            --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+            --text-xs: 12px;
+            --text-sm: 12px;
+            --text-base: 13px;
+            --text-md: 15px;
+            --text-hero: 22px;
 
             --bg: #ffffff;
-            --surface: #f5f7fa;
-            --surface-alt: #f0f0f0;
-            --border: #dddddd;
-            --border-subtle: #eeeeee;
-            --text: #202124;
-            --text-muted: #5f6368;
-            --accent: #1558d6;
-            --accent-hover: #0f3f9e;
-            --accent-active: #0b3b8c;
+            --surface: #f7f8fa;
+            --surface-alt: #eceff4;
+            --border: #e2e5ea;
+            --border-subtle: #eef0f3;
+            --text: #16181d;
+            --text-muted: #666c78;
+            --accent: #2563eb;
+            --accent-hover: #1d4fd8;
+            --accent-active: #1a44bb;
+            --accent-soft: #eff4ff;
             --accent-text: #ffffff;
-            --disabled-bg: #f0f0f0;
-            --disabled-text: #5f6368;
-            --success: #137333;
-            --danger: #c5221f;
-            --danger-bg: #ffebee;
+            --disabled-bg: #eceff4;
+            --disabled-text: #8b919c;
+            --success: #0f7a3d;
+            --success-soft: #e7f6ed;
+            --danger: #c62828;
+            --danger-bg: #fdecec;
+            --shadow-sm: 0 1px 2px rgba(16, 18, 22, 0.06), 0 1px 3px rgba(16, 18, 22, 0.05);
+            --shadow-md: 0 2px 6px rgba(16, 18, 22, 0.10), 0 4px 12px rgba(16, 18, 22, 0.06);
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
-                --bg: #202124;
-                --surface: #292a2d;
-                --surface-alt: #35363a;
-                --border: #3c4043;
-                --border-subtle: #303134;
-                --text: #e8eaed;
-                --text-muted: #9aa0a6;
-                --accent: #8ab4f8;
-                --accent-hover: #aecbfa;
-                --accent-active: #c3ddfd;
-                --accent-text: #202124;
-                --disabled-bg: #35363a;
-                --disabled-text: #9aa0a6;
-                --success: #81c995;
-                --danger: #f28b82;
-                --danger-bg: #3b1f1e;
+                --bg: #1a1b1e;
+                --surface: #232529;
+                --surface-alt: #2c2f35;
+                --border: #34383f;
+                --border-subtle: #292c31;
+                --text: #e9ebef;
+                --text-muted: #9aa1ac;
+                --accent: #7ea6ff;
+                --accent-hover: #9cbcff;
+                --accent-active: #b8d0ff;
+                --accent-soft: #1e2635;
+                --accent-text: #14161a;
+                --disabled-bg: #2c2f35;
+                --disabled-text: #767c87;
+                --success: #6ed08f;
+                --success-soft: #16281d;
+                --danger: #f2837c;
+                --danger-bg: #331d1d;
+                --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+                --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
             }
         }
 
         body {
-            width: 350px;
+            width: 360px;
             height: auto;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: stretch;
             justify-content: flex-start;
+            margin: 0;
+            padding: var(--space-3);
             background: var(--bg);
             color: var(--text);
             font-family: var(--font-sans);
-            padding: var(--space-3);
+            font-size: var(--text-base);
+            line-height: 1.45;
         }
 
         .header {
             display: flex;
             align-items: center;
-            margin-bottom: var(--space-4);
+            margin-bottom: var(--space-2);
         }
 
         .header img {
@@ -84,92 +104,151 @@
             margin-right: var(--space-3);
         }
 
+        h2 {
+            margin: 0;
+            font-size: var(--text-md);
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
         button {
-            padding: var(--space-3) var(--space-4);
-            font-size: 14px;
-            cursor: pointer;
-            background-color: var(--accent);
-            color: var(--accent-text);
-            border: none;
-            border-radius: var(--radius-sm);
-            transition: background-color 0.3s;
             position: relative;
             overflow: hidden;
+            padding: var(--space-2) var(--space-4);
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm);
+            background-color: var(--accent);
+            color: var(--accent-text);
+            font-family: inherit;
+            font-size: var(--text-base);
+            cursor: pointer;
+            transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
         }
 
         button:hover {
             background-color: var(--accent-hover);
         }
 
-        button:disabled {
-            background-color: var(--disabled-bg);
-            color: var(--disabled-text);
-            cursor: not-allowed;
-        }
-
         .action-buttons {
             display: flex;
+            width: 100%;
+            justify-content: flex-start;
             gap: var(--space-2);
-            flex-wrap: wrap;
-            justify-content: center;
+        }
+
+        #refreshAll {
+            flex: 1;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            box-shadow: var(--shadow-sm);
+        }
+
+        #refreshAll:hover:not(:disabled) {
+            box-shadow: var(--shadow-md);
+        }
+
+        #refreshAll:active:not(:disabled) {
+            transform: translateY(1px);
+            background-color: var(--accent-active);
+        }
+
+        .refresh-explanation,
+        .privacy-info,
+        .history-entry {
+            color: var(--text-muted);
+            font-size: var(--text-sm);
+            line-height: 1.35;
         }
 
         .refresh-explanation {
             margin: var(--space-2) 0 0;
-            color: var(--text-muted);
-            font-size: 12px;
-            line-height: 1.4;
-            text-align: center;
+            text-align: left;
+        }
+
+        #cancelRefresh,
+        #grantAccess,
+        #resetStats {
+            background: var(--surface-alt);
+            color: var(--text);
+            border-color: var(--border);
+            box-shadow: none;
+        }
+
+        #cancelRefresh:hover,
+        #grantAccess:hover,
+        #resetStats:hover {
+            background: var(--border);
+        }
+
+        button:disabled {
+            background-color: var(--disabled-bg);
+            color: var(--disabled-text);
+            cursor: not-allowed;
+            box-shadow: none;
         }
 
         #cancelRefresh {
             display: none;
-            background-color: var(--text-muted);
         }
 
         #loadingContainer {
-            width: 100%;
-            margin-top: var(--space-4);
             display: none;
+            width: 100%;
+            margin-top: var(--space-3);
         }
 
         #progressBar {
             width: 100%;
-            height: 10px;
-            background-color: var(--surface-alt);
-            border-radius: var(--radius-md);
+            height: 6px;
+            margin-bottom: var(--space-2);
             overflow: hidden;
-            margin-bottom: var(--space-3);
+            border-radius: var(--radius-pill);
+            background: var(--surface-alt);
         }
 
         #progressFill {
-            height: 100%;
             width: 0%;
+            height: 100%;
+            border-radius: var(--radius-pill);
             background-color: var(--accent);
-            border-radius: var(--radius-md);
             transition: width 75ms linear;
         }
 
         #tabsContainer {
-            width: 100%;
             display: flex;
+            width: 100%;
             flex-wrap: wrap;
             justify-content: flex-start;
             gap: var(--space-2);
-            margin-top: var(--space-3);
+            margin-top: var(--space-2);
         }
 
         .tab-item {
             position: relative;
+            display: flex;
+            box-sizing: border-box;
             width: 30px;
             height: 30px;
-            background-color: var(--surface-alt);
-            border-radius: var(--radius-sm);
-            display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+        }
+
+        .tab-item:has(.tab-success[style*="display: block"]) {
+            border-color: var(--success);
+            background: var(--success-soft);
+        }
+
+        .tab-item:has(.tab-error[style*="display: block"]) {
+            border-color: var(--danger);
+            background: var(--danger-bg);
+        }
+
+        .tab-item:has(.tab-skipped[style*="display: block"]) {
+            opacity: 0.6;
         }
 
         .tab-item img {
@@ -179,10 +258,7 @@
 
         .tab-status {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -197,103 +273,123 @@
             animation: spin 1s linear infinite;
         }
 
+        .tab-success,
+        .tab-error,
+        .tab-skipped {
+            display: none;
+            animation: fadeIn var(--dur) var(--ease);
+        }
+
         .tab-success {
             color: var(--success);
             font-size: 18px;
-            display: none;
-            animation: fadeIn 0.15s ease;
         }
 
         .tab-error {
             color: var(--danger);
             font-size: 18px;
-            display: none;
-            animation: fadeIn 0.15s ease;
         }
 
         .tab-skipped {
             color: var(--text-muted);
             font-size: 20px;
-            display: none;
-            animation: fadeIn 0.15s ease;
         }
 
         #errorContainer {
-            width: 100%;
-            margin-top: var(--space-4);
-            padding: var(--space-3);
-            background-color: var(--danger-bg);
-            border-radius: var(--radius-sm);
             display: none;
+            box-sizing: border-box;
+            width: 100%;
+            margin-top: var(--space-2);
+            padding: var(--space-3);
+            border: 1px solid var(--danger);
+            border-radius: var(--radius-md);
+            background: var(--danger-bg);
+        }
+
+        #historyContainer,
+        #statsContainer,
+        #settingsContainer {
+            box-sizing: border-box;
+            width: 100%;
+            margin-top: var(--space-2);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
         }
 
         #historyContainer,
         #statsContainer {
-            width: 100%;
-            margin-top: var(--space-4);
             display: none;
         }
 
         #historyHeader,
-        #statsHeader {
-            margin: 0;
-        }
-
-        #historyContent,
-        #statsContent {
-            display: none;
-            width: 100%;
-            max-height: 150px;
-            overflow-y: auto;
-            border-top: 1px solid var(--border);
-            padding-top: var(--space-3);
-        }
-
-        /* Five fixed rows plus the measurement note: capping this the way the
-           ten-entry history is capped would scroll the note out of view. */
-        #statsContent {
-            max-height: none;
-            overflow-y: visible;
-        }
-
-        #settingsContainer {
-            width: 100%;
-            margin-top: var(--space-4);
-            border-top: 1px solid var(--border);
-            padding-top: var(--space-3);
-        }
-
+        #statsHeader,
         #settingsHeader {
             margin: 0;
         }
 
+        #historyContent,
+        #statsContent,
         #settingsContent {
             display: none;
+            box-sizing: border-box;
             width: 100%;
-            padding: var(--space-3) 0;
+            border-top: 1px solid var(--border);
         }
 
-        .privacy-info {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: var(--space-1);
+        #historyContent {
+            max-height: 150px;
+            overflow-y: auto;
+            padding: var(--space-1) var(--space-3);
+        }
+
+        #statsContent {
+            max-height: none;
+            overflow-y: visible;
+            padding: var(--space-1) var(--space-3);
+        }
+
+        #settingsContent {
+            padding: var(--space-1) var(--space-3);
         }
 
         .section-header {
             appearance: none;
+            display: flex;
             width: 100%;
-            padding: var(--space-1);
-            border: 0;
-            background: none;
-            color: var(--accent);
-            text-align: left;
-            font-size: 14px;
-            cursor: pointer;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-2);
+            padding: 6px var(--space-3);
             overflow: visible;
+            border: 0;
+            border-radius: 0;
+            background: none;
+            color: var(--text);
+            font-size: var(--text-base);
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .section-header::after {
+            content: "";
+            width: 0;
+            height: 0;
+            flex: none;
+            border-right: 4px solid transparent;
+            border-left: 4px solid transparent;
+            border-top: 5px solid currentColor;
+            transition: transform var(--dur) var(--ease);
+        }
+
+        .section-header[aria-expanded="true"]::after {
+            transform: rotate(180deg);
         }
 
         .section-header:hover {
-            background: var(--surface);
+            background: var(--surface-alt);
         }
 
         button:focus-visible,
@@ -306,20 +402,75 @@
             white-space: pre-wrap;
         }
 
-        .history-entry {
-            padding: var(--space-1) 0;
-            font-size: 12px;
+        .privacy-info {
+            margin: var(--space-1) 0 0;
         }
 
-        #statsContent > div {
-            font-size: 12px;
+        .history-entry {
+            padding: var(--space-1) 0;
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-2);
+            padding: var(--space-1) 0;
+        }
+
+        .stat-row:not(:last-of-type) {
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: var(--text-sm);
+        }
+
+        .stat-value {
+            color: var(--text);
+            font-size: var(--text-sm);
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .stat-hero {
+            display: block;
+            margin-bottom: var(--space-1);
+            padding: var(--space-1) var(--space-2);
+            border-radius: var(--radius-sm);
+            background: var(--accent-soft);
+        }
+
+        .stat-hero .stat-label {
+            display: block;
+            font-size: var(--text-xs);
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+
+        .stat-hero .stat-value {
+            display: block;
+            margin-top: 2px;
+            font-size: var(--text-hero);
+            font-weight: 650;
+            line-height: 1.1;
+            text-align: left;
+        }
+
+        #statsNote {
+            margin-top: var(--space-1);
+            color: var(--text-muted);
+            font-size: var(--text-xs);
+            line-height: 1.35;
         }
 
         #grantAccess,
         #resetStats {
-            font-size: 12px;
-            padding: var(--space-2) var(--space-3);
-            margin-bottom: var(--space-3);
+            padding: 6px var(--space-3);
+            margin-bottom: var(--space-2);
+            font-size: var(--text-sm);
         }
 
         .history-success {
@@ -344,11 +495,11 @@
             position: fixed;
             top: 0;
             left: 0;
+            z-index: 1000;
+            display: none;
             width: 100%;
             height: 100%;
             pointer-events: none;
-            z-index: 1000;
-            display: none;
         }
 
         .confetti-piece {
@@ -372,6 +523,10 @@
                 animation-duration: 0.01ms !important;
                 animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
+            }
+
+            #refreshAll:active:not(:disabled) {
+                transform: none;
             }
 
             #confetti {
@@ -414,11 +569,11 @@
     <div id="statsContainer">
         <button id="statsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="statsContent">Files Downloaded Again</button>
         <div id="statsContent">
-            <div id="statsToday"></div>
-            <div id="statsLastRun"></div>
-            <div id="statsWeek"></div>
-            <div id="statsMonth"></div>
-            <div id="statsTotal"></div>
+            <div id="statsTotal" class="stat-hero"></div>
+            <div id="statsToday" class="stat-row"></div>
+            <div id="statsLastRun" class="stat-row"></div>
+            <div id="statsWeek" class="stat-row"></div>
+            <div id="statsMonth" class="stat-row"></div>
             <p id="statsAccessHint" class="privacy-info" style="display: none"></p>
             <p id="statsNote" class="privacy-info"></p>
         </div>

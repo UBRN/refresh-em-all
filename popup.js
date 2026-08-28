@@ -305,8 +305,8 @@ function handleRefreshComplete(data) {
         statusText.textContent = t('statusCompleteSkipped', successfulCount, skippedCount);
     } else {
         statusText.textContent = t('statusCompleteAll', successfulCount);
-        showConfetti();
     }
+    if (!cancelled && failedCount === 0) showConfetti();
     if (failedCount > 0 || failedTabs.length > 0) showErrors();
 
     const staleBytes = Number.isFinite(details.staleBytes) ? details.staleBytes : 0;
@@ -466,6 +466,20 @@ function initializeHistory() {
     });
 }
 
+function renderStat(element, labelKey, bytes) {
+    element.textContent = '';
+
+    const label = document.createElement('span');
+    label.className = 'stat-label';
+    label.textContent = t(labelKey);
+
+    const value = document.createElement('span');
+    value.className = 'stat-value';
+    value.textContent = t('statsValueAtLeast', formatBytes(bytes));
+
+    element.append(label, value);
+}
+
 function initializeStats() {
     renderSiteAccess(siteAccessGranted);
     chrome.storage.local.get(['cacheStats'], (result) => {
@@ -495,11 +509,11 @@ function initializeStats() {
             if (offset < 7) week += value;
         }
 
-        statsToday.textContent = t('statsToday', formatBytes(today));
-        statsLastRun.textContent = t('statsLastRun', formatBytes(lastRun));
-        statsWeek.textContent = t('statsWeek', formatBytes(week));
-        statsMonth.textContent = t('statsMonth', formatBytes(month));
-        statsTotal.textContent = t('statsTotal', formatBytes(total));
+        renderStat(statsTotal, 'statsTotalLabel', total);
+        renderStat(statsToday, 'statsTodayLabel', today);
+        renderStat(statsLastRun, 'statsLastRunLabel', lastRun);
+        renderStat(statsWeek, 'statsWeekLabel', week);
+        renderStat(statsMonth, 'statsMonthLabel', month);
         measuredTotalBytes = total;
         renderSiteAccess(siteAccessGranted);
     });
