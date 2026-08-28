@@ -1,19 +1,19 @@
 # Chrome Web Store visual assets
 
-These files are reviewable listing inputs for Refresh Em All v2.4.4. They are
+These files are reviewable listing inputs for Refresh Em All v2.5.0. They are
 not part of the extension runtime package and must not be added to the package
 allowlist in `scripts/package-extension.js`.
 
 ## Provenance
 
-The screenshots are captured from `refresh-em-all-v2.4.4.zip` (129,691 bytes)
+The screenshots are captured from `refresh-em-all-v2.5.0.zip` (134,346 bytes)
 after requiring this SHA-256:
 
 ```text
-641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0
+e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7
 ```
 
-Each capture run also asserts that the loaded extension reports version 2.4.4
+Each capture run also asserts that the loaded extension reports version 2.5.0
 and that the popup's resolved `@@ui_locale` matches the requested `--locale`,
 so a localized set cannot silently be a copy of another language.
 
@@ -52,18 +52,18 @@ Use Node.js 24 and the locked dependencies:
 ```bash
 npm ci --legacy-peer-deps
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.4.zip \
-  --sha256 641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0 \
-  --expect-version 2.4.4 --locale en
+  --zip /absolute/path/to/refresh-em-all-v2.5.0.zip \
+  --sha256 e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7 \
+  --expect-version 2.5.0 --locale en
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.4.zip \
-  --sha256 641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0 \
-  --expect-version 2.4.4 --locale tr
+  --zip /absolute/path/to/refresh-em-all-v2.5.0.zip \
+  --sha256 e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7 \
+  --expect-version 2.5.0 --locale tr
 npm run store-assets:promo
 npm run store-assets:verify -- \
-  --zip /absolute/path/to/refresh-em-all-v2.4.4.zip \
-  --sha256 641f4afbafd6d2f731d36b5dca35ca2d3e8c64bcf44310d5161bd3893632a5f0 \
-  --expect-version 2.4.4
+  --zip /absolute/path/to/refresh-em-all-v2.5.0.zip \
+  --sha256 e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7 \
+  --expect-version 2.5.0
 ```
 
 Generated diagnostics and downscaled review copies are written beneath
