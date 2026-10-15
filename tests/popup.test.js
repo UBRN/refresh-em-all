@@ -562,13 +562,20 @@ describe('Popup controller', () => {
     expect($('undoReset').hidden).toBe(true);
   });
 
-  test('the Undo offer ends after six seconds', async () => {
+  test('the Undo offer is announced and ends after six seconds unless it has focus', async () => {
     executePopupJs({ cacheStats: { lastRun: 10, total: 100, days: {} } });
     await settle();
+    $('openSettings').click();
 
+    $('resetStats').focus();
     $('resetStats').click();
-    await settle(6000);
+    expect($('statusText').textContent).toBe('Statistics reset.');
+    expect(document.activeElement).toBe($('undoResetButton'));
+    await settle(12000);
+    expect($('undoReset').hidden).toBe(false);
 
+    $('back').focus();
+    await settle(6000);
     expect($('undoReset').hidden).toBe(true);
     expect($('resetStats').hidden).toBe(false);
   });
@@ -581,7 +588,7 @@ describe('Popup controller', () => {
     await settle(2000);
 
     expect($('footDone').textContent)
-      .toBe('About 2.0 KB came from copies Chrome saved earlier and will be downloaded again.');
+      .toBe('About 2.0 KB came from copies Chrome saved earlier and was downloaded again.');
 
     onMessage({ action: 'refreshStarted', tabs: tabs(1) });
     expect($('footDone').textContent).toBe('');
@@ -634,7 +641,11 @@ describe('Popup controller', () => {
     executePopupJs({ activeTab: { id: 3, title: 'Browser page', url } });
     await settle();
 
-    expect($('refreshThisTab').disabled).toBe(true);
+    // Still focusable, so the reason it describes is read out.
+    expect($('refreshThisTab').disabled).toBe(false);
+    expect($('refreshThisTab').getAttribute('aria-disabled')).toBe('true');
+    $('refreshThisTab').click();
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'startRefresh' }), expect.anything());
     expect($('thisTabSite').textContent).toBe('');
     expect($('thisTabNote').textContent).toBe('Chrome protects this page, so it cannot be reloaded from here.');
   });
@@ -643,7 +654,7 @@ describe('Popup controller', () => {
     executePopupJs({ activeTab: { id: 4, title: 'Store', url: 'https://chromewebstore.google.com/detail/x' } });
     await settle();
 
-    expect($('refreshThisTab').disabled).toBe(false);
+    expect($('refreshThisTab').getAttribute('aria-disabled')).toBe('false');
     expect($('thisTabSite').textContent).toBe('chromewebstore.google.com');
   });
 

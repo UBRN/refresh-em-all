@@ -164,7 +164,7 @@ const TEST_CASES = [
         // The real popup, not popup.html in a tab: only there is the page the user
         // looks at the active tab of the current window.
         popup = await openToolbarPopup(harness);
-        await popup.waitForSelector('#refreshThisTab:not([disabled])', { timeout: 15000 });
+        await popup.waitForSelector('#refreshThisTab:not([disabled]):not([aria-disabled="true"])', { timeout: 15000 });
         const site = await popup.$eval('#thisTabSite', element => element.textContent);
         if (site !== new URL(harness.baseUrl).hostname) throw new Error(`This-tab action names ${site}`);
 

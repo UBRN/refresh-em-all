@@ -294,7 +294,7 @@
             transition: opacity var(--d-base) var(--ease-out) 40ms, transform var(--d-medium) var(--spring-settle) 40ms, visibility 0s;
         }
 
-        .home {
+        .view.home {
             padding: 0 var(--s4) var(--s4);
         }
 
@@ -807,6 +807,7 @@
             --gap: 4px;
             display: grid;
             grid-template-columns: repeat(auto-fill, var(--dot));
+            justify-content: space-between;
             gap: var(--gap);
             align-content: start;
             max-height: 58px;
@@ -837,7 +838,7 @@
 
         .dot[data-status="skipped"] {
             background: transparent;
-            box-shadow: inset 0 0 0 1.5px var(--dot-pending);
+            box-shadow: inset 0 0 0 1.5px var(--muted);
         }
 
         .dots.static .dot {
@@ -885,6 +886,8 @@
 
         .foot > span:not(.on) {
             opacity: 0;
+            visibility: hidden;
+            transition: opacity var(--d-base) var(--ease-out), visibility 0s linear var(--d-base);
         }
 
         .foot b {
@@ -914,6 +917,17 @@
 
         .fails[hidden] {
             display: none;
+        }
+
+        /* Chrome makes these scroll areas focusable; keep their ring inside the frame. */
+        .fails:focus-visible,
+        .view.sub:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
+        }
+
+        .card h2:focus {
+            outline: none;
         }
 
         .fails li {
@@ -986,13 +1000,18 @@
             transition: background-color var(--d-fast) var(--ease-out);
         }
 
-        .ta:hover:not(:disabled) {
+        .ta:hover:not(:disabled):not([aria-disabled="true"]) {
             background: var(--accent-soft);
         }
 
-        .ta:disabled {
+        .ta:disabled,
+        .ta[aria-disabled="true"] {
             color: var(--muted);
             cursor: not-allowed;
+        }
+
+        .ta[aria-disabled="true"]:hover {
+            background: none;
         }
 
         .ta svg,
@@ -1020,6 +1039,7 @@
 
         .ta-note {
             max-width: 100%;
+            text-wrap: pretty;
             color: var(--muted);
             font-size: var(--t-sm);
             line-height: 1.35;
@@ -1094,7 +1114,7 @@
         }
 
         /* Sub views */
-        .sub {
+        .view.sub {
             padding: 0 var(--s4) var(--s4);
             overflow-y: auto;
             overscroll-behavior: contain;
@@ -1193,7 +1213,7 @@
             margin-top: 10px;
         }
 
-        .card h3 {
+        .card h2 {
             margin: 0;
             font-size: var(--t-base);
             font-weight: 600;
@@ -1427,7 +1447,7 @@
                             <p class="explain" data-i18n="refreshExplanation"></p>
                         </div>
                         <div class="v detail-ask" data-states="ask">
-                            <p class="explain" data-i18n="permissionGrantExplain"></p>
+                            <p class="explain" data-i18n="askExplain"></p>
                             <button class="btn btn-quiet" id="justRefresh" type="button" data-i18n="askSkip"></button>
                         </div>
                         <div class="v detail-run" data-states="running done stopped">
@@ -1448,7 +1468,7 @@
                                 <span class="chip bad"><i></i><b class="num" id="failedFailed">0</b><span data-i18n="chipFailed"></span></span>
                                 <span class="chip skip"><i></i><b class="num" id="failedSkipped">0</b><span data-i18n="chipSkipped"></span></span>
                             </div>
-                            <ul class="fails" id="failedList"></ul>
+                            <ul class="fails" id="failedList" data-i18n-label="failedListLabel"></ul>
                         </div>
                         <div class="v detail-tab" data-states="tab-running">
                             <div class="line"><i></i><span class="one" id="tabPageTitle"></span></div>
@@ -1458,7 +1478,7 @@
                             <p class="explain" id="tabBytes"></p>
                         </div>
                         <div class="v ta-row on" data-states="ready tab-done tab-stopped">
-                            <button class="ta" id="refreshThisTab" type="button" disabled aria-describedby="thisTabNote">
+                            <button class="ta" id="refreshThisTab" type="button" disabled aria-disabled="true" aria-describedby="thisTabNote">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10.6 8.2a2.6 2.6 0 1 1-.8-1.9"/><path d="M10.6 5.6v1.6H9"/></svg>
                                 <span class="lbl" data-i18n="refreshThisTab"></span><span class="site" id="thisTabSite"></span>
                             </button>
@@ -1506,12 +1526,12 @@
                 </div>
                 <div class="panel" data-panel="settings" hidden>
                     <div class="card">
-                        <h3><span data-i18n="settingsAccessTitle"></span><span class="pill" id="accessPill"></span></h3>
+                        <h2 id="accessHeading" tabindex="-1"><span data-i18n="settingsAccessTitle"></span><span class="pill" id="accessPill"></span></h2>
                         <p data-i18n="permissionGrantExplain"></p>
                         <button class="btn btn-quiet" id="grantAccess" type="button" data-i18n="permissionGrantAction" hidden></button>
                     </div>
                     <div class="card">
-                        <h3 data-i18n="settingsStatsTitle"></h3>
+                        <h2 data-i18n="settingsStatsTitle"></h2>
                         <p data-i18n="settingsStatsExplain"></p>
                         <button class="btn btn-danger" id="resetStats" type="button" data-i18n="statsResetAction"></button>
                         <div class="undo" id="undoReset" hidden><span data-i18n="statsResetDone"></span><button class="link" id="undoResetButton" type="button" data-i18n="actionUndo"></button></div>

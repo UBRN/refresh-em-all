@@ -135,7 +135,9 @@ async function createFixtureServer() {
     server.listen(0, '127.0.0.1', resolve);
   });
 
-  const origin = `http://127.0.0.1:${server.address().port}`;
+  // Chrome resolves example.com to this server (see --host-resolver-rules below), so the
+  // popup names a neutral site instead of a loopback address.
+  const origin = `http://example.com:${server.address().port}`;
   return {
     origin,
     url(index) {
@@ -223,39 +225,38 @@ async function capture(page, screenshotDirectory, filename) {
   return layout;
 }
 
-async function setSectionExpanded(page, headerSelector, contentSelector, expanded) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const visible = await page.$eval(
-      contentSelector,
-      element => getComputedStyle(element).display !== 'none'
-    );
-    if (visible === expanded) return;
-    await page.click(headerSelector);
-  }
-  throw new Error(`Could not set ${contentSelector} expanded=${expanded}`);
+async function openSubView(page, rowSelector) {
+  if (await page.$('#subView.on')) await page.click('#back');
+  await page.click(rowSelector);
+  await page.waitForSelector('#subView.on');
 }
 
-async function freezePopupAtProgress(page, expectedStatusFragment) {
-  return page.evaluate(fragment => new Promise((resolve, reject) => {
+// The run is fast, so the shot freezes a copy of the popup the moment its count shows
+// about half the tabs; the copy no longer changes while the screenshot is taken.
+async function freezePopupMidRun(page) {
+  return page.evaluate(() => new Promise((resolve, reject) => {
     const deadline = Date.now() + 15000;
+    const read = () => ({
+      state: document.body.dataset.state,
+      count: Number(document.querySelector('#runCount')?.textContent),
+      total: document.querySelector('#runTotal')?.textContent || '',
+      valueNow: document.querySelector('#progressBar')?.getAttribute('aria-valuenow')
+    });
     const freezeWhenReady = () => {
-      const status = document.querySelector('#statusText')?.textContent || '';
-      if (status.includes(fragment)) {
-        observer.disconnect();
+      const current = read();
+      if (current.state === 'running' && current.count >= 4 && current.count <= 6) {
         document.body.replaceWith(document.body.cloneNode(true));
-        resolve(status);
-        return true;
+        resolve(current);
+        return;
       }
       if (Date.now() > deadline) {
-        observer.disconnect();
-        reject(new Error(`Timed out waiting for progress state ${fragment}; last status: ${status}`));
+        reject(new Error(`Timed out waiting for a mid-run state; last: ${JSON.stringify(current)}`));
+      } else {
+        requestAnimationFrame(freezeWhenReady);
       }
-      return false;
     };
-    const observer = new MutationObserver(freezeWhenReady);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
     freezeWhenReady();
-  }), expectedStatusFragment);
+  }));
 }
 
 async function waitForFixturePages(browser, urls) {
@@ -343,7 +344,6 @@ async function main() {
   }
 
   const catalog = loadCatalog(locale);
-  const expectedProgressStatus = renderMessage(catalog, 'statusProgress', [4, 8, 3, 0, 1]);
   const expectedCompleteStatus = renderMessage(catalog, 'statusCompleteSkipped', [6, 2]);
   const zipPath = path.resolve(zipArgument);
   const verifiedPackage = await verifyPackage(zipPath, expectedSha, expectedVersion);
@@ -383,6 +383,8 @@ async function main() {
         `--lang=${locale}`,
         ...(process.platform === 'darwin' ? ['-AppleLanguages', `(${locale})`] : []),
         '--window-size=1024,640',
+        '--host-resolver-rules=MAP example.com 127.0.0.1',
+        '--disable-features=HttpsUpgrades',
         '--disable-background-networking',
         '--disable-component-update',
         '--disable-default-apps',
@@ -419,11 +421,21 @@ async function main() {
     await popup.reload({ waitUntil: 'domcontentloaded' });
 
     const layouts = {};
-    layouts.ready = await capture(popup, screenshotDirectory, screenshotNames.ready);
-
     const fixture = await createTabFixture(popup, fixtureServer);
     secondWindowId = fixture.secondWindowId;
     const fixturePages = await waitForFixturePages(browser, fixture.urls);
+
+    // A user opens the popup over a web page, not over the popup itself: make the first
+    // fixture tab active, load the popup behind it so it reads that tab, then show it.
+    await popup.evaluate(async firstUrl => {
+      const [tab] = await chrome.tabs.query({ url: `${firstUrl}*` });
+      await chrome.tabs.update(tab.id, { active: true });
+    }, fixture.urls[0]);
+    await popup.reload({ waitUntil: 'domcontentloaded' });
+    await popup.bringToFront();
+    await popup.waitForSelector('#refreshThisTab:not([disabled]):not([aria-disabled="true"])', { timeout: 15000 });
+    layouts.ready = await capture(popup, screenshotDirectory, screenshotNames.ready);
+
     const refreshOrder = await queryRefreshOrder(popup);
     if (refreshOrder.length !== 8) {
       throw new Error(`Expected exactly 8 tabs in the capture fixture, received ${refreshOrder.length}`);
@@ -431,10 +443,7 @@ async function main() {
     const accessibleOrder = refreshOrder.filter(tab => tab.url?.startsWith(fixtureServer.origin));
     if (accessibleOrder.length !== 6) throw new Error(`Expected 6 accessible tabs, received ${accessibleOrder.length}`);
     await popup.click('#refreshAll');
-    const frozenProgressStatus = await freezePopupAtProgress(popup, expectedProgressStatus);
-    if (!frozenProgressStatus.includes(expectedProgressStatus)) {
-      throw new Error(`Unexpected frozen progress state: ${frozenProgressStatus}`);
-    }
+    const frozenProgress = await freezePopupMidRun(popup);
     layouts.progress = await capture(popup, screenshotDirectory, screenshotNames.progress);
 
     await popup.close();
@@ -447,12 +456,13 @@ async function main() {
       () => Number(sessionStorage.storeCaptureLoads) === 2,
       { timeout: 15000 }
     )));
-    await popup.waitForFunction(expected => {
-      const status = document.querySelector('#statusText')?.textContent || '';
-      return status === expected
-        && document.querySelector('#progressFill')?.style.width === '100%';
-    }, { timeout: 20000 }, expectedCompleteStatus);
-    await new Promise(resolve => setTimeout(resolve, 3100));
+    await popup.waitForFunction(expected =>
+      document.body.dataset.state === 'done'
+        && document.querySelector('#doneTitle')?.textContent === expected
+        && document.querySelector('#progressBar')?.getAttribute('aria-valuenow') === '100',
+    { timeout: 20000 }, expectedCompleteStatus);
+    // Let the result settle and the confetti end before the shot.
+    await new Promise(resolve => setTimeout(resolve, 1800));
     layouts.complete = await capture(popup, screenshotDirectory, screenshotNames.complete);
 
     await popup.evaluate(async timestamp => {
@@ -462,12 +472,11 @@ async function main() {
       await chrome.storage.local.set({ refreshHistory });
     }, fixedHistoryTimestamp);
     await popup.reload({ waitUntil: 'domcontentloaded' });
-    await popup.waitForSelector('#historyContainer');
-    await setSectionExpanded(popup, '#historyHeader', '#historyContent', true);
+    await popup.waitForSelector('#openHistory');
+    await openSubView(popup, '#openHistory');
     layouts.history = await capture(popup, screenshotDirectory, screenshotNames.history);
 
-    await setSectionExpanded(popup, '#historyHeader', '#historyContent', false);
-    await setSectionExpanded(popup, '#settingsHeader', '#settingsContent', true);
+    await openSubView(popup, '#openSettings');
     layouts.settings = await capture(popup, screenshotDirectory, screenshotNames.settings);
 
     if (diagnostics.popupErrors.length > 0 || diagnostics.popupConsoleErrors.length > 0) {
@@ -506,7 +515,8 @@ async function main() {
       },
       locale,
       screenshotDirectory: path.relative(repositoryRoot, screenshotDirectory),
-      expectedStatusStrings: { progress: expectedProgressStatus, complete: expectedCompleteStatus },
+      frozenProgress,
+      expectedStatusStrings: { complete: expectedCompleteStatus },
       screenshots: Object.values(screenshotNames),
       layouts,
       diagnostics

@@ -250,7 +250,7 @@
     "description": "Label for the all-time measured byte total."
   },
   "statsRunLine": {
-    "message": "About $SIZE$ came from copies Chrome saved earlier and will be downloaded again.",
+    "message": "About $SIZE$ came from copies Chrome saved earlier and was downloaded again.",
     "description": "Completion line showing files measured from copies Chrome saved earlier during the latest reload.",
     "placeholders": {
       "size": {
@@ -576,5 +576,13 @@
         "example": "youtube.com"
       }
     }
+  },
+  "askExplain": {
+    "message": "With page reading allowed, videos and audio stay where you left them and the popup can measure files Chrome reused. Reloading works either way.",
+    "description": "Short explanation under the first-run question."
+  },
+  "failedListLabel": {
+    "message": "Tabs that failed",
+    "description": "Accessible name of the list of tabs that failed to reload."
   }
 }

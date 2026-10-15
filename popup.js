@@ -135,9 +135,19 @@ function setState(next) {
 }
 
 // A control that just became hidden takes keyboard focus with it; hand it to the
-// control that now sits in its place instead of dropping it on the document.
+// control that now sits in its place instead of dropping it on the document. A control
+// disabled on the way (Refresh, Cancel) may already have lost focus, so it is
+// remembered before it is disabled.
+let focusToCarry = null;
+
+function rememberFocus() {
+    if (document.activeElement?.closest?.('.slot > .v')) focusToCarry = document.activeElement;
+}
+
 function moveFocusFromHidden(previouslyFocused, target) {
-    const variant = previouslyFocused?.closest?.('.slot > .v');
+    const candidate = previouslyFocused?.closest?.('.slot > .v') ? previouslyFocused : focusToCarry;
+    focusToCarry = null;
+    const variant = candidate?.closest?.('.slot > .v');
     if (variant && !variant.classList.contains('on')) target.focus({ preventScroll: true });
 }
 
@@ -160,6 +170,7 @@ function setView(next) {
             settings: 'settingsToggle'
         }[next]);
         $('subView').scrollTop = 0;
+        announce($('subTitle').textContent);
         if (next === 'history') {
             renderHistory(!historyRevealed);
             historyRevealed = true;
@@ -177,7 +188,9 @@ function updateRunPill() {
 
 function updateControls() {
     refreshButton.disabled = initializing || activeRefreshOperation || accessRequestPending;
-    thisTabButton.disabled = refreshButton.disabled || !thisTabAvailable();
+    // Unavailable stays focusable, so the reason under it is still read out.
+    thisTabButton.disabled = refreshButton.disabled;
+    thisTabButton.setAttribute('aria-disabled', String(!thisTabAvailable()));
 }
 
 function announce(text) {
@@ -327,6 +340,8 @@ function barStart(total, stepAverage, single, done = 0) {
     bar.lastMessageAt = performance.now();
     bar.inflight = true;
     progressBar.setAttribute('aria-valuenow', String(Math.round(bar.x * 100)));
+    if (single) progressBar.removeAttribute('aria-valuetext');
+    else progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
     barRender();
     barKick();
 }
@@ -340,6 +355,7 @@ function barReal(done) {
     bar.done = Math.min(done, bar.total);
     bar.lastMessageAt = now;
     progressBar.setAttribute('aria-valuenow', String(Math.round((bar.done / bar.total) * 100)));
+    if (!bar.single) progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
     barKick();
 }
 
@@ -349,6 +365,7 @@ function barFinish(onFull) {
     bar.done = bar.total;
     bar.inflight = false;
     progressBar.setAttribute('aria-valuenow', '100');
+    if (!bar.single) progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
     if (document.visibilityState !== 'visible') {
         barHalt();
         bar.x = 1;
@@ -451,11 +468,17 @@ justRefreshButton.addEventListener('click', () => {
 
 thisTabButton.addEventListener('click', () => {
     if (activeRefreshOperation || thisTabButton.disabled || !thisTabAvailable()) return;
+    rememberFocus();
     requestRefresh(activeTab.id);
 });
 
 grantAccess.addEventListener('click', () => {
-    requestSiteAccess();
+    requestSiteAccess().then(granted => {
+        if (!granted) return;
+        // The button hides once access is granted; keep focus in the card.
+        $('accessHeading').focus({ preventScroll: true });
+        announce(t('settingsAccessOn'));
+    });
 });
 
 cancelButton.addEventListener('click', () => cancelRun(cancelButton));
@@ -468,6 +491,7 @@ function rememberAccessAsked() {
 
 function requestRefresh(tabId) {
     if (activeRefreshOperation) return;
+    rememberFocus();
     activeRefreshOperation = true;
     updateControls();
     announce(t('statusStarting'));
@@ -493,6 +517,7 @@ function requestRefresh(tabId) {
 function cancelRun(button) {
     if (!activeRefreshOperation) return;
 
+    rememberFocus();
     button.disabled = true;
     bar.inflight = false;
     trackText.textContent = t('statusCancelling');
@@ -567,7 +592,7 @@ function startRunUI(tabs, statuses, single, { live, done = 0, counts } = {}) {
     const focused = setState(single ? 'tab-running' : 'running');
     moveFocusFromHidden(focused, single ? cancelTabButton : cancelButton);
     updateControls();
-    if (live) announce(single ? t('statusThisTab') : t('statusProcessedInitial', tabs.length));
+    announce(single ? t('statusThisTab') : live ? t('statusProcessedInitial', tabs.length) : t('statusMilestone', done, tabs.length));
 }
 
 function updateProgressUI(data) {
@@ -643,7 +668,7 @@ function showResult(result, { live }) {
         next = result.single ? 'tab-stopped' : 'stopped';
     } else if (result.failed > 0 || result.failedTabs.length > 0) {
         title = t(result.failed === 1 ? 'errorFailedSummaryOne' : 'errorFailedSummaryOther', result.failed);
-        renderFailure(title, t('statusCompleteMixed', result.processed, result.total, result.reloaded, result.failed, result.skipped), result);
+        renderFailure(title, t('statusMilestone', result.processed, result.total), result);
         next = 'failed';
     } else if (result.single && result.reloaded === 0) {
         // The tab closed or turned into a browser page before its turn.
@@ -970,10 +995,21 @@ function initializeStats() {
 }
 
 function endUndoWindow() {
+    const hadFocus = undoReset.contains(document.activeElement);
     clearTimeout(undoTimer);
     savedStats = null;
     undoReset.hidden = true;
     resetStats.hidden = false;
+    if (hadFocus) resetStats.focus({ preventScroll: true });
+}
+
+// Undo stays for six seconds, and for as long as the pointer or keyboard focus is on it.
+function armUndoTimer() {
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => {
+        if (undoReset.matches(':hover') || undoReset.contains(document.activeElement)) armUndoTimer();
+        else endUndoWindow();
+    }, 6000);
 }
 
 resetStats.addEventListener('click', () => {
@@ -981,11 +1017,12 @@ resetStats.addEventListener('click', () => {
         savedStats = result.cacheStats ?? null;
     });
     chrome.storage.local.remove(['cacheStats'], initializeStats);
+    const hadFocus = document.activeElement === resetStats;
     resetStats.hidden = true;
     undoReset.hidden = false;
-    undoResetButton.focus({ preventScroll: true });
-    clearTimeout(undoTimer);
-    undoTimer = setTimeout(endUndoWindow, 6000);
+    if (hadFocus) undoResetButton.focus({ preventScroll: true });
+    announce(t('statsResetDone'));
+    armUndoTimer();
 });
 
 undoResetButton.addEventListener('click', () => {

@@ -250,7 +250,7 @@
     "description": "Label for the all-time measured byte total."
   },
   "statsRunLine": {
-    "message": "Yaklaşık $SIZE$, Chrome'un daha önce kaydettiği kopyalardan geldi ve yeniden indirilecek.",
+    "message": "Yaklaşık $SIZE$, Chrome'un daha önce kaydettiği kopyalardan geliyordu ve yeniden indirildi.",
     "description": "Completion line showing files measured from copies Chrome saved earlier during the latest reload.",
     "placeholders": {
       "size": {
@@ -576,5 +576,13 @@
         "example": "youtube.com"
       }
     }
+  },
+  "askExplain": {
+    "message": "Sayfa okumaya izin verirseniz videolar ve sesler kaldığı yerden sürer, açılır pencere Chrome'un yeniden kullandığı dosyaları ölçebilir. İzin vermeseniz de yenileme çalışır.",
+    "description": "Short explanation under the first-run question."
+  },
+  "failedListLabel": {
+    "message": "Yenilenemeyen sekmeler",
+    "description": "Accessible name of the list of tabs that failed to reload."
   }
 }
