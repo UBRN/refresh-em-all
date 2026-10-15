@@ -2,27 +2,33 @@ const instrumentedSource = require('./instrumented-source');
 
 const contentScript = instrumentedSource('content-script.js');
 
-function executeContentScript(savedState) {
+function executeContentScript(savedState, pageWindow = window) {
   sessionStorage.getItem.mockReturnValue(savedState);
   new Function(
     'document', 'window', 'chrome', 'sessionStorage', 'MutationObserver',
     contentScript
-  )(document, window, chrome, sessionStorage, global.MutationObserver);
+  )(document, pageWindow, chrome, sessionStorage, global.MutationObserver);
+}
+
+// A YouTube watch page: the player wraps a video that is already playing.
+function youTubePage(videoId) {
+  document.body.innerHTML = '<div class="html5-video-player"><video src="blob:https://www.youtube.com/new"></video></div>';
+  const video = stubMedia(document.querySelector('video'));
+  Object.defineProperty(video, 'paused', { value: false, configurable: true });
+  const pageWindow = { location: new URL(`https://www.youtube.com/watch?v=${videoId}`), addEventListener: jest.fn() };
+  return { video, pageWindow };
+}
+
+function stubMedia(element, readyState = 4) {
+  Object.defineProperty(element, 'readyState', { value: readyState, configurable: true });
+  element.pause = jest.fn();
+  element.play = jest.fn(() => Promise.resolve());
+  return element;
 }
 
 function prepareMedia() {
   document.body.innerHTML = '<video src="https://example.com/video.mp4"></video><audio></audio>';
-  const video = document.querySelector('video');
-  const audio = document.querySelector('audio');
-
-  Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
-  Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
-  video.pause = jest.fn();
-  video.play = jest.fn(() => Promise.resolve());
-  audio.pause = jest.fn();
-  audio.play = jest.fn(() => Promise.resolve());
-
-  return { video, audio };
+  return { video: stubMedia(document.querySelector('video')), audio: stubMedia(document.querySelector('audio')) };
 }
 
 describe('Content-script media restoration', () => {
@@ -85,10 +91,7 @@ describe('Content-script media restoration', () => {
 
   test('waits for metadata before restoring current time', () => {
     document.body.innerHTML = '<audio></audio>';
-    const audio = document.querySelector('audio');
-    Object.defineProperty(audio, 'readyState', { value: 0, configurable: true });
-    audio.pause = jest.fn();
-    audio.play = jest.fn(() => Promise.resolve());
+    const audio = stubMedia(document.querySelector('audio'), 0);
 
     executeContentScript(JSON.stringify({ audio_0: { paused: true, currentTime: 9 } }));
     expect(audio.currentTime).toBe(0);
@@ -103,12 +106,7 @@ describe('Content-script media restoration', () => {
       '<audio src="https://example.com/two.mp3"></audio>',
       '<audio src="https://example.com/one.mp3"></audio>'
     ].join('');
-    const [firstAudio, secondAudio] = document.querySelectorAll('audio');
-    [firstAudio, secondAudio].forEach(audio => {
-      Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
-      audio.pause = jest.fn();
-      audio.play = jest.fn(() => Promise.resolve());
-    });
+    const [firstAudio, secondAudio] = [...document.querySelectorAll('audio')].map(audio => stubMedia(audio));
 
     executeContentScript(JSON.stringify({
       audio_0: { paused: true, currentTime: 11, src: 'https://example.com/one.mp3' },
@@ -131,12 +129,10 @@ describe('Content-script media restoration', () => {
     const [firstAudio, secondAudio] = document.querySelectorAll('audio');
     const resolved = ['https://example.com/two.mp3', 'https://example.com/one.mp3'];
     [firstAudio, secondAudio].forEach((audio, index) => {
-      Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+      stubMedia(audio);
       // jsdom never runs resource selection, so currentSrc is stubbed the way a
       // real browser would report it once the <source> child is chosen.
       Object.defineProperty(audio, 'currentSrc', { value: resolved[index], configurable: true });
-      audio.pause = jest.fn();
-      audio.play = jest.fn(() => Promise.resolve());
     });
 
     executeContentScript(JSON.stringify({
@@ -152,14 +148,11 @@ describe('Content-script media restoration', () => {
 
   test('restores audio that still plays the same <source> child', () => {
     document.body.innerHTML = '<audio><source src="https://example.com/one.mp3"></audio>';
-    const audio = document.querySelector('audio');
-    Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+    const audio = stubMedia(document.querySelector('audio'));
     Object.defineProperty(audio, 'currentSrc', {
       value: 'https://example.com/one.mp3',
       configurable: true
     });
-    audio.pause = jest.fn();
-    audio.play = jest.fn(() => Promise.resolve());
 
     executeContentScript(JSON.stringify({
       audio_0: { paused: true, currentTime: 17, src: 'https://example.com/one.mp3' }
@@ -171,10 +164,7 @@ describe('Content-script media restoration', () => {
 
   test('restores audio without a current source', () => {
     document.body.innerHTML = '<audio></audio>';
-    const audio = document.querySelector('audio');
-    Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
-    audio.pause = jest.fn();
-    audio.play = jest.fn(() => Promise.resolve());
+    const audio = stubMedia(document.querySelector('audio'));
 
     executeContentScript(JSON.stringify({
       audio_0: {
@@ -186,6 +176,30 @@ describe('Content-script media restoration', () => {
 
     expect(audio.currentTime).toBe(13);
     expect(audio.pause).toHaveBeenCalled();
+  });
+
+  test.each([
+    ['the same video', 'AAA', 1200, true],
+    ['another video', 'BBB', 0, false]
+  ])('YouTube state saved on one video restores on %s only', (_case, videoId, currentTime, paused) => {
+    const { video, pageWindow } = youTubePage(videoId);
+    executeContentScript(JSON.stringify({
+      video_0: { paused: true, currentTime: 1200, src: 'blob:https://www.youtube.com/old', isYouTube: true },
+      youtube_player_state: { paused: true, videoId: 'AAA' }
+    }), pageWindow);
+
+    expect(video.currentTime).toBe(currentTime);
+    expect(video.pause.mock.calls.length > 0).toBe(paused);
+  });
+
+  test('YouTube player state leaves an unstarted video to its autoplay', () => {
+    const { video, pageWindow } = youTubePage('AAA');
+    executeContentScript(JSON.stringify({
+      video_0: { paused: true, currentTime: 0, src: 'blob:https://www.youtube.com/old', isYouTube: true },
+      youtube_player_state: { paused: true, videoId: 'AAA' }
+    }), pageWindow);
+
+    expect(video.pause).not.toHaveBeenCalled();
   });
 
   test('observes dynamically inserted media for a bounded period', () => {

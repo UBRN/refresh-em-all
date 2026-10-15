@@ -24,6 +24,7 @@
     }
 
     const restoredElements = new WeakSet();
+    const isYouTube = window.location.hostname.includes('youtube.com');
 
     function restoreProperty(media, property, value) {
         if (value === undefined) return;
@@ -52,7 +53,7 @@
     }
 
     function restoreElement(media, savedState) {
-        if (!savedState || restoredElements.has(media)) return;
+        if (restoredElements.has(media)) return;
         restoredElements.add(media);
 
         const applyState = () => {
@@ -74,61 +75,50 @@
         }
     }
 
-    // A media element that selects its resource through a <source> child reports
-    // an empty .src, so .src alone made those elements look sourceless and the
-    // mismatch guard below never ran. .currentSrc is the resolved resource, with
-    // .src as the fallback for elements whose selection has not happened yet.
-    // ponytail: an element whose resource selection has not run yet still reports
-    // both as empty and falls back to the permissive branch. Gate the match on
-    // loadedmetadata if that timing window ever proves to matter in practice.
+    // An element that picks its resource through a <source> child reports an empty .src,
+    // so use .currentSrc (the resolved resource) and fall back to .src. A <source>-child
+    // element whose resource selection has not run yet has both empty and is restored
+    // without the source check.
     function mediaSource(media) {
         return media.currentSrc || media.src;
     }
 
+    // YouTube reuses one video element for every video, so its saved state applies only
+    // while the page still shows the video it was saved from.
+    function sameYouTubeVideo() {
+        const currentVideoId = new URLSearchParams(window.location.search).get('v')
+            || window.location.pathname.split('/').pop();
+        return mediaStates.youtube_player_state?.videoId === currentVideoId;
+    }
+
     function restoreMedia() {
-        try {
-            document.querySelectorAll('video').forEach((video, index) => {
-                const savedState = mediaStates[`video_${index}`];
+        for (const kind of ['video', 'audio']) {
+            document.querySelectorAll(kind).forEach((media, index) => {
+                const savedState = mediaStates[`${kind}_${index}`];
                 if (!savedState) return;
 
-                const isYouTube = window.location.hostname.includes('youtube.com');
-                const source = mediaSource(video);
+                const source = mediaSource(media);
+                // Only video states carry isYouTube.
                 const sourceMatches = !source
                     || source === savedState.src
-                    || (isYouTube && savedState.isYouTube);
+                    || (isYouTube && savedState.isYouTube && sameYouTubeVideo());
 
                 if (sourceMatches) {
-                    restoreElement(video, savedState);
+                    restoreElement(media, savedState);
                 }
             });
-
-            document.querySelectorAll('audio').forEach((audio, index) => {
-                const savedState = mediaStates[`audio_${index}`];
-                if (!savedState) return;
-
-                const source = mediaSource(audio);
-                const sourceMatches = !source || source === savedState.src;
-
-                if (sourceMatches) {
-                    restoreElement(audio, savedState);
-                }
-            });
-
-            restoreYouTubePlayerState();
-        } catch (error) {
-            console.error('[Refresh Em All] Unable to restore media state:', error);
         }
+
+        restoreYouTubePlayerState();
     }
 
     function restoreYouTubePlayerState() {
-        if (!window.location.hostname.includes('youtube.com')) return;
+        if (!isYouTube) return;
 
         const savedState = mediaStates.youtube_player_state;
-        if (!savedState || !savedState.paused) return;
-
-        const currentVideoId = new URLSearchParams(window.location.search).get('v')
-            || window.location.pathname.split('/').pop();
-        if (savedState.videoId !== currentVideoId) return;
+        if (!savedState || !savedState.paused || !sameYouTubeVideo()) return;
+        // Paused at the very start means the user never played it; see restorePlayback.
+        if (!(Number(mediaStates.video_0?.currentTime) > 0)) return;
 
         const player = document.querySelector('.html5-video-player');
         const video = player?.querySelector('video');

@@ -24,6 +24,7 @@ function renderPopupDom() {
 function executePopupJs({
   operationState = { active: false },
   history = [],
+  retryTabIds,
   cacheStats,
   siteAccess = true,
   mediaAccessAsked = true,
@@ -54,6 +55,9 @@ function executePopupJs({
   chrome.storage.local.remove.mockImplementation((keys, callback) => {
     keys.forEach(key => delete storage[key]);
     callback?.();
+  });
+  chrome.storage.session.get.mockImplementation((keys, callback) => {
+    callback(retryTabIds === undefined ? {} : { retryTabIds });
   });
   chrome.tabs.query.mockImplementation(query => Promise.resolve(
     query.active || !openTabs ? (activeTab ? [activeTab] : []) : openTabs

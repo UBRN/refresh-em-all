@@ -127,32 +127,6 @@
       }
     }
   },
-  "statusCompleteMixed": {
-    "message": "$TOTAL$ sekmeden $PROCESSED$ tanesi bitti: $REFRESHED$ yenilendi, $FAILED$ başarısız, $SKIPPED$ atlandı.",
-    "description": "Final status when at least one tab failed.",
-    "placeholders": {
-      "processed": {
-        "content": "$1",
-        "example": "8"
-      },
-      "total": {
-        "content": "$2",
-        "example": "8"
-      },
-      "refreshed": {
-        "content": "$3",
-        "example": "6"
-      },
-      "failed": {
-        "content": "$4",
-        "example": "1"
-      },
-      "skipped": {
-        "content": "$5",
-        "example": "1"
-      }
-    }
-  },
   "statusCompleteSkipped": {
     "message": "$REFRESHED$ sekme yenilendi, $SKIPPED$ sekme atlandı.",
     "description": "Final status when nothing failed but some tabs were skipped.",
@@ -161,6 +135,16 @@
         "content": "$1",
         "example": "6"
       },
+      "skipped": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "statusCompleteSkippedOne": {
+    "message": "1 sekme yenilendi, $SKIPPED$ sekme atlandı.",
+    "description": "Final status when one tab reloaded and some tabs were skipped.",
+    "placeholders": {
       "skipped": {
         "content": "$2",
         "example": "2"
@@ -180,10 +164,6 @@
   "statusInterrupted": {
     "message": "Son yenileme tamamlanmadan durdu.",
     "description": "Status shown when a refresh did not finish before the worker stopped."
-  },
-  "errorInterruptedTitle": {
-    "message": "Yenileme durdu",
-    "description": "Error box heading for an interrupted refresh."
   },
   "errorInterruptedDetail": {
     "message": "Hazır olduğunuzda yeniden başlatın.",
@@ -253,28 +233,6 @@
       }
     }
   },
-  "historyEntrySummary": {
-    "message": "$TOTAL$ sekmeden $REFRESHED$ tanesi yenilendi; $FAILED$ başarısız, $SKIPPED$ atlandı",
-    "description": "History line for a completed refresh.",
-    "placeholders": {
-      "refreshed": {
-        "content": "$1",
-        "example": "6"
-      },
-      "total": {
-        "content": "$2",
-        "example": "8"
-      },
-      "failed": {
-        "content": "$3",
-        "example": "0"
-      },
-      "skipped": {
-        "content": "$4",
-        "example": "2"
-      }
-    }
-  },
   "statsToggle": {
     "message": "Yeniden İndirilen Dosyalar",
     "description": "Button that expands the locally measured saved-file figures."
@@ -322,7 +280,7 @@
     "description": "Button that requests permission to read refreshed pages for best-effort media restoration and saved-file measurement."
   },
   "permissionGrantExplain": {
-    "message": "Bu isteğe bağlı izin, Refresh Em All'un yenilediğiniz sayfaları okumasını sağlar. Uzantı bu izni videoları ve sesleri elinden geldiğince bıraktığınız yerde tutmak ve Chrome'un kayıtlı kopyalardan sunduğu dosyaları ölçmek için kullanır. İzin vermeseniz de sekmeler yenilenir.",
+    "message": "Bu isteğe bağlı izin, Refresh Em All'un yenilediğiniz sayfaları okumasını sağlar. Uzantı bu izni videoları ve sesleri elinden geldiğince bıraktığınız yerde tutmak, tümü yenilenirken yazı girilmiş sekmelere dokunmamak ve Chrome'un kayıtlı kopyalardan sunduğu dosyaları ölçmek için kullanır. İzin vermezseniz yazı girilmiş olanlar dahil her sekme yenilenir.",
     "description": "Explanation shown beside the optional page-reading permission button."
   },
   "statsAccessHint": {
@@ -474,8 +432,8 @@
     "description": "Line under the completion title."
   },
   "doneSubSkipped": {
-    "message": "Tarayıcı sayfalarını uzantılar yenileyemez.",
-    "description": "Line under the completion title when browser pages were skipped."
+    "message": "Tarayıcı sayfaları ve yenileme sırasında kapanan sekmeler atlandı.",
+    "description": "Line under the completion title when tabs were skipped because they were browser pages or closed during the reload."
   },
   "doneSubUnsaved": {
     "message": "Kaydedilmemiş yazı olan sekmelere dokunulmadı.",
@@ -636,7 +594,7 @@
     }
   },
   "askExplain": {
-    "message": "Videolar kaldığı yerden sürer, yeniden indirilen dosyalar ölçülür. Chrome ardından tüm sitelerdeki verileri okuma uyarısını gösterir; uzantı izni yalnız bunlar için kullanır, hiçbir şey göndermez. İzin vermeseniz de yenileme çalışır.",
+    "message": "Videolar kaldığı yerden sürer, tümü yenilenirken yazı girilmiş sekmeler atlanır, yeniden indirilen dosyalar ölçülür. Chrome tüm sitelerdeki verileri okuma uyarısı gösterir; uzantı izni yalnız bunlar için kullanır, hiçbir şey göndermez. İzin yoksa yazı girilmiş sekmeler de yenilenir.",
     "description": "Short explanation under the first-run question."
   },
   "failedListLabel": {

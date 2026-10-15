@@ -20,7 +20,6 @@ const RUNTIME_FILES = [
     'content-script.js',
     'popup.html',
     'popup.js',
-    'favicon.png',
     'favicon.svg',
     'assets/icon-16.png',
     'assets/icon-32.png',

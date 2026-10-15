@@ -37,6 +37,8 @@ let singleTabRun = false;
 let runIncognito = false;
 // True until this worker has read the run a previous worker may have left unfinished.
 let interruptedRunPending = false;
+// The window kind of a cancel that arrived while that read was pending, or null.
+let cancelRequestedIncognito = null;
 let hasSiteAccess = false;
 
 // Tabs the extension just reloaded that are still waiting for media restoration.
@@ -51,6 +53,9 @@ const MAX_RETRIES = 2; // Number of retries for failed tab refreshes
 const BATCH_INTERVAL = 250; // ms between batches
 const MAX_LOADING_WAIT_MS = 10000;
 const MAX_TAB_REFRESH_MS = 30000;
+// Sleeping tabs stay awake until they finish loading. Past this many, the next batch waits.
+const MAX_WAKING_TABS = 12;
+let wakingTabs = 0;
 // A page that never answers the media capture still gets reloaded, just without it.
 const MEDIA_CAPTURE_TIMEOUT_MS = 3000;
 // Chrome closes the popup when the tab under it reloads, so the toolbar badge
@@ -160,6 +165,15 @@ chrome.runtime.onMessage.addListener(function onMessage(message, sender, sendRes
         return true;
     }
 
+    // A cancel meant for the run that previous worker left applies to it once it is read.
+    if (interruptedRunPending && message.action === 'cancelOperation') {
+        cancelRequestedIncognito = message.incognito === true;
+        interruptedRunRecorded.then(() => sendResponse({
+            success: operationCancelled && runIncognito === cancelRequestedIncognito
+        }));
+        return true;
+    }
+
     if (message.action === 'startRefresh') {
         if (activeRefreshOperation) {
             sendResponse({ success: false, message: t('errorOperationInProgress') });
@@ -266,9 +280,17 @@ function getOperationSnapshot() {
     };
 }
 
+// Written after every tab. A restarted worker reads only the tab ids back, so the
+// stored copy leaves out the rest of each Tab object.
 function persistOperationState() {
     if (!chrome.storage.session) return;
-    chrome.storage.session.set({ refreshOperationState: getOperationSnapshot() }, () => {
+    chrome.storage.session.set({
+        refreshOperationState: {
+            ...getOperationSnapshot(),
+            currentTabs: tabsToRefresh.map(({ id }) => ({ id })),
+            failedTabDetails: failedTabs.map(({ id }) => ({ id }))
+        }
+    }, () => {
         void chrome.runtime.lastError;
     });
 }
@@ -328,8 +350,9 @@ function recordInterruptedOperation() {
         staleBytesThisRun = Number.isFinite(stored.staleBytes) ? stored.staleBytes : 0;
         singleTabRun = stored.singleTab === true;
         runIncognito = stored.incognito === true;
-        // A cancel that was accepted before the worker stopped is a cancellation, not an interruption.
-        operationCancelled = stored.cancelled === true;
+        // A cancel that was accepted before the worker stopped, or that arrived while this
+        // worker woke, is a cancellation, not an interruption.
+        operationCancelled = stored.cancelled === true || cancelRequestedIncognito === runIncognito;
         const interrupted = !operationCancelled;
 
         endRefreshOperation(false, generation, interrupted);
@@ -451,8 +474,6 @@ function startRefreshOperation() {
     staleBytesThisRun = 0;
     singleTabRun = false;
 
-    // No icon swap here: the badge below is what signals that a refresh is running.
-
     // Update badge to show progress
     clearTimeout(resultBadgeTimeoutId);
     chrome.action.setBadgeBackgroundColor({ color: "#2563eb" });
@@ -478,14 +499,13 @@ function showResultBadge(interrupted) {
 
 // Function to end refresh operation
 function endRefreshOperation(success = true, generation, interrupted = false) {
-    if (generation !== currentGeneration || operationFinalized) return;
+    if (isStaleGeneration(generation)) return;
     operationFinalized = true;
     activeRefreshOperation = false;
     const finalSuccess = success && !operationCancelled && failedTabs.length === 0;
 
     showResultBadge(interrupted);
 
-    // Log operation details including any errors
     const operationDetails = {
         totalTabs: tabsToRefresh.length,
         processedTabs,
@@ -509,8 +529,6 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
     };
     if (interrupted) historyEntry.interrupted = true;
     if (singleTabRun) historyEntry.singleTab = true;
-    // The ready screen offers to retry these tabs while they are still open.
-    if (failedTabs.length > 0) historyEntry.failedTabIds = failedTabs.map(tab => tab.id);
 
     // Everything below runs inside storage callbacks, by which point a refresh
     // started right after this one may already have reset the shared state.
@@ -568,26 +586,29 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
             days: prunedDays
         };
 
+        // The ready screen offers to retry the failed tabs while they are still open. Tab
+        // ids belong to one browser session, so the list lives in session storage.
+        const retryTabIds = finalFailedTabs.map(tab => tab.id).filter(Number.isInteger);
+
         chrome.storage.local.set({ cacheStats: next }, () => {
             saveToHistory(historyEntry, () => {
-                // Broadcast completion after history is durable so an open popup can reload it.
-                broadcastComplete();
-                resolveFinalize();
+                chrome.storage.session.set({ retryTabIds }, () => {
+                    // Broadcast completion after history is durable so an open popup can reload it.
+                    broadcastComplete();
+                    resolveFinalize();
+                });
             });
         });
       });
     }));
 }
 
-// NEW: Process tabs in batches to avoid memory overload
+// Tabs reload in small batches so a large session does not load everything at once.
 function refreshTabsInBatches(tabs, generation) {
-    console.log(`Starting refresh operation ${generation} with ${tabs.length} tabs`);
-
     // Smaller batches above 20 tabs. There is no slower tier above 50: it made the
     // 51st tab triple the run time, and sleeping tabs, the bulk of a large session,
     // go back to sleep once reloaded.
     const dynamicBatchSize = tabs.length > 20 ? 4 : MAX_TABS_PER_BATCH;
-    const dynamicBatchInterval = BATCH_INTERVAL;
 
     let currentBatchIndex = 0;
 
@@ -599,9 +620,8 @@ function refreshTabsInBatches(tabs, generation) {
     function processBatch() {
         if (isStaleGeneration(generation)) return;
 
-        if (operationCancelled) {
-            console.log(`Operation ${generation} cancelled at batch ${currentBatchIndex}`);
-            endRefreshOperation(false, generation);
+        if (wakingTabs >= MAX_WAKING_TABS) {
+            batchTimeoutId = setTimeout(processBatch, BATCH_INTERVAL);
             return;
         }
 
@@ -609,27 +629,17 @@ function refreshTabsInBatches(tabs, generation) {
         const endIdx = Math.min(startIdx + dynamicBatchSize, tabs.length);
         const currentBatch = tabs.slice(startIdx, endIdx);
 
-        console.log(`Processing batch ${currentBatchIndex + 1}/${Math.ceil(tabs.length / dynamicBatchSize)}, tabs ${startIdx + 1}-${endIdx}`);
-
         // Process this batch
         refreshTabsBatch(currentBatch, 0, () => {
             if (isStaleGeneration(generation)) return;
-
-            if (operationCancelled) {
-                console.log(`Operation ${generation} cancelled at batch ${currentBatchIndex}`);
-                endRefreshOperation(false, generation);
-                batchTimeoutId = null;
-                return;
-            }
 
             currentBatchIndex++;
 
             // If more batches to process, schedule the next one
             if (currentBatchIndex * dynamicBatchSize < tabs.length) {
-                batchTimeoutId = setTimeout(processBatch, dynamicBatchInterval);
+                batchTimeoutId = setTimeout(processBatch, BATCH_INTERVAL);
             } else {
                 // All batches processed, end operation
-                console.log(`Operation ${generation} completed`);
                 endRefreshOperation(true, generation);
                 batchTimeoutId = null;
             }
@@ -642,24 +652,20 @@ function refreshTabsInBatches(tabs, generation) {
 
 // Process a single batch of tabs
 function refreshTabsBatch(batch, tabIndex, onComplete, generation) {
-    if (isStaleGeneration(generation)) {
-        onComplete();
-        return;
-    }
-
-    if (operationCancelled) {
-        onComplete();
-        return;
-    }
-
-    if (tabIndex >= batch.length) {
+    if (isStaleGeneration(generation) || tabIndex >= batch.length) {
         onComplete();
         return;
     }
 
     const tab = batch[tabIndex];
 
+    // A rejection is the per-tab timeout: record it and handle it as a failed reload.
     refreshTabWithTimeout(tab, generation)
+        .catch(error => {
+            console.error(`Error refreshing tab ${tab.id}:`, error);
+            recordTabFailure(tab, error.message || t('errorUnknown'), generation);
+            return false;
+        })
         .then(result => {
             if (isStaleGeneration(generation)) return;
 
@@ -695,29 +701,6 @@ function refreshTabsBatch(batch, tabIndex, onComplete, generation) {
             updateProgress(processedTabs, tabsToRefresh.length, generation);
 
             // Process next tab in batch after a short delay
-            setTimeout(() => {
-                refreshTabsBatch(batch, tabIndex + 1, onComplete, generation);
-            }, TAB_PROCESSING_INTERVAL);
-        })
-        .catch(error => {
-            if (isStaleGeneration(generation)) return;
-
-            // Log error and continue with next tab
-            console.error(`Error refreshing tab ${tab.id}:`, error);
-            const failure = recordTabFailure(tab, error.message || t('errorUnknown'), generation);
-            processedTabs++;
-            tabStatuses[tab.id] = 'error';
-
-            // Notify popup of error
-            chrome.runtime.sendMessage({
-                action: 'tabFailed',
-                tabId: tab.id,
-                error: failure.error
-            }).catch(() => { });
-
-            persistOperationState();
-            updateProgress(processedTabs, tabsToRefresh.length, generation);
-
             setTimeout(() => {
                 refreshTabsBatch(batch, tabIndex + 1, onComplete, generation);
             }, TAB_PROCESSING_INTERVAL);
@@ -808,11 +791,18 @@ async function refreshTab(tab, retryCount = 0, loadingWaitStartedAt = Date.now()
 
 // A sleeping tab wakes to reload. Once its fresh files are in Chrome's cache it goes
 // back to sleep, so a run over many sleeping tabs does not leave them all in memory;
-// opening it later loads those fresh files. A tab the user switched to stays awake.
+// opening it later loads those fresh files. A tab the user switched to stays awake,
+// even after the user leaves it again.
 function discardWhenLoaded(tabId) {
-    const discard = () => {
+    wakingTabs++;
+    const stopWaiting = () => {
+        wakingTabs--;
         clearTimeout(timeoutId);
         chrome.tabs.onUpdated.removeListener(onUpdated);
+        chrome.tabs.onActivated.removeListener(onActivated);
+    };
+    const discard = () => {
+        stopWaiting();
         chrome.tabs.get(tabId, (tab) => {
             if (chrome.runtime.lastError || !tab || tab.active || tab.discarded) return;
             chrome.tabs.discard(tabId, () => void chrome.runtime.lastError);
@@ -821,8 +811,12 @@ function discardWhenLoaded(tabId) {
     const onUpdated = (updatedTabId, changeInfo) => {
         if (updatedTabId === tabId && changeInfo.status === 'complete') discard();
     };
+    const onActivated = ({ tabId: activatedTabId }) => {
+        if (activatedTabId === tabId) stopWaiting();
+    };
     const timeoutId = setTimeout(discard, MAX_TAB_REFRESH_MS);
     chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.onActivated.addListener(onActivated);
 }
 
 function isRestrictedTabUrl(url) {
@@ -947,7 +941,7 @@ function basicReload(tab, retryCount, resolve, attempt) {
 
 // Function to update progress
 function updateProgress(current, total, generation) {
-    if (!activeRefreshOperation || isStaleGeneration(generation)) return;
+    if (isStaleGeneration(generation)) return;
 
     const percent = Math.floor((current / total) * 100);
     chrome.action.setBadgeText({ text: percent + "%" });
@@ -1000,18 +994,15 @@ function preserveMediaState() {
             && field.value !== field.defaultValue);
 
         let staleBytes = 0;
-        try {
-            for (const entry of performance.getEntriesByType('resource')) {
-                if (entry.transferSize === 0 && entry.decodedBodySize > 0) {
-                    staleBytes += entry.encodedBodySize;
-                }
+        for (const entry of performance.getEntriesByType('resource')) {
+            if (entry.transferSize === 0 && entry.decodedBodySize > 0) {
+                staleBytes += entry.encodedBodySize;
             }
-        } catch (error) {
-            staleBytes = 0;
         }
 
         const videos = document.querySelectorAll('video');
         const audios = document.querySelectorAll('audio');
+        const isYouTube = window.location.hostname.includes('youtube.com');
         let mediaStates = {};
 
         // Store video states - with special handling for YouTube.
@@ -1019,10 +1010,8 @@ function preserveMediaState() {
         // exposes; .src stays empty for those elements. It falls back to .src
         // for elements whose resource selection has not run yet.
         videos.forEach((video, index) => {
-            const isYouTube = window.location.hostname.includes('youtube.com');
-
             mediaStates[`video_${index}`] = {
-                src: video.currentSrc || video.src || (isYouTube ? 'youtube_video' : 'video_element'),
+                src: video.currentSrc || video.src,
                 currentTime: video.currentTime,
                 paused: video.paused,
                 muted: video.muted,
@@ -1036,7 +1025,7 @@ function preserveMediaState() {
         audios.forEach((audio, index) => {
             // Capture audio state even if src is empty
             mediaStates[`audio_${index}`] = {
-                src: audio.currentSrc || audio.src || 'audio_element',
+                src: audio.currentSrc || audio.src,
                 currentTime: audio.currentTime,
                 paused: audio.paused,
                 muted: audio.muted,
@@ -1046,7 +1035,7 @@ function preserveMediaState() {
         });
 
         // Enhanced YouTube-specific handling
-        if (window.location.hostname.includes('youtube.com')) {
+        if (isYouTube) {
             const player = document.querySelector('.html5-video-player');
             mediaStates['youtube_player_state'] = {
                 paused: player ? (

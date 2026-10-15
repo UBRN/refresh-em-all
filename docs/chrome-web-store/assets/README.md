@@ -95,6 +95,6 @@ both 1280×800 and 640×400, and review the promo at both 440×280 and 220×140.
 
 The packaged Store icon is `assets/icon-128.png`: the blue tile drawn from
 `assets/icon.svg`, with 96x96 px artwork inside a transparent 16 px margin.
-`npm run generate-icons` renders every icon size and both favicons from the two
+`npm run generate-icons` renders every icon size and the favicon from the two
 SVG sources, and `store-assets:verify --zip` fails if the packaged icon's
 artwork leaves that margin.

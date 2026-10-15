@@ -68,7 +68,6 @@ async function main() {
 
   fs.writeFileSync(path.join(root, 'favicon.svg'), icon);
   console.log('Created favicon.svg');
-  await render(icon, 32, 'favicon.png');
 
   await renderHero(icon);
 }

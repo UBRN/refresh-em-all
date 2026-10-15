@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **168 tests across 6 suites**
+- Jest unit/integration/contract suite: **185 tests across 6 suites**
 - Fast browser suite: **10 scenarios** (the first-run question, the denied-access path, 7 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
@@ -13,7 +13,7 @@ Static coverage percentages are not kept here because an undated snapshot quickl
 
 - Node.js 22.12 through 25
 - npm
-- Chrome for Testing, which Puppeteer 25.12.0 downloads (Chrome 154)
+- Chrome for Testing, which the Puppeteer version pinned in `package.json` downloads
 
 Node 24 LTS is the CI and local-development default recorded in `.nvmrc`.
 Puppeteer 25 requires Node 22.12 or later and is published as an ES module, so the
@@ -78,6 +78,11 @@ npm run e2e:reliability:large
 - Shows the run's result on the toolbar badge for four seconds (a tick, or a mark after any failure) and clears it after a cancel
 - Reloads a tab without media capture when the page does not answer within three seconds, and ignores the late answer
 - Records a tab whose reload never answers as timed out and moves on
+- Leaves a tab with unsaved text alone in a run over every tab, but not in a single-tab run
+- Puts a reloaded sleeping tab back to sleep once it loads or after the tab time limit, unless the user opened it in the meantime, and holds the next batch while 12 woken tabs are still loading
+- Retries only the tabs listed in `tabIds`, and keeps the failed tab ids in session storage, not in history
+- Stores only tab ids in the run state it writes after every tab
+- Records a stopped run as cancelled when a cancel from a popup of its window kind arrives while the worker wakes
 
 ### Popup
 
@@ -105,6 +110,13 @@ The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails 
 - Renders sanitized local history with relative times, single-tab and interrupted labels
 - Renders the measured totals as estimates; Reset statistics offers Undo for six seconds and Undo keeps bytes measured since
 - Offers "Refresh only this tab" by site name, disables it with a reason on browser pages, keeps it on the Web Store, runs the single-tab path, and names the site when a single-tab run stops
+- Offers to retry the last run's failed tabs that are still open, from session storage only, so never after a browser restart
+- Says when tabs with unsaved text were left alone, also after a run with a failure
+- Ignores a run's messages until it knows its own window kind
+- Leaves the permission question once access is granted from Settings, and does not show page reading as off before Chrome answers
+- Keeps a zero-byte run measured since a reset when Undo restores the statistics
+- Writes the result and run counts without a wrong plural, and gives a skip reason that covers closed tabs
+- Shrinks the tab dots past 280 tabs so a 500-tab run shows every dot
 
 ### Localization
 
@@ -113,6 +125,7 @@ The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails 
 - Both locale catalogs are inside the packaged runtime allowlist
 - `chrome.i18n` substitutes dynamic placeholders in catalog order
 - Turkish popup text, the this-tab action, history, and accessibility labels render from the catalog
+- The page-reading explanations in both languages name the typed-text check
 - The production popup contains no hidden stress-test hooks
 
 ### Content script
@@ -124,7 +137,8 @@ The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails 
 - Recovers from corrupted session state
 - Skips restoring audio state when reordered sources no longer match the saved source
 - Restores a source-less audio element from saved state
-- Leaves autoplay alone for media that was paused before it ever started
+- Leaves autoplay alone for media that was paused before it ever started, including through the YouTube player state
+- Applies saved YouTube state only to the video it was saved from
 
 ### E2E harness and release workflow contracts
 
@@ -164,9 +178,11 @@ active tab. Together the harnesses verify:
    single-tab history entry and shows a tick on the toolbar badge.
 6. "Refresh All Tabs" in the toolbar popup reloads the tab under the popup last and shows a
    tick on the toolbar badge. Chrome closes the popup when that tab reloads.
-7. The settings view accurately states that telemetry is disabled.
-8. Refresh history renders safely.
-9. Eight tabs across two windows reload once while paused and playing media state is preserved.
+7. A tab with typed, unsent text is left alone and counted as skipped, and a sleeping tab goes
+   back to sleep after its reload.
+8. The settings view accurately states that telemetry is disabled.
+9. Refresh history renders safely.
+10. Eight tabs across two windows reload once while paused and playing media state is preserved.
 
 The browser suites launch Chrome with `--lang=en-US` because the popup is now
 localized and these scenarios assert English status text.
@@ -193,8 +209,8 @@ playing audio state. They differ only in scale and timeout:
 | `npm run e2e:reliability:large` | 100 | Manual check before a release that changes tab processing or the service worker |
 
 The medium profile crosses the extension's `>20` queried-tab batching threshold.
-The full profile crosses the `>50` threshold and preserves the original 25-tabs-
-per-window assertion. The large profile runs 100 tabs, 50 per window; no
+The full profile also crosses it and preserves the original 25-tabs-per-window
+assertion. The large profile runs 100 tabs, 50 per window; no
 workflow runs it.
 
 The profiles use a generated local audio file and disable Chrome's user-gesture

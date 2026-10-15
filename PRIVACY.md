@@ -35,8 +35,8 @@ When optional site access is granted, the extension checks an accessible page's
 video and audio elements before reloading it. It may temporarily handle the
 media source URL, current playback position, paused or playing state, muted
 state, volume, and playback rate. On YouTube pages it may also handle the
-current video identifier and the time at which state was captured. The
-extension does not read arbitrary page text for this feature.
+current video identifier. The extension does not read arbitrary page text for
+this feature.
 
 The same check asks the page whether a text area or text-like input field holds
 typed text that differs from the value the page loaded with, so a reload does
@@ -54,11 +54,11 @@ any other Resource Timing fields, including resource URLs.
 Refresh Em All uses the following browser-managed storage:
 
 - `chrome.storage.session` temporarily holds the active refresh-operation
-  snapshot under `refreshOperationState`. This can include the current tab
-  records (each with the tab id, URL, title, and favicon URL that Chrome
-  supplies), progress, the processed-tab cursor, per-tab status, and local
-  failure details. The snapshot exists so an open popup can redraw a run in
-  progress. The extension removes the full snapshot when an operation finishes.
+  snapshot under `refreshOperationState`. This holds the ids of the tabs in the
+  run and of the tabs that failed, progress, per-tab status, and counts; it holds
+  no URLs, titles, or favicons. The snapshot exists so the run can still be
+  recorded if Chrome stops the service worker. The extension removes the full
+  snapshot when an operation finishes.
   If Chrome shuts down the service worker before a run finishes, the run is not
   continued: the extension records it in history as interrupted (unless it was
   an incognito run, which is never recorded) and replaces
@@ -71,16 +71,18 @@ Refresh Em All uses the following browser-managed storage:
   restored after their reload. It keeps that restoration working if Chrome stops
   the service worker in between. It contains no URLs, titles, or media state;
   an entry is removed when the tab finishes loading or closes, and is ignored
-  once 30 seconds have passed. `chrome.storage.session` is memory-backed,
-  is never synced, is not readable by web pages, and Chrome discards it when
-  the browser session ends.
+  once 30 seconds have passed.
+- `chrome.storage.session` also holds `retryTabIds`, the ids of the tabs the
+  last run could not reload, so the popup can offer to retry them. Tab ids are
+  numbers Chrome assigns for the browser session; the list holds no URLs or
+  titles and is replaced by every run that is not incognito.
+  `chrome.storage.session` is memory-backed, is never synced, is not readable by
+  web pages, and Chrome discards it when the browser session ends.
 - `chrome.storage.local` holds at most ten refresh-history summaries under
   `refreshHistory`. Each summary contains a timestamp, tab totals, successful,
   failed, and skipped counts, whether the operation was cancelled or
-  interrupted, and whether it covered a single tab. After a run with failures it
-  also holds the failed tabs' ids, numbers Chrome assigns for the browser
-  session, so the popup can offer to retry them. History summaries do not
-  contain tab URLs or titles.
+  interrupted, and whether it covered a single tab. History summaries do not
+  contain tab ids, URLs, or titles.
 - `chrome.storage.local` also holds `cacheStats`, which contains byte totals
   only: the most recent operation, an all-time total, and at most 31 daily
   totals keyed by local date. It contains no URLs, hostnames, per-site, or

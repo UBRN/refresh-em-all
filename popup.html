@@ -5,7 +5,6 @@
     <meta charset="utf-8">
     <title>Refresh Em All</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="alternate icon" href="favicon.png" type="image/png">
     <style>
         :root {
             color-scheme: light dark;
@@ -25,8 +24,8 @@
             --r-lg: 14px;
             --r-pill: 999px;
 
-            /* Motion: five durations, one ease-out, two damped springs. Only transform
-               and opacity move; colors may fade. */
+            /* Motion tokens: durations, ease-out and exit curves, two damped springs.
+               Transform and opacity move; colors may fade. */
             --d-instant: 90ms;
             --d-fast: 140ms;
             --d-base: 220ms;
@@ -919,10 +918,6 @@
             overscroll-behavior: contain;
         }
 
-        .fails[hidden] {
-            display: none;
-        }
-
         /* Chrome makes these scroll areas focusable; keep their ring inside the frame. */
         .fails:focus-visible,
         .view.sub:focus-visible {
@@ -1125,10 +1120,6 @@
             scrollbar-width: thin;
         }
 
-        .panel[hidden] {
-            display: none;
-        }
-
         .hist {
             list-style: none;
             margin: 0;
@@ -1328,9 +1319,7 @@
             color: var(--muted);
         }
 
-        .hint[hidden],
-        .undo[hidden],
-        .btn[hidden] {
+        .undo[hidden] {
             display: none;
         }
 
@@ -1351,10 +1340,6 @@
             height: 100%;
             pointer-events: none;
             z-index: 10;
-        }
-
-        #confetti[hidden] {
-            display: none;
         }
     </style>
 </head>

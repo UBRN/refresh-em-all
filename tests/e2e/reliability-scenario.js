@@ -2,6 +2,7 @@ const path = require('path');
 
 const {
   captureFailureDiagnostics,
+  clickRefreshAll,
   createPhaseTimer,
   prepareOutputDirectory,
   runPool,
@@ -373,10 +374,7 @@ async function runDeniedPathScenario(harness, { closeHarness = false } = {}) {
     await popup.reload({ waitUntil: 'load' });
 
     await armRefreshCompletion(popup, config.operationTimeout);
-    // The popup keeps this control disabled until it has resolved site access and
-    // any restored operation. Clicking before that fires no event at all.
-    await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-    await popup.click('#refreshAll');
+    await clickRefreshAll(popup);
     await waitForRefreshCompletion(popup, config);
     await runPool(pages, 2, page => page.waitForFunction(
       () => Number(sessionStorage.reliabilityLoads) >= 2,
@@ -466,10 +464,7 @@ async function runReliabilityScenario(harness, profile, {
     await timer.measure('traceSetup', () => harness.startTrace(popup));
     await timer.measure('extensionOperation', async () => {
       await armRefreshCompletion(popup, config.operationTimeout);
-      // The popup keeps this control disabled until it has resolved site access and
-      // any restored operation. Clicking before that fires no event at all.
-      await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-      await popup.click('#refreshAll');
+      await clickRefreshAll(popup);
       await waitForRefreshCompletion(popup, config);
     });
 

@@ -67,6 +67,12 @@ onRemovedAddListener.mockImplementation(cb => {
   onRemovedAddListener.callbackQueue.push(cb);
 });
 
+const onActivatedAddListener = jest.fn();
+onActivatedAddListener.callbackQueue = [];
+onActivatedAddListener.mockImplementation(cb => {
+  onActivatedAddListener.callbackQueue.push(cb);
+});
+
 // Set up Chrome API mock structures with proper Jest mocks
 chrome.tabs = {
   query: jest.fn(),
@@ -84,6 +90,12 @@ chrome.tabs = {
   },
   onRemoved: {
     addListener: onRemovedAddListener,
+    callbackQueue: [],
+    hasListener: jest.fn(),
+    removeListener: jest.fn()
+  },
+  onActivated: {
+    addListener: onActivatedAddListener,
     callbackQueue: [],
     hasListener: jest.fn(),
     removeListener: jest.fn()

@@ -14,8 +14,8 @@ The popup's copy promises kept videos only while page reading is allowed, and
 names the warning Chrome shows before granting it. Incognito runs leave nothing
 in history or statistics.
 
-It changes no permission and no network behavior. History entries gain the
-failed tabs' Chrome ids after a run with failures.
+It changes no permission and no network behavior. Session storage keeps the
+failed tabs' Chrome ids after a run with failures, until the browser closes.
 
 The permission model below is unchanged since v2.4.0, which made all-sites host
 access optional and requested it at runtime for media preservation and cache
@@ -103,19 +103,19 @@ last-run figure becomes 0 bytes, while the last 7 days and last 30 days
 keep changing as older days fall outside those periods.
 
 While a refresh is running, Chrome's memory-backed, nonsynced session storage
-holds a temporary snapshot under `refreshOperationState`. It contains the tab
-objects in the run, including tab IDs, URLs, titles, favicon URLs, and per-tab
-status, with the same tab details for failures. This lets the popup redraw the
-run. If Chrome stops the Manifest V3 service worker mid-run, the run is recorded
-as interrupted rather than resumed.
+holds a temporary snapshot under `refreshOperationState`. It contains the ids of
+the tabs in the run and of the tabs that failed, per-tab status, and counts; no
+URLs, titles, or favicons. If Chrome stops the Manifest V3 service worker
+mid-run, the run is recorded as interrupted rather than resumed. After a run
+with failures, session storage also keeps the failed tabs' Chrome ids under
+`retryTabIds`, so the popup can offer to retry them until the browser closes.
 It is never exposed to web pages. Chrome discards it when the browser session
 ends, and Refresh Em All removes it when the operation finishes.
 
 Durable `refreshHistory` storage keeps at most ten counts-only summaries:
 timestamp, total tabs, successful tabs, failed count, skipped count, and the
-cancelled, interrupted and single-tab flags, and, after a run with failures,
-the Chrome ids of the failed tabs so the popup can offer to retry them. It
-contains no URLs, titles, or favicons. Refresh Em All sends
+cancelled, interrupted and single-tab flags. It contains no tab ids, URLs,
+titles, or favicons. Refresh Em All sends
 no tab details, cache counters, history, telemetry, or error reports anywhere,
 and it uses no remote code.
 
@@ -218,17 +218,18 @@ eski günler dönem dışına çıktıkça son 7 ve son 30 gün değerleri deği
 eder.
 
 Yenileme sürerken Chrome'un bellekte tutulan ve eşitlenmeyen oturum depolaması,
-`refreshOperationState` anahtarında geçici bir anlık görüntü saklar. Bu görüntü;
-çalışmadaki sekmelerin kimliklerini, URL'lerini, başlıklarını, favicon URL'lerini,
-sekme başına durumu ve başarısız sekmeler için aynı ayrıntıları içerir. Açılır
-pencerenin çalışmayı yeniden çizmesini sağlar. Manifest V3 service worker'ı
-çalışma sırasında durursa çalışma sürdürülmez, kesildi olarak kaydedilir. Web sayfalarına açılmaz. Chrome
+`refreshOperationState` anahtarında geçici bir anlık görüntü saklar. Bu görüntü
+çalışmadaki ve başarısız olan sekmelerin kimliklerini, sekme başına durumu ve
+sayıları içerir; URL, başlık veya favicon içermez. Manifest V3 service worker'ı
+çalışma sırasında durursa çalışma sürdürülmez, kesildi olarak kaydedilir.
+Başarısız sekme olan bir çalışmadan sonra oturum depolaması, tarayıcı kapanana
+kadar yeniden denemeyi önerebilmek için o sekmelerin Chrome kimliklerini
+`retryTabIds` anahtarında tutar. Web sayfalarına açılmaz. Chrome
 tarayıcı oturumu bitince siler, Refresh Em All ise işlem bitince kaldırır.
 
 Kalıcı `refreshHistory` depolaması en fazla on adet yalnızca sayı içeren özet
 tutar: zaman damgası, toplam sekme, başarılı sekme, başarısız sayısı, atlanan
-sayısı ile iptal, kesilme ve tek sekme bilgisi; başarısız sekmeler olduysa, yeniden
-denemeyi önerebilmek için o sekmelerin Chrome kimlikleri. URL, başlık veya favicon içermez. Refresh Em All sekme
+sayısı ile iptal, kesilme ve tek sekme bilgisi. Sekme kimliği, URL, başlık veya favicon içermez. Refresh Em All sekme
 ayrıntılarını, önbellek sayaçlarını, geçmişi, telemetriyi veya hata raporlarını
 hiçbir yere göndermez ve uzak kod kullanmaz.
 
@@ -254,8 +255,8 @@ cache-bypassing tab reloads.
 | --- | --- | --- |
 | `tabs` | `background.js` enumerates every open tab across all windows and reads tab URL and status. The URL is used to identify restricted pages such as `chrome:`, `chrome-extension:`, and `devtools:` so they are skipped instead of failing. | **Used; retain.** The `tabs` permission exposes the URL needed for restricted-page classification. Removing it hides `tab.url` for browser-internal pages `<all_urls>` cannot match, so those pages leave the skipped path. See "Permission reduction attempts" below. |
 | `scripting` | When optional host access is granted, `background.js` injects the packaged capture function before reload and packaged `content-script.js` for restoration afterward, only in tabs the user granted access to. | **Used; retain.** It supports media-position restoration and cached-bytes measurement for the reload. It is not used when host access is absent. |
-| `storage` | `chrome.storage.session` holds the temporary operation snapshot. `chrome.storage.local` holds the counts-only ten-entry history and the aggregate cached-bytes counter. | **Used; retain.** Required to redraw an active reload or report an interrupted one, show summary history, and show the local cached-bytes counter. |
-| Host access / `<all_urls>` | Declared in `optional_host_permissions` and requested from the popup at runtime. It authorizes only packaged media capture/restoration and the cache measurement introduced in v2.3.0 on accessible websites. | **Optional; request at runtime.** A refusal leaves cache-bypassing refresh fully operational. Media preservation stops, no measurement runs, and the popup reports that access is unavailable. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
+| `storage` | `chrome.storage.session` holds the temporary operation snapshot and the failed tab ids for the retry offer. `chrome.storage.local` holds the counts-only ten-entry history and the aggregate cached-bytes counter. | **Used; retain.** Required to redraw an active reload or report an interrupted one, show summary history, and show the local cached-bytes counter. |
+| Host access / `<all_urls>` | Declared in `optional_host_permissions` and requested from the popup at runtime. It authorizes only packaged media capture/restoration, the unsaved-text yes/no check, and the cache measurement introduced in v2.3.0 on accessible websites. | **Optional; request at runtime.** A refusal leaves cache-bypassing refresh fully operational. Media preservation stops, tabs with typed text are reloaded too, no measurement runs, and the popup reports that access is unavailable. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
 | Programmatic media restoration | The bundled `content-script.js` is not declared as a permanent content script. When optional host access is present, `background.js` injects it only after a tab this extension refreshed reaches `complete` and media capture may have saved state. | **Used only with optional host access.** Without the grant, the worker goes directly to a cache-bypassing reload and performs no page injection. |
 
 No required permission is unused. Media restoration and cache measurement under
@@ -391,15 +392,17 @@ change".
 - **storage:** Needed for temporary operation recovery in
   `refreshOperationState`, up to ten counts-only summaries in `refreshHistory`,
   and the local cached-bytes counter in `cacheStats`. The session snapshot holds
-  tab objects and per-tab status only while a run is active. Durable history has
-  no URLs, titles, or favicons.
+  tab ids and per-tab status only while a run is active, and `retryTabIds` keeps
+  the last run's failed tab ids until the browser closes. Durable history has no
+  tab ids, URLs, titles, or favicons.
 - **optional host access (`<all_urls>`):** Requested at runtime only when the
   user chooses "Allow and refresh" on the first refresh, and available later
   from Settings. It is used only to
-  capture and restore supported media state and to perform the cache measurement
-  introduced in v2.3.0 on accessible sites. If the user refuses, all accessible
-  tabs are still refreshed with local-cache bypass; media preservation stops,
-  no measurement runs, and the popup says access is unavailable.
+  capture and restore supported media state, to check for unsaved typed text
+  (yes/no), and to perform the cache measurement introduced in v2.3.0 on
+  accessible sites. If the user refuses, all accessible tabs are still refreshed
+  with local-cache bypass; media preservation stops, tabs with typed text are
+  reloaded too, no measurement runs, and the popup says access is unavailable.
 - **programmatic media restoration:** Packaged `content-script.js` is injected
   only into a tab this extension just refreshed, after that tab finishes loading.
   It reads only the extension's media-state session key and supported

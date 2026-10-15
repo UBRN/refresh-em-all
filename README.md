@@ -39,7 +39,8 @@ reports anywhere.
 - Shows figures for the last reload, today, the last 7 days, the last 30 days,
   and all time
 - Works without permission to read the pages you refresh; if you say no, no
-  new saved-file data is measured and media settings cannot be read or restored
+  new saved-file data is measured, media settings cannot be read or restored,
+  and tabs with typed text are not checked
 - Shows up to ten recent reload summaries
 - Waits while your computer is offline, so your tabs do not turn into error pages
 - Uses English or Turkish, following your browser language
@@ -71,8 +72,10 @@ On your first refresh, Refresh Em All asks in its popup whether to keep videos
 where you left them; Chrome's own permission dialog opens only if you choose to
 allow it. The permission lets the extension read the pages you refresh. It uses this
 optional permission only to keep videos and audio where you left them on a
-best-effort basis and to measure files served from copies Chrome saved earlier.
-Reloading still works if you say no. You can grant the permission later in
+best-effort basis, to leave alone tabs with typed, unsent text when you reload
+all tabs, and to measure files served from copies Chrome saved earlier.
+Reloading still works if you say no, and then every tab reloads, typed text
+included. You can grant the permission later in
 **Settings**.
 
 ## Installation

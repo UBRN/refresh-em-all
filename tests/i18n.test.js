@@ -55,6 +55,15 @@ describe('Localization contracts', () => {
     }
   });
 
+  // Without page reading a full reload cannot see typed text, so the copy that asks
+  // for it has to say so.
+  test('the page-reading explanations name the typed-text check', () => {
+    for (const key of ['askExplain', 'permissionGrantExplain']) {
+      expect(catalogs.en[key].message).toMatch(/typed text/);
+      expect(catalogs.tr[key].message).toMatch(/yazı/);
+    }
+  });
+
   test('catalog messages and descriptions are not empty', () => {
     for (const catalog of Object.values(catalogs)) {
       for (const entry of Object.values(catalog)) {
@@ -94,9 +103,6 @@ describe('Localization contracts', () => {
 
   test('chrome.i18n substitutes dynamic placeholders in the catalog order', () => {
     setTestLocale('en');
-    expect(chrome.i18n.getMessage('statusCompleteMixed', ['4', '8', '3', '0', '1'])).toBe(
-      '4 of 8 done: 3 reloaded, 0 failed, 1 skipped.'
-    );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
       'All 8 tabs reloaded.'
     );
@@ -105,9 +111,6 @@ describe('Localization contracts', () => {
     );
 
     setTestLocale('tr');
-    expect(chrome.i18n.getMessage('statusCompleteMixed', ['4', '8', '3', '0', '1'])).toBe(
-      '8 sekmeden 4 tanesi bitti: 3 yenilendi, 0 başarısız, 1 atlandı.'
-    );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
       '8 sekmenin tümü yenilendi.'
     );

@@ -39,7 +39,7 @@ describe('Popup markup contract', () => {
 
   test('the popup and the worker skip the same restricted URL schemes', () => {
     const background = fs.readFileSync(path.join(repositoryRoot, 'background.js'), 'utf8');
-    const list = source => [...source.match(/isRestrictedTabUrl[\s\S]*?\]/)[0].matchAll(/'([a-z-]+:)'/g)]
+    const list = source => [...source.match(/function isRestrictedTabUrl[\s\S]*?\]/)[0].matchAll(/'([a-z-]+:)'/g)]
       .map(match => match[1]);
     const popupList = [...popupSource.match(/RESTRICTED_URL_PREFIXES = \[[\s\S]*?\]/)[0].matchAll(/'([a-z-]+:)'/g)]
       .map(match => match[1]);
@@ -80,7 +80,7 @@ describe('Popup controller', () => {
     onMessage({ action: 'refreshStarted', generation: 2, tabs: tabs(4) });
     expect(state()).toBe('running');
     expect(visible($('cancelRefresh'))).toBe(true);
-    expect($('runTotal').textContent).toBe('of 4 tabs');
+    expect($('runTotal').textContent).toBe('of 4');
     expect($('tabDots').children).toHaveLength(4);
   });
 
@@ -330,13 +330,13 @@ describe('Popup controller', () => {
     const announcements = [];
     const observer = { record: () => announcements.push($('statusText').textContent) };
 
-    expect($('statusText').textContent).toBe('0 of 8 tabs done…');
+    expect($('statusText').textContent).toBe('Tabs done: 0 of 8…');
     for (let current = 1; current <= 7; current++) {
       onMessage({ action: 'refreshProgress', current, total: 8, percent: Math.floor(current / 8 * 100), successful: current, failed: 0, skipped: 0 });
       observer.record();
     }
 
-    expect([...new Set(announcements)]).toEqual(['0 of 8 tabs done…', '2 of 8 tabs done', '4 of 8 tabs done', '6 of 8 tabs done']);
+    expect([...new Set(announcements)]).toEqual(['Tabs done: 0 of 8…', 'Tabs done: 2 of 8', 'Tabs done: 4 of 8', 'Tabs done: 6 of 8']);
   });
 
   test('ignores a failed cancel callback after the operation completes', async () => {
@@ -358,7 +358,7 @@ describe('Popup controller', () => {
     cancelCallback({ success: false });
 
     expect(state()).toBe('stopped');
-    expect($('stopTitle').textContent).toBe('Stopped after 1 of 1 tabs.');
+    expect($('stopTitle').textContent).toBe('Stopped. Tabs done: 1 of 1.');
   });
 
   test('ignores a completion message from an older operation generation', async () => {
@@ -790,7 +790,8 @@ describe('Popup controller', () => {
 
   test('offers to retry the last run\'s failed tabs that are still open, and only those', async () => {
     executePopupJs({
-      history: [{ timestamp: new Date().toISOString(), totalTabs: 4, successfulTabs: 1, failedCount: 3, skippedCount: 0, failedTabIds: [11, 12, 13] }],
+      history: [{ timestamp: new Date().toISOString(), totalTabs: 4, successfulTabs: 1, failedCount: 3, skippedCount: 0 }],
+      retryTabIds: [11, 12, 13],
       openTabs: [{ id: 7, windowId: 1 }, { id: 11, windowId: 1 }, { id: 12, windowId: 2 }]
     });
     await settle();
@@ -806,11 +807,14 @@ describe('Popup controller', () => {
   });
 
   test.each([
-    ['no failures', { failedCount: 0 }],
-    ['failed tabs that were closed', { failedCount: 1, failedTabIds: [99] }]
-  ])('hides the retry offer after a run with %s', async (_case, entry) => {
+    ['no failures', { failedCount: 0 }, []],
+    ['failed tabs that were closed', { failedCount: 1 }, [99]],
+    // Chrome numbers tabs afresh after a restart, and session storage starts empty.
+    ['failed tabs from before a browser restart', { failedCount: 1, failedTabIds: [7] }, undefined]
+  ])('hides the retry offer after a run with %s', async (_case, entry, retryTabIds) => {
     executePopupJs({
       history: [{ timestamp: new Date().toISOString(), totalTabs: 2, successfulTabs: 1, skippedCount: 0, ...entry }],
+      retryTabIds,
       openTabs: [{ id: 7, windowId: 1 }]
     });
     await settle();
@@ -883,17 +887,104 @@ describe('Popup controller', () => {
     expect(chrome.runtime.sendMessage.mock.calls.filter(([message]) => message.action === 'startRefresh')).toHaveLength(0);
   });
 
-  test('does not activate stress mode after five settings clicks', async () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => false);
-    executePopupJs();
+  test('a run past 280 tabs gets dots small enough to show every tab', async () => {
+    const onMessage = executePopupJs();
     await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(500) });
 
-    for (let index = 0; index < 5; index++) {
-      $('openSettings').click();
-      $('back').click();
-    }
+    expect($('tabDots').style.getPropertyValue('--dot')).toBe('4px');
+    expect($('tabDots').style.getPropertyValue('--gap')).toBe('1px');
+  });
 
-    expect(confirmSpy).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
+  test('Settings does not say page reading is off before Chrome answers', async () => {
+    let answer;
+    executePopupJs({ siteAccess: new Promise(resolve => { answer = resolve; }) });
+    await settle();
+    expect($('metaSettings').textContent).toBe('');
+
+    answer(true);
+    await settle();
+    expect($('metaSettings').textContent).toBe('Page reading on');
+  });
+
+  test('an incognito popup ignores a normal run until it knows its own window kind', async () => {
+    const onMessage = executePopupJs({ incognito: true });
+
+    onMessage({ action: 'refreshStarted', generation: 5, incognito: false, tabs: tabs(3) });
+    onMessage({
+      action: 'refreshComplete', generation: 5, incognito: false, success: false,
+      details: { totalTabs: 3, processedTabs: 3, successfulTabs: 2, failedCount: 1 },
+      failedTabs: [{ id: 2, title: 'Normal tab', error: 'Failed' }]
+    });
+    await settle(1500);
+
+    expect(state()).toBe('ready');
+    expect($('refreshAll').disabled).toBe(false);
+    expect(document.body.textContent).not.toContain('Normal tab');
+  });
+
+  test('access granted from Settings ends the permission question', async () => {
+    executePopupJs({ siteAccess: false, mediaAccessAsked: false, requestAccessResult: true });
+    await settle();
+    $('refreshAll').click();
+    expect(state()).toBe('ask');
+
+    $('openSettings').click();
+    $('grantAccess').click();
+    await settle();
+    $('back').click();
+
+    expect(state()).toBe('ready');
+    expect(visible($('refreshAll'))).toBe(true);
+  });
+
+  test('Undo after a reset keeps a run since the reset that measured nothing', async () => {
+    const onMessage = executePopupJs({ cacheStats: { lastRun: 10, total: 100, days: {} } });
+    await settle();
+    $('openSettings').click();
+
+    $('resetStats').click();
+    onMessage.storage.cacheStats = { lastRun: 0, total: 0, days: {} };
+    $('undoResetButton').click();
+
+    expect(onMessage.storage.cacheStats).toEqual(expect.objectContaining({ lastRun: 0, total: 100 }));
+  });
+
+  test('one reloaded tab beside skipped ones reads in the singular, and the skip reason covers closed tabs', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    $('refreshAll').click();
+    onMessage({ action: 'refreshStarted', tabs: tabs(2) });
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 2, processedTabs: 2, successfulTabs: 1, skippedCount: 1 } });
+    await settle(3000);
+
+    expect($('doneTitle').textContent).toBe('Reloaded 1 tab. Skipped 1.');
+    expect($('doneSub').textContent).toBe(chrome.i18n.getMessage('doneSubSkipped'));
+    expect($('doneSub').textContent).toMatch(/closed/);
+  });
+
+  test('a one-tab retry counts without a plural', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(1) });
+
+    expect($('runTotal').textContent).toBe('of 1');
+    expect($('statusText').textContent).toBe('Tabs done: 0 of 1…');
+  });
+
+  test('a run with a failure still says tabs with unsaved text were left alone', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    $('refreshAll').click();
+    onMessage({ action: 'refreshStarted', tabs: tabs(3) });
+    onMessage({
+      action: 'refreshComplete',
+      details: { totalTabs: 3, processedTabs: 3, successfulTabs: 1, failedCount: 1, skippedCount: 1, unsavedCount: 1 },
+      failedTabs: [{ id: 2, title: 'Two', error: 'Failed' }]
+    });
+    await settle(3000);
+
+    expect(state()).toBe('failed');
+    expect($('failSub').textContent).toBe('Tabs done: 3 of 3. Tabs with unsaved text were left as they were.');
   });
 });

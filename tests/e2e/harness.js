@@ -605,8 +605,16 @@ async function createHarness({ profile, trace = false, seedSiteAccess = true } =
   }
 }
 
+// The popup keeps Refresh All disabled until it has resolved site access and any
+// restored operation; clicking before that fires no event at all.
+async function clickRefreshAll(popup) {
+  await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
+  await popup.click('#refreshAll');
+}
+
 module.exports = {
   captureFailureDiagnostics,
+  clickRefreshAll,
   createHarness,
   createPhaseTimer,
   ensureOutputDirectory,

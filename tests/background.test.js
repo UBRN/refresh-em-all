@@ -15,6 +15,10 @@ function executeBackgroundJs() {
   chrome.tabs.onRemoved.addListener.mockImplementation(callback => {
     chrome.tabs.onRemoved.callbackQueue.push(callback);
   });
+  chrome.tabs.onActivated.callbackQueue = [];
+  chrome.tabs.onActivated.addListener.mockImplementation(callback => {
+    chrome.tabs.onActivated.callbackQueue.push(callback);
+  });
 
   new Function('chrome', backgroundJs)(chrome);
   return {
@@ -27,12 +31,31 @@ function executeBackgroundJs() {
 // The popup, opened from the toolbar or in a tab, as Chrome describes the sender.
 const popupPage = { id: 'test-extension-id', url: 'chrome-extension://test-extension-id/popup.html' };
 
+// Starts a one-tab run and returns the capture function the worker injects into the page.
+async function injectedCapture() {
+  chrome.tabs.query.mockImplementation((query, callback) => callback([
+    { id: 24, title: 'Page', url: 'https://example.com/page', discarded: false }
+  ]));
+  let capture;
+  chrome.scripting.executeScript.mockImplementation((details, callback) => {
+    capture = details.func;
+    callback([{ result: { count: 0 } }]);
+  });
+  executeBackgroundJs().onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
+  await jest.advanceTimersByTimeAsync(0);
+  return capture;
+}
+
 function setRuntimeLastError(value) {
   Object.defineProperty(chrome.runtime, 'lastError', {
     configurable: true,
     value
   });
 }
+
+// The messages the worker sent with one action, and the history lists it saved.
+const sent = action => chrome.runtime.sendMessage.mock.calls.map(([message]) => message).filter(message => message.action === action);
+const savedHistories = () => chrome.storage.local.set.mock.calls.map(([value]) => value.refreshHistory).filter(Boolean);
 
 function expectEveryReloadToBypassLocalCache(tabId, expectedCalls = 1) {
   expect(chrome.tabs.reload).toHaveBeenCalledTimes(expectedCalls);
@@ -49,6 +72,9 @@ describe('Background refresh worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    // The injected capture reads Resource Timing, which a page always has and the
+    // fake performance object does not.
+    Object.defineProperty(performance, 'getEntriesByType', { configurable: true, value: () => [] });
     setRuntimeLastError(undefined);
 
     chrome.runtime.sendMessage.mockImplementation(() => Promise.resolve({}));
@@ -125,18 +151,7 @@ describe('Background refresh worker', () => {
     // The injected capture stored element.src, which is empty whenever the
     // resource comes from a <source> child. That wrote a placeholder instead of
     // an identity, so the restore side had nothing to compare against.
-    chrome.tabs.query.mockImplementation((query, callback) => callback([
-      { id: 41, title: 'Podcast', url: 'https://example.com/podcast', discarded: false }
-    ]));
-    let injectedFunction;
-    chrome.scripting.executeScript.mockImplementation((details, callback) => {
-      injectedFunction = details.func;
-      callback([{ result: { success: true, count: 0 } }]);
-    });
-    const { onMessage } = executeBackgroundJs();
-
-    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
-    await jest.advanceTimersByTimeAsync(0);
+    const injectedFunction = await injectedCapture();
 
     document.body.innerHTML = [
       '<video><source src="https://example.com/clip.mp4"></video>',
@@ -169,18 +184,7 @@ describe('Background refresh worker', () => {
   });
 
   test('measures only stale cached resource encoded byte sizes', async () => {
-    chrome.tabs.query.mockImplementation((query, callback) => callback([
-      { id: 23, title: 'Cached', url: 'https://example.com/cached', discarded: false }
-    ]));
-    let injectedFunction;
-    chrome.scripting.executeScript.mockImplementation((details, callback) => {
-      injectedFunction = details.func;
-      callback([{ result: { success: true, count: 0 } }]);
-    });
-    const { onMessage } = executeBackgroundJs();
-
-    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
-    await jest.advanceTimersByTimeAsync(0);
+    const injectedFunction = await injectedCapture();
 
     const originalDescriptor = Object.getOwnPropertyDescriptor(performance, 'getEntriesByType');
     Object.defineProperty(performance, 'getEntriesByType', {
@@ -216,17 +220,7 @@ describe('Background refresh worker', () => {
     ['<textarea disabled></textarea>', 'typed', false],
     ['<textarea></textarea>', '   ', false]
   ])('the capture reports unsaved text in %s holding "%s": %s', async (markup, value, expected) => {
-    chrome.tabs.query.mockImplementation((query, callback) => callback([
-      { id: 24, title: 'Form', url: 'https://example.com/form', discarded: false }
-    ]));
-    let injectedFunction;
-    chrome.scripting.executeScript.mockImplementation((details, callback) => {
-      injectedFunction = details.func;
-      callback([{ result: { count: 0 } }]);
-    });
-    const { onMessage } = executeBackgroundJs();
-    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
-    await jest.advanceTimersByTimeAsync(0);
+    const injectedFunction = await injectedCapture();
 
     document.body.innerHTML = markup;
     document.body.firstElementChild.value = value;
@@ -251,9 +245,7 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([26]);
-    const complete = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .find(message => message.action === 'refreshComplete');
+    const complete = sent('refreshComplete')[0];
     expect(complete.details).toEqual(expect.objectContaining({ successfulTabs: 1, skippedCount: 1, unsavedCount: 1 }));
   });
 
@@ -529,6 +521,49 @@ describe('Background refresh worker', () => {
     expect(chrome.tabs.discard).toHaveBeenCalledWith(82, expect.any(Function));
   });
 
+  test('a sleeping tab the user opened and left while it loaded stays awake', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 83, title: 'Visited', url: 'https://example.com/visited', discarded: true }
+    ]));
+    chrome.tabs.get.mockImplementation((tabId, callback) => callback({ id: tabId, status: 'loading', discarded: false, active: false }));
+    chrome.tabs.get.mockImplementationOnce((tabId, callback) => callback({ id: tabId, status: 'unloaded', discarded: true }));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
+    await jest.advanceTimersByTimeAsync(1000);
+    chrome.tabs.onActivated.callbackQueue.forEach(listener => listener({ tabId: 84, windowId: 1 }));
+    chrome.tabs.onActivated.callbackQueue.forEach(listener => listener({ tabId: 83, windowId: 1 }));
+    await jest.advanceTimersByTimeAsync(30000);
+
+    expect(chrome.tabs.discard).not.toHaveBeenCalled();
+    // The wait ends there: neither the load nor the time limit can discard it later.
+    expect(chrome.tabs.onActivated.removeListener).toHaveBeenCalledWith(chrome.tabs.onActivated.callbackQueue[0]);
+    expect(chrome.tabs.onUpdated.removeListener).toHaveBeenCalledWith(chrome.tabs.onUpdated.callbackQueue.at(-1));
+  });
+
+  test('holds the next batch while twelve sleeping tabs are still waking', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback(Array.from({ length: 40 }, (_, index) => (
+      { id: 400 + index, title: `Asleep ${index}`, url: `https://example.com/${index}`, discarded: true }
+    ))));
+    const reloaded = new Set();
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => {
+      reloaded.add(tabId);
+      callback();
+    });
+    chrome.tabs.get.mockImplementation((tabId, callback) => callback(reloaded.has(tabId)
+      ? { id: tabId, status: 'loading', discarded: false, active: false }
+      : { id: tabId, status: 'unloaded', discarded: true, active: false }));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(chrome.tabs.reload).toHaveBeenCalledTimes(12);
+
+    chrome.tabs.onUpdated.callbackQueue.forEach(listener => listener(400, { status: 'complete' }));
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(chrome.tabs.reload).toHaveBeenCalledTimes(16);
+  });
+
   test('keeps cache bypass enabled for every discarded-tab reload retry', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 12, title: 'Discarded retry', url: 'https://example.com/discarded-retry', discarded: true }
@@ -796,18 +831,14 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expect(secondStartResponse).toHaveBeenCalledWith({ success: true });
-    const progressMessages = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .filter(message => message.action === 'refreshProgress');
+    const progressMessages = sent('refreshProgress');
     expect(progressMessages).toEqual([
       expect.objectContaining({ current: 1, total: 1, successful: 1, failed: 0 })
     ]);
     expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       action: 'tabFailed', tabId: 40
     }));
-    const historyWrites = chrome.storage.local.set.mock.calls
-      .map(([value]) => value.refreshHistory)
-      .filter(Boolean);
+    const historyWrites = savedHistories();
     expect(historyWrites).toHaveLength(2);
     expect(historyWrites[1][0]).toEqual(expect.objectContaining({
       totalTabs: 1,
@@ -845,10 +876,7 @@ describe('Background refresh worker', () => {
 
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([101]);
     expect(firstStartResponse).toHaveBeenCalledWith({ success: false });
-    const replacementCompletion = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .filter(message => message.action === 'refreshComplete' && !message.details.cancelled)
-      .at(-1);
+    const replacementCompletion = sent('refreshComplete').filter(message => !message.details.cancelled).at(-1);
     expect(replacementCompletion.details).toEqual(expect.objectContaining({
       totalTabs: 1,
       processedTabs: 1,
@@ -885,10 +913,7 @@ describe('Background refresh worker', () => {
 
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([103]);
     expect(firstStartResponse).toHaveBeenCalledWith({ success: false });
-    const replacementCompletion = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .filter(message => message.action === 'refreshComplete' && !message.details.cancelled)
-      .at(-1);
+    const replacementCompletion = sent('refreshComplete').filter(message => !message.details.cancelled).at(-1);
     expect(replacementCompletion.details).toEqual(expect.objectContaining({
       totalTabs: 1,
       processedTabs: 1,
@@ -1117,6 +1142,30 @@ describe('Background refresh worker', () => {
     }));
   });
 
+  test('stores only tab ids in the run state it writes after every tab', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([1, 2, 3].map(id => (
+      { id: 500 + id, title: `Tab ${id}`, url: `https://example.com/${id}`, favIconUrl: `https://example.com/${id}.ico`, discarded: false }
+    ))));
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => {
+      if (tabId === 502) setRuntimeLastError({ message: 'Reload failed' });
+      callback();
+      setRuntimeLastError(undefined);
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
+    await jest.advanceTimersByTimeAsync(3000);
+
+    const states = chrome.storage.session.set.mock.calls
+      .map(([value]) => value.refreshOperationState)
+      .filter(Boolean);
+    expect(states.length).toBeGreaterThan(1);
+    for (const state of states) {
+      for (const tab of [...state.currentTabs, ...state.failedTabDetails]) expect(Object.keys(tab)).toEqual(['id']);
+    }
+    expect(states.at(-1).failedTabDetails).toEqual([{ id: 502 }]);
+  });
+
   test('records an interrupted run in history instead of resuming it', async () => {
     sessionStore.refreshOperationState = {
       active: true,
@@ -1140,10 +1189,7 @@ describe('Background refresh worker', () => {
 
     expect(chrome.tabs.reload).not.toHaveBeenCalled();
     expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: '' });
-    const historyWrite = chrome.storage.local.set.mock.calls
-      .map(([value]) => value.refreshHistory)
-      .filter(Boolean)
-      .at(-1);
+    const historyWrite = savedHistories().at(-1);
     expect(historyWrite[0]).toEqual(expect.objectContaining({
       totalTabs: 3,
       successfulTabs: 1,
@@ -1173,10 +1219,7 @@ describe('Background refresh worker', () => {
     executeBackgroundJs();
     await jest.runAllTimersAsync();
 
-    const historyWrite = chrome.storage.local.set.mock.calls
-      .map(([value]) => value.refreshHistory)
-      .filter(Boolean)
-      .at(-1);
+    const historyWrite = savedHistories().at(-1);
     expect(historyWrite[0]).toEqual(expect.objectContaining({ cancelled: true }));
     expect(historyWrite[0].interrupted).toBeUndefined();
     expect(sessionStore.refreshOperationState).toBeUndefined();
@@ -1396,6 +1439,24 @@ describe('Background refresh worker', () => {
       ]);
       expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([9]);
     });
+
+    test.each([
+      ['a window of the same kind', false, true],
+      ['a window of the other kind', true, false]
+    ])('a cancel from %s while the worker wakes records the stopped run as cancelled only for that kind', async (_case, incognito, cancelled) => {
+      const { onMessage } = executeBackgroundJs();
+      const respond = jest.fn();
+
+      onMessage({ action: 'cancelOperation', incognito }, popupPage, respond);
+      await answerReads();
+
+      expect(respond).toHaveBeenCalledWith({ success: cancelled });
+      const entry = chrome.storage.local.set.mock.calls
+        .map(([value]) => value.refreshHistory?.[0])
+        .find(Boolean);
+      expect(entry.cancelled).toBe(cancelled);
+      expect(entry.interrupted).toBe(cancelled ? undefined : true);
+    });
   });
 
   test('marks the completion message of an interrupted run as interrupted', async () => {
@@ -1481,10 +1542,7 @@ describe('Background refresh worker', () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 130, title: 'One', url: 'https://example.com/one', discarded: false }
     ]));
-    const startedGenerations = () => chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .filter(message => message.action === 'refreshStarted')
-      .map(message => message.generation);
+    const startedGenerations = () => sent('refreshStarted').map(message => message.generation);
 
     let { onMessage } = executeBackgroundJs();
     onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
@@ -1508,10 +1566,7 @@ describe('Background refresh worker', () => {
       { id: 132, incognito: true, title: 'Private', url: 'https://example.com/private', discarded: false }
     ]));
     const { onMessage } = executeBackgroundJs();
-    const startedTabIds = () => chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .filter(message => message.action === 'refreshStarted')
-      .at(-1).tabs.map(tab => tab.id);
+    const startedTabIds = () => sent('refreshStarted').at(-1).tabs.map(tab => tab.id);
 
     onMessage({ action: 'startRefresh', incognito: false }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
@@ -1686,9 +1741,7 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([133, 134]);
-    const completion = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .find(message => message.action === 'refreshComplete');
+    const completion = sent('refreshComplete')[0];
     expect(completion.details).toEqual(expect.objectContaining({ failedCount: 0, staleBytes: 0 }));
   });
 
@@ -1709,9 +1762,7 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([133, 134]);
-    const completion = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .find(message => message.action === 'refreshComplete');
+    const completion = sent('refreshComplete')[0];
     expect(completion.details).toEqual(expect.objectContaining({ failedCount: 1, successfulTabs: 1 }));
   });
 
@@ -1790,13 +1841,11 @@ describe('Background refresh worker', () => {
       .toEqual(expect.objectContaining({ singleTab: true, tabs: [expect.objectContaining({ id: 141 })] }));
     expect(messages.find(message => message.action === 'refreshComplete').details)
       .toEqual(expect.objectContaining({ singleTab: true, totalTabs: 1, successfulTabs: 1, staleBytes: 7 }));
-    const historyWrite = chrome.storage.local.set.mock.calls
-      .map(([value]) => value.refreshHistory)
-      .find(Boolean);
+    const historyWrite = savedHistories()[0];
     expect(historyWrite[0]).toEqual(expect.objectContaining({ singleTab: true, totalTabs: 1 }));
   });
 
-  test('retries only the listed tabs, keeps the popup tab last, and records failed tab ids', async () => {
+  test('retries only the listed tabs, keeps the popup tab last, and keeps failed tab ids for this browser session', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 190, title: 'Active', url: 'https://example.com/active', discarded: true },
       { id: 191, title: 'Fine', url: 'https://example.com/fine', discarded: true },
@@ -1813,10 +1862,21 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expect([...new Set(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId))]).toEqual([192, 190]);
-    const historyWrite = chrome.storage.local.set.mock.calls
-      .map(([value]) => value.refreshHistory)
-      .find(Boolean);
-    expect(historyWrite[0]).toEqual(expect.objectContaining({ totalTabs: 2, failedCount: 1, failedTabIds: [192] }));
+    const historyWrite = savedHistories()[0];
+    expect(historyWrite[0]).toEqual(expect.objectContaining({ totalTabs: 2, failedCount: 1 }));
+    // Tab ids belong to one browser session, so they stay out of the stored history.
+    expect(historyWrite[0].failedTabIds).toBeUndefined();
+    expect(sessionStore.retryTabIds).toEqual([192]);
+    // Written before the completion broadcast, so a popup that reloads on it sees the list.
+    const retryWrite = chrome.storage.session.set.mock.calls.findIndex(([value]) => value.retryTabIds);
+    const completion = chrome.runtime.sendMessage.mock.calls.findIndex(([message]) => message.action === 'refreshComplete');
+    expect(chrome.storage.session.set.mock.invocationCallOrder[retryWrite])
+      .toBeLessThan(chrome.runtime.sendMessage.mock.invocationCallOrder[completion]);
+
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => callback());
+    onMessage({ action: 'startRefresh', incognito: false, tabIds: [192] }, popupPage, jest.fn());
+    await jest.runAllTimersAsync();
+    expect(sessionStore.retryTabIds).toEqual([]);
   });
 
   test('a run past 50 tabs keeps the same pace as one of 50', async () => {
@@ -1829,9 +1889,7 @@ describe('Background refresh worker', () => {
       const started = Date.now();
       onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
       await jest.runAllTimersAsync();
-      const complete = chrome.runtime.sendMessage.mock.calls
-        .map(([message]) => message)
-        .filter(message => message.action === 'refreshComplete');
+      const complete = sent('refreshComplete');
       expect(complete.at(-1).details.successfulTabs).toBe(count);
       return Date.now() - started;
     };
@@ -1860,9 +1918,7 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     expect(reloadAttempts).toBe(2);
-    const completion = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .find(message => message.action === 'refreshComplete');
+    const completion = sent('refreshComplete')[0];
     expect(completion.details).toEqual(expect.objectContaining({ successfulTabs: 1, staleBytes: 5 }));
   });
 
@@ -1900,9 +1956,7 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
-    const completions = chrome.runtime.sendMessage.mock.calls
-      .map(([message]) => message)
-      .filter(message => message.action === 'refreshComplete');
+    const completions = sent('refreshComplete');
     expect(completions.at(-1).details).toEqual(expect.objectContaining({
       cancelled: true,
       successfulTabs: 0,
@@ -1925,13 +1979,9 @@ describe('Background refresh worker', () => {
     onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
-    const completions = chrome.runtime.sendMessage.mock.calls
-      .filter(([message]) => message.action === 'refreshComplete');
+    const completions = sent('refreshComplete');
     expect(completions).toHaveLength(2);
-    const historyWrite = chrome.storage.local.set.mock.calls
-      .map(([value]) => value.refreshHistory)
-      .filter(Boolean)
-      .at(-1);
+    const historyWrite = savedHistories().at(-1);
     expect(historyWrite).toEqual([expect.objectContaining({ successfulTabs: 1 })]);
   });
 

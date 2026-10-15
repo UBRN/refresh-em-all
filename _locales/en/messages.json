@@ -104,7 +104,7 @@
     }
   },
   "statusProcessedInitial": {
-    "message": "0 of $TOTAL$ tabs done…",
+    "message": "Tabs done: 0 of $TOTAL$…",
     "description": "Status shown right after the tab list is known and before any tab is processed.",
     "placeholders": {
       "total": {
@@ -114,7 +114,7 @@
     }
   },
   "statusCancelled": {
-    "message": "Stopped after $PROCESSED$ of $TOTAL$ tabs.",
+    "message": "Stopped. Tabs done: $PROCESSED$ of $TOTAL$.",
     "description": "Final status after the user cancelled the refresh.",
     "placeholders": {
       "processed": {
@@ -127,32 +127,6 @@
       }
     }
   },
-  "statusCompleteMixed": {
-    "message": "$PROCESSED$ of $TOTAL$ done: $REFRESHED$ reloaded, $FAILED$ failed, $SKIPPED$ skipped.",
-    "description": "Final status when at least one tab failed.",
-    "placeholders": {
-      "processed": {
-        "content": "$1",
-        "example": "8"
-      },
-      "total": {
-        "content": "$2",
-        "example": "8"
-      },
-      "refreshed": {
-        "content": "$3",
-        "example": "6"
-      },
-      "failed": {
-        "content": "$4",
-        "example": "1"
-      },
-      "skipped": {
-        "content": "$5",
-        "example": "1"
-      }
-    }
-  },
   "statusCompleteSkipped": {
     "message": "Reloaded $REFRESHED$ tabs. Skipped $SKIPPED$.",
     "description": "Final status when nothing failed but some tabs were skipped.",
@@ -161,6 +135,16 @@
         "content": "$1",
         "example": "6"
       },
+      "skipped": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "statusCompleteSkippedOne": {
+    "message": "Reloaded 1 tab. Skipped $SKIPPED$.",
+    "description": "Final status when one tab reloaded and some tabs were skipped.",
+    "placeholders": {
       "skipped": {
         "content": "$2",
         "example": "2"
@@ -180,10 +164,6 @@
   "statusInterrupted": {
     "message": "The last reload stopped before it finished.",
     "description": "Status shown when a refresh did not finish before the worker stopped."
-  },
-  "errorInterruptedTitle": {
-    "message": "Reload stopped",
-    "description": "Error box heading for an interrupted refresh."
   },
   "errorInterruptedDetail": {
     "message": "Start again when you are ready.",
@@ -253,28 +233,6 @@
       }
     }
   },
-  "historyEntrySummary": {
-    "message": "$REFRESHED$ of $TOTAL$ reloaded; $FAILED$ failed, $SKIPPED$ skipped",
-    "description": "History line for a completed refresh.",
-    "placeholders": {
-      "refreshed": {
-        "content": "$1",
-        "example": "6"
-      },
-      "total": {
-        "content": "$2",
-        "example": "8"
-      },
-      "failed": {
-        "content": "$3",
-        "example": "0"
-      },
-      "skipped": {
-        "content": "$4",
-        "example": "2"
-      }
-    }
-  },
   "statsToggle": {
     "message": "Files Downloaded Again",
     "description": "Button that expands the locally measured saved-file figures."
@@ -322,7 +280,7 @@
     "description": "Button that requests permission to read refreshed pages for best-effort media restoration and saved-file measurement."
   },
   "permissionGrantExplain": {
-    "message": "This optional permission lets Refresh Em All read the pages you reload. It uses the permission to keep videos and audio where you left them on a best-effort basis, and to measure files Chrome served from saved copies. Reloading works if you say no.",
+    "message": "This optional permission lets Refresh Em All read the pages you reload. It uses the permission to keep videos and audio where you left them on a best-effort basis, to leave tabs with typed text alone when you reload all tabs, and to measure files Chrome served from saved copies. Without it, every tab reloads, typed text included.",
     "description": "Explanation shown beside the optional page-reading permission button."
   },
   "statsAccessHint": {
@@ -426,7 +384,7 @@
     "description": "First-run button: reloads without asking for the permission."
   },
   "runCountOf": {
-    "message": "of $TOTAL$ tabs",
+    "message": "of $TOTAL$",
     "description": "Text after the large count of finished tabs while a reload runs.",
     "placeholders": {
       "total": {
@@ -456,7 +414,7 @@
     "description": "Final status when the only tab in the run reloaded."
   },
   "statusMilestone": {
-    "message": "$PROCESSED$ of $TOTAL$ tabs done",
+    "message": "Tabs done: $PROCESSED$ of $TOTAL$",
     "description": "Screen reader announcement at each quarter of a reload.",
     "placeholders": {
       "processed": {
@@ -474,8 +432,8 @@
     "description": "Line under the completion title."
   },
   "doneSubSkipped": {
-    "message": "Browser pages cannot be reloaded by extensions.",
-    "description": "Line under the completion title when browser pages were skipped."
+    "message": "Browser pages and tabs closed during the reload were skipped.",
+    "description": "Line under the completion title when tabs were skipped because they were browser pages or closed during the reload."
   },
   "doneSubUnsaved": {
     "message": "Tabs with unsaved text were left as they were.",
@@ -636,7 +594,7 @@
     }
   },
   "askExplain": {
-    "message": "Videos and audio stay where you left them, and Refresh Em All can measure files Chrome reused. Chrome will then warn that it can read your data on all websites; it uses that only for these two things and sends nothing anywhere. Reloading works either way.",
+    "message": "Keeps videos where you left them, skips tabs with typed text in a full reload, and measures files Chrome reused. Chrome will warn that it can read your data on all websites; it uses that only for this and sends nothing. Without it, all tabs reload, typed text too.",
     "description": "Short explanation under the first-run question."
   },
   "failedListLabel": {

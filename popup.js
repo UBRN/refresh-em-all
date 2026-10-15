@@ -104,13 +104,14 @@ let initializing = true;
 let accessRequestPending = false;
 let activeRefreshOperation = false;
 let singleTabRun = false;
-let runTabs = [];
 let runSite = '';
 let lastAnnouncedQuarter = 0;
 let siteAccessGranted = false;
 let mediaAccessAsked = false;
 // A run covers only tabs of the same kind as this popup's window, normal or incognito.
 let windowIncognito = false;
+// Until the window kind is known, a run's messages cannot be told apart by kind.
+let windowKnown = false;
 let activeTab = null;
 // Reloading without a network turns every tab into an error page, so the buttons
 // wait. Only false is reliable: true means a network, not the internet.
@@ -118,6 +119,8 @@ let online = navigator.onLine !== false;
 let openTabs = null;
 let openTabIds = new Set();
 let latestHistory = [];
+// The last run's failed tabs, kept by the worker for this browser session only.
+let retryTabIds = [];
 let historyRevealed = false;
 let savedStats = null;
 let undoTimer = 0;
@@ -128,7 +131,8 @@ let operationGeneration = 0;
 
 // ---- State and views ----
 
-function setState(next) {
+// Focus on a control the new state hides moves to focusTarget.
+function setState(next, focusTarget) {
     const focused = document.activeElement;
     state = next;
     body.dataset.state = next;
@@ -138,7 +142,7 @@ function setState(next) {
     footRunning.classList.toggle('on', next === 'running');
     footDone.classList.toggle('on', next !== 'running');
     updateRunPill();
-    return focused;
+    moveFocusFromHidden(focused, focusTarget);
 }
 
 // A control that just became hidden takes keyboard focus with it; hand it to the
@@ -262,7 +266,7 @@ const STEP_AVERAGE_WEIGHT = 0.3;
 const RING_LENGTH = 37.7;
 const bar = {
     x: 0, v: 0, target: 0, done: 0, total: 1, lastMessageAt: 0, stepAverage: 500,
-    inflight: false, onFull: null, single: false, frame: 0, lastFrameAt: 0
+    inflight: false, onFull: null, frame: 0, lastFrameAt: 0
 };
 
 function barRender() {
@@ -271,9 +275,14 @@ function barRender() {
     const percent = Math.min(Math.floor(bar.x * 100 + 1e-6), realPercent);
     progressFill.style.transform = `translateX(${((bar.x - 1) * 100).toFixed(3)}%)`;
     ringFill.style.strokeDashoffset = String(RING_LENGTH * (1 - bar.x));
-    progressPercent.textContent = `${percent}%`;
-    pillText.textContent = `${percent}%`;
-    if (!bar.single) runCount.textContent = String(Math.min(Math.floor(bar.x * bar.total + 1e-6), bar.done));
+    // This runs every frame; text is written only when it changes.
+    const text = `${percent}%`;
+    if (progressPercent.textContent !== text) {
+        progressPercent.textContent = text;
+        pillText.textContent = text;
+    }
+    const count = String(Math.min(Math.floor(bar.x * bar.total + 1e-6), bar.done));
+    if (!singleTabRun && runCount.textContent !== count) runCount.textContent = count;
 }
 
 function barTargetAt(now) {
@@ -339,14 +348,12 @@ function barHalt() {
     bar.onFull = null;
 }
 
-function barStart(total, stepAverage, single, done = 0) {
-    // barSet renders, and the render reads single.
-    bar.single = single;
+function barStart(total, stepAverage, done = 0) {
     barSet(done, total);
     bar.stepAverage = stepAverage;
     bar.lastMessageAt = performance.now();
     bar.inflight = true;
-    if (single) progressBar.removeAttribute('aria-valuetext');
+    if (singleTabRun) progressBar.removeAttribute('aria-valuetext');
     else progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
     barKick();
 }
@@ -360,7 +367,7 @@ function barReal(done) {
     bar.done = Math.min(done, bar.total);
     bar.lastMessageAt = now;
     progressBar.setAttribute('aria-valuenow', String(Math.round((bar.done / bar.total) * 100)));
-    if (!bar.single) progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
+    if (!singleTabRun) progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
     barKick();
 }
 
@@ -370,7 +377,7 @@ function barFinish(onFull) {
     bar.done = bar.total;
     bar.inflight = false;
     progressBar.setAttribute('aria-valuenow', '100');
-    if (!bar.single) progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
+    if (!singleTabRun) progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
     if (document.visibilityState !== 'visible') {
         barHalt();
         bar.x = 1;
@@ -410,9 +417,10 @@ function buildDots(tabs, statuses, animate) {
     dotsByTabId.clear();
     tabDots.classList.toggle('static', !animate);
     tabDots.classList.remove('settled');
-    // 23 per row at 10 px, 30 at 8 px, 41 at 6 px: 200 tabs stay within five rows.
-    const size = tabs.length <= 46 ? 10 : tabs.length <= 120 ? 8 : 6;
-    const gap = tabs.length <= 46 ? 4 : tabs.length <= 120 ? 3 : 2;
+    // 23 per row at 10 px, 30 at 8 px, 41 at 6 px, 65 at 4 px: 280 tabs stay within
+    // seven rows, and 715 within the eleven rows of 4 px that fit.
+    const size = tabs.length <= 46 ? 10 : tabs.length <= 120 ? 8 : tabs.length <= 280 ? 6 : 4;
+    const gap = tabs.length <= 46 ? 4 : tabs.length <= 120 ? 3 : tabs.length <= 280 ? 2 : 1;
     tabDots.style.setProperty('--dot', `${size}px`);
     tabDots.style.setProperty('--gap', `${gap}px`);
 
@@ -472,8 +480,7 @@ function renderReadyDetail() {
 
 // The last run's failed tabs that are still open, offered for one more try.
 function retryableTabIds() {
-    const failed = latestHistory[0]?.failedTabIds;
-    return Array.isArray(failed) ? failed.filter(id => openTabIds.has(id)) : [];
+    return retryTabIds.filter(id => openTabIds.has(id));
 }
 
 
@@ -490,8 +497,7 @@ window.addEventListener('offline', () => setOnline(false));
 refreshButton.addEventListener('click', () => {
     // The first refresh explains the optional permission before Chrome asks for it.
     if (!siteAccessGranted && !mediaAccessAsked) {
-        const focused = setState('ask');
-        moveFocusFromHidden(focused, allowButton);
+        setState('ask', allowButton);
         return;
     }
 
@@ -510,19 +516,20 @@ justRefreshButton.addEventListener('click', () => {
 
 retryButton.addEventListener('click', () => {
     const ids = retryableTabIds();
-    if (activeRefreshOperation || retryButton.disabled || ids.length === 0) return;
+    if (ids.length === 0) return;
     requestRefresh(undefined, ids);
 });
 
 thisTabButton.addEventListener('click', () => {
     if (!thisTabAvailable()) return;
-    rememberFocus();
     requestRefresh(activeTab.id);
 });
 
 grantAccess.addEventListener('click', () => {
     requestSiteAccess().then(granted => {
         if (!granted) return;
+        // Nothing is left to ask on the home screen.
+        if (state === 'ask') setState('ready', refreshButton);
         // The button hides once access is granted; keep focus in the card.
         $('accessHeading').focus({ preventScroll: true });
         announce(t('settingsAccessOn'));
@@ -591,6 +598,8 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     // Only the worker and this extension's own pages are listened to, never a script
     // injected into a web page.
     if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
+    // restoreOperationStatus picks up a live run of this kind once the kind is known.
+    if (!windowKnown) return;
     // A run in a window of the other kind, normal or incognito, is not this popup's to show.
     if (message.incognito === !windowIncognito) return;
 
@@ -624,7 +633,6 @@ function isObsoleteOperation(message) {
 function startRunUI(tabs, statuses, single, { live, done = 0, counts } = {}) {
     activeRefreshOperation = true;
     singleTabRun = single;
-    runTabs = tabs;
     lastAnnouncedQuarter = Math.floor((done / Math.max(1, tabs.length)) * 4);
     cancelButton.disabled = false;
     cancelTabButton.disabled = false;
@@ -647,9 +655,8 @@ function startRunUI(tabs, statuses, single, { live, done = 0, counts } = {}) {
         buildDots(tabs, statuses, live);
     }
 
-    barStart(tabs.length, single ? 1500 : 500, single, done);
-    const focused = setState(single ? 'tab-running' : 'running');
-    moveFocusFromHidden(focused, single ? cancelTabButton : cancelButton);
+    barStart(tabs.length, single ? 1500 : 500, done);
+    setState(single ? 'tab-running' : 'running', single ? cancelTabButton : cancelButton);
     updateControls();
     announce(single ? t('statusThisTab') : live ? t('statusProcessedInitial', tabs.length) : t('statusMilestone', done, tabs.length));
 }
@@ -658,7 +665,7 @@ function updateProgressUI(data) {
     if (!activeRefreshOperation) return;
 
     const processed = Number(data.current) || 0;
-    const total = Number(data.total) || runTabs.length;
+    const total = Number(data.total);
     if (!singleTabRun) {
         setCounts(Number(data.successful) || 0, Number(data.failed) || 0, Number(data.skipped) || 0, true);
     }
@@ -733,7 +740,8 @@ function showResult(result, { live }) {
         next = result.single ? 'tab-stopped' : 'stopped';
     } else if (result.failed > 0 || result.failedTabs.length > 0) {
         title = t(result.failed === 1 ? 'errorFailedSummaryOne' : 'errorFailedSummaryOther', result.failed);
-        renderFailure(title, t('statusMilestone', result.processed, result.total), result);
+        renderFailure(title, t('statusMilestone', result.processed, result.total)
+            + (result.unsaved > 0 ? `. ${t('doneSubUnsaved')}` : ''), result);
         next = 'failed';
     } else if (result.single && result.reloaded === 0) {
         // The tab closed or turned into a browser page before its turn.
@@ -748,7 +756,7 @@ function showResult(result, { live }) {
         next = 'tab-done';
     } else {
         title = result.skipped > 0
-            ? t('statusCompleteSkipped', result.reloaded, result.skipped)
+            ? t(result.reloaded === 1 ? 'statusCompleteSkippedOne' : 'statusCompleteSkipped', result.reloaded, result.skipped)
             : result.reloaded === 1 ? t('statusCompleteAllOne') : t('statusCompleteAll', result.reloaded);
         $('doneTitle').textContent = title;
         $('doneSub').textContent = t(result.unsaved > 0
@@ -758,8 +766,7 @@ function showResult(result, { live }) {
         next = 'done';
     }
 
-    const focused = setState(next);
-    moveFocusFromHidden(focused, refreshButton);
+    setState(next, refreshButton);
     announce(title);
 
     // Confetti marks a clean run over every tab that the user is watching right now.
@@ -820,8 +827,7 @@ function showStartFailure(message) {
     renderFailure(t('errorStartTitle'), message, null);
     // Enable Refresh before focus can move to it.
     updateControls();
-    const focused = setState('failed');
-    moveFocusFromHidden(focused, refreshButton);
+    setState('failed', refreshButton);
     announce(t('statusStartFailed', message));
 }
 
@@ -832,8 +838,7 @@ function showInterrupted(result) {
     footDone.textContent = '';
     $('stopTitle').textContent = t('statusInterrupted');
     $('stopSub').textContent = t('errorInterruptedDetail');
-    const focused = setState('stopped');
-    moveFocusFromHidden(focused, refreshButton);
+    setState('stopped', refreshButton);
     announce(t('statusInterrupted'));
 }
 
@@ -870,15 +875,6 @@ function restoreOperationStatus() {
 
 // ---- Page access ----
 
-async function hasSiteAccess() {
-    try {
-        const granted = await chrome.permissions.contains({ origins: ['<all_urls>'] });
-        return !chrome.runtime.lastError && granted === true;
-    } catch (error) {
-        return false;
-    }
-}
-
 function renderSiteAccess(granted) {
     const pill = $('accessPill');
     pill.textContent = t(granted ? 'pillOn' : 'pillOff');
@@ -892,20 +888,11 @@ function renderSiteAccess(granted) {
 function requestSiteAccess() {
     accessRequestPending = true;
     updateControls();
-    let request;
-    try {
-        request = chrome.permissions.request({ origins: ['<all_urls>'] });
-    } catch (error) {
-        request = false;
-    }
-    return Promise.resolve(request).then(granted => {
-        siteAccessGranted = !chrome.runtime.lastError && granted === true;
+    // A refused request (no user gesture, for one) still lets "Allow and refresh" reload.
+    return chrome.permissions.request({ origins: ['<all_urls>'] }).catch(() => false).then(granted => {
+        siteAccessGranted = granted === true;
         renderSiteAccess(siteAccessGranted);
         return siteAccessGranted;
-    }).catch(() => {
-        siteAccessGranted = false;
-        renderSiteAccess(false);
-        return false;
     }).finally(() => {
         accessRequestPending = false;
         updateControls();
@@ -919,9 +906,9 @@ function initializeSiteAccess() {
             resolve();
         });
     });
-    const currentAccess = hasSiteAccess().then(granted => {
-        siteAccessGranted = granted;
-        renderSiteAccess(granted);
+    const currentAccess = chrome.permissions.contains({ origins: ['<all_urls>'] }).then(granted => {
+        siteAccessGranted = granted === true;
+        renderSiteAccess(siteAccessGranted);
     });
     return Promise.allSettled([storedAccess, currentAccess]);
 }
@@ -959,6 +946,10 @@ function initializeHistory() {
         renderReadySub();
         renderReadyDetail();
         if (view === 'history') renderHistory(false);
+    });
+    chrome.storage.session.get(['retryTabIds'], (result) => {
+        retryTabIds = Array.isArray(result.retryTabIds) ? result.retryTabIds : [];
+        renderReadyDetail();
     });
 }
 
@@ -1048,7 +1039,6 @@ function renderStat(element, bytes) {
 }
 
 function initializeStats() {
-    renderSiteAccess(siteAccessGranted);
     chrome.storage.local.get(['cacheStats'], (result) => {
         const { days, lastRun, total } = readCacheStats(result.cacheStats);
         const todayValue = days[dayKey()];
@@ -1120,7 +1110,8 @@ undoResetButton.addEventListener('click', () => {
         });
         chrome.storage.local.set({
             cacheStats: {
-                lastRun: current.lastRun || previous.lastRun,
+                // Any record means a run finished since the reset, even one that measured 0.
+                lastRun: result.cacheStats ? current.lastRun : previous.lastRun,
                 total: previous.total + current.total,
                 days
             }
@@ -1239,6 +1230,8 @@ const siteAccessInitialization = initializeSiteAccess();
 const windowKind = chrome.windows.getCurrent().then(currentWindow => {
     windowIncognito = currentWindow.incognito === true;
     renderReadySub();
+}).finally(() => {
+    windowKnown = true;
 });
 const windowInitialization = windowKind.then(() => chrome.tabs.query({})).then(tabs => {
     const covered = (Array.isArray(tabs) ? tabs : []).filter(tab => (tab.incognito === true) === windowIncognito);

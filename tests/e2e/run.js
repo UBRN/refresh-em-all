@@ -2,6 +2,7 @@ const path = require('path');
 
 const {
   captureFailureDiagnostics,
+  clickRefreshAll,
   createHarness,
   createPhaseTimer,
   runPool,
@@ -26,41 +27,17 @@ const TEST_CASES = [
           pageB.goto(`${harness.baseUrl}/b`)
         ]);
         await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
-        // The popup keeps this control disabled until it has resolved site access and
-        // any restored operation. Clicking before that fires no event at all.
-        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-        await popup.click('#refreshAll');
+        await clickRefreshAll(popup);
         await popup.waitForFunction(async () => {
           if (!['done', 'failed'].includes(document.body.dataset.state)) return false;
-          const status = document.body.dataset.state === 'done'
-            ? document.querySelector('#doneTitle')?.textContent
-            : document.querySelector('#failTitle')?.textContent;
           const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
-          const latest = refreshHistory[0];
-          if (!latest || latest.cancelled) return false;
-
-          const key = latest.failedCount > 0
-            ? (latest.failedCount === 1 ? 'errorFailedSummaryOne' : 'errorFailedSummaryOther')
-            : latest.skippedCount > 0
-              ? 'statusCompleteSkipped'
-              : 'statusCompleteAll';
-          const substitutions = latest.failedCount > 0
-            ? [latest.failedCount]
-            : key === 'statusCompleteSkipped'
-              ? [latest.successfulTabs, latest.skippedCount]
-              : [latest.successfulTabs];
-          return status === chrome.i18n.getMessage(key, substitutions.map(String));
+          return refreshHistory[0] && !refreshHistory[0].cancelled;
         }, { timeout: 15000 });
 
         await Promise.all([
           pageA.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) >= 2, { timeout: 5000 }),
           pageB.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) >= 2, { timeout: 5000 })
         ]);
-        await popup.waitForFunction(async () => {
-          const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
-          return refreshHistory.length > 0;
-        }, { timeout: 5000 });
-
         const [loadsA, loadsB, popupState] = await Promise.all([
           pageA.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
           pageB.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
@@ -68,7 +45,8 @@ const TEST_CASES = [
             const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
             const latestHistory = refreshHistory[0];
             return {
-              status: document.querySelector('#doneTitle')?.textContent || '',
+              status: document.querySelector('#doneTitle')?.textContent
+                || document.querySelector('#failTitle')?.textContent || '',
               expectedStatus: chrome.i18n.getMessage('statusCompleteSkipped', [
                 String(latestHistory?.successfulTabs || 0),
                 String(latestHistory?.skippedCount || 0)
@@ -120,10 +98,7 @@ const TEST_CASES = [
         }
 
         await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
-        // The popup keeps this control disabled until it has resolved site access and
-        // any restored operation. Clicking before that fires no event at all.
-        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-        await popup.click('#refreshAll');
+        await clickRefreshAll(popup);
         await page.waitForFunction(() =>
           Number(sessionStorage.refreshAuditLoads) === 3 && window.cacheProbeGeneration === 2,
         { timeout: 15000 });
@@ -207,8 +182,7 @@ const TEST_CASES = [
       try {
         await pages[0].bringToFront();
         popup = await openToolbarPopup(harness);
-        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-        await popup.click('#refreshAll');
+        await clickRefreshAll(popup);
         await runPool(pages, 3, page => page.waitForFunction(
           () => Number(sessionStorage.refreshAuditLoads) >= 2,
           { timeout: 15000 }
@@ -250,8 +224,7 @@ const TEST_CASES = [
           return tab.id;
         }, `${harness.baseUrl}/b`);
 
-        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-        await popup.click('#refreshAll');
+        await clickRefreshAll(popup);
         await popup.waitForFunction(() => document.body.dataset.state === 'done', { timeout: 15000 });
         const doneSub = await popup.$eval('#doneSub', element => element.textContent);
         const expected = await popup.evaluate(() => chrome.i18n.getMessage('doneSubUnsaved'));
@@ -417,9 +390,7 @@ async function runFirstRunScenario(harness) {
     await harness.resetState();
     await page.goto(`${harness.baseUrl}/a`);
     await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
-    await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-
-    await popup.click('#refreshAll');
+    await clickRefreshAll(popup);
     await popup.waitForFunction(() => document.body.dataset.state === 'ask', { timeout: 5000 });
     await new Promise(resolve => setTimeout(resolve, 500));
     const beforeAnswer = await Promise.all([
@@ -440,8 +411,7 @@ async function runFirstRunScenario(harness) {
     if (asked !== true) throw new Error('The first-run answer was not remembered');
 
     await popup.reload({ waitUntil: 'load' });
-    await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
-    await popup.click('#refreshAll');
+    await clickRefreshAll(popup);
     await page.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) === 3, { timeout: 15000 });
     const askedAgain = await popup.evaluate(() => document.body.dataset.state === 'ask');
     if (askedAgain) throw new Error('The popup asked again after the first answer');
