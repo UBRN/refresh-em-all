@@ -19,10 +19,7 @@
     "e2e:reliability:smoke": "node tests/e2e/reliability.js --profile=smoke",
     "e2e:reliability:medium": "node tests/e2e/reliability.js --profile=medium",
     "e2e:reliability": "node tests/e2e/reliability.js --profile=full",
-    "stress-test": "node --expose-gc tests/stress/stress-test.js",
-    "stress-test:debug": "node --expose-gc --inspect-brk tests/stress/stress-test.js",
-    "debug-extension": "node tests/debug-extension-loading.js",
-    "verify": "node tests/verify.js"
+    "e2e:reliability:large": "node tests/e2e/reliability.js --profile=large"
   },
   "author": "UBRN",
   "license": "MIT",
@@ -34,7 +31,6 @@
     "@types/jest": "^29.5.12",
     "istanbul-lib-instrument": "^6.0.3",
     "jest": "^29.7.0",
-    "jest-chrome": "^0.8.0",
     "jest-environment-jsdom": "^29.7.0",
     "puppeteer": "^22.5.0",
     "sharp": "^0.32.1"

@@ -27,7 +27,7 @@ would not use.
 ## 3. detailed Feature Specifications
 
 ### 3.1 Core Functionality
-- **Accessible-Tab Scope**: queries `chrome.tabs` across *all* windows, not just the current one, and processes every tab with a valid tab ID. Known browser-internal and extension pages are skipped.
+- **Accessible-Tab Scope**: queries `chrome.tabs` across *all* windows, not just the current one, and processes every tab with a valid tab ID. Known browser-internal and extension pages are skipped. Normal and incognito tabs stay apart: a refresh started from a normal window covers only normal tabs, and one started from an incognito window (when the user allows the extension in incognito) covers only incognito tabs.
 - **Cache-Bypass Invariant**: every actual tab reload must call `chrome.tabs.reload(tabId, { bypassCache: true })`. Normal, discarded, media-capture fallback, retry, loading-wait, and error-recovery paths must never substitute a standard cached reload.
 - **Hard-Refresh-Style Behavior**: each reload bypasses local cache for that load. The extension does not delete cache entries or other browsing data.
 - **Smart Batch Processing**:
@@ -51,14 +51,14 @@ would not use.
 ### 3.4 Error Management
 - **Robust Error Handling**:
   - Captures refresh failures (e.g., offline, crashed renderer).
-  - Implements exponential backoff for retrying failed tabs.
+  - Retries failed tabs with a growing delay (500 ms, then 1000 ms).
   - Gracefully skips system pages (e.g., `chrome://` URLs) that cannot be scripted.
   - Retries route through the same cache-bypassing reload invariant, up to two retries after the initial attempt.
   - Continuously loading tabs receive a bounded wait before the cache-bypassing reload proceeds.
-  - A per-tab timeout records a failure and continues the queue without issuing a standard cached fallback.
+  - A per-tab timeout records a failure and continues the queue without issuing a standard cached fallback. Work still in flight for that tab is abandoned: it neither reloads the tab nor adds its measured bytes.
+  - Measured stale bytes count once per tab, even when its reload is retried.
 - **Cancellation**: The popup can request cancellation. The worker stops before further queued work and records the processed, successful, failed, and skipped counts reached before cancellation.
-- **Interrupted-Operation Recovery**: Progress is persisted in `chrome.storage.session`. If the popup finds a stored operation marked active after the service worker no longer has an active operation, it marks and displays the run as interrupted rather than pretending it completed or resuming it automatically.
-- **Garbage Collection**: Explicitly hints for garbage collection after batches when run in environments exposing `gc()`.
+- **Interrupted-Operation Recovery**: Progress is persisted in `chrome.storage.session`. If Chrome stops the service worker before a run finishes, the next worker start records the run in history as interrupted, with the counts it reached, rather than pretending it completed or resuming it automatically. The popup reports the interruption once; a run the user had already cancelled is recorded as cancelled.
 
 ### 3.5 User Interface
 - **Popup Dashboard**:

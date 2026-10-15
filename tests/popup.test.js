@@ -66,7 +66,8 @@ function executePopupJs({
   cacheStats,
   siteAccess = true,
   mediaAccessAsked = false,
-  requestAccessResult = false
+  requestAccessResult = false,
+  incognito = false
 } = {}) {
   renderPopupDom();
   chrome.runtime.onMessage.callbackQueue = [];
@@ -87,6 +88,9 @@ function executePopupJs({
   chrome.permissions = {
     contains: jest.fn().mockResolvedValue(siteAccess),
     request: jest.fn().mockResolvedValue(requestAccessResult)
+  };
+  chrome.windows = {
+    getCurrent: jest.fn().mockResolvedValue({ id: 1, incognito })
   };
 
   new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
@@ -109,11 +113,23 @@ describe('Popup controller', () => {
     document.getElementById('refreshAll').click();
 
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh' },
+      { action: 'startRefresh', incognito: false },
       expect.any(Function)
     );
     expect(document.getElementById('refreshAll').disabled).toBe(true);
     expect(document.getElementById('cancelRefresh').style.display).toBe('inline-block');
+  });
+
+  test('starts a refresh limited to incognito tabs from an incognito window', async () => {
+    executePopupJs({ incognito: true });
+    await flushPromises();
+
+    document.getElementById('refreshAll').click();
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'startRefresh', incognito: true },
+      expect.any(Function)
+    );
   });
 
   test('requests optional page-reading permission from the settings button', async () => {
@@ -136,7 +152,7 @@ describe('Popup controller', () => {
     expect(chrome.permissions.request).toHaveBeenCalledTimes(1);
     expect(chrome.storage.local.set).toHaveBeenCalledWith({ mediaAccessAsked: true });
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh' },
+      { action: 'startRefresh', incognito: false },
       expect.any(Function)
     );
   });
@@ -169,7 +185,7 @@ describe('Popup controller', () => {
 
     expect(chrome.permissions.request).not.toHaveBeenCalled();
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh' },
+      { action: 'startRefresh', incognito: false },
       expect.any(Function)
     );
   });
@@ -441,6 +457,23 @@ describe('Popup controller', () => {
     expect(document.getElementById('historyContent').textContent)
       .toContain('2 of 4 reloaded; 1 failed, 1 skipped');
     expect(document.getElementById('historyContent').querySelector('script')).toBeNull();
+  });
+
+  test('labels an interrupted run in history', () => {
+    executePopupJs({
+      history: [{
+        timestamp: '2026-01-01T00:00:00.000Z',
+        totalTabs: 5,
+        successfulTabs: 2,
+        failedCount: 0,
+        skippedCount: 0,
+        cancelled: false,
+        interrupted: true
+      }]
+    });
+
+    expect(document.getElementById('historyContent').textContent)
+      .toContain('Interrupted: 2 of 5 reloaded');
   });
 
   test('shows the statistics section without page access so the hint is visible', async () => {

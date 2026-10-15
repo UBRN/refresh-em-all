@@ -189,6 +189,14 @@
       "total": { "content": "$2", "example": "8" }
     }
   },
+  "historyEntryInterrupted": {
+    "message": "Kesildi: $TOTAL$ sekmeden $REFRESHED$ tanesi yenilendi",
+    "description": "History line for a refresh that stopped because the extension's background worker stopped before it finished.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "3" },
+      "total": { "content": "$2", "example": "8" }
+    }
+  },
   "historyEntrySummary": {
     "message": "$TOTAL$ sekmeden $REFRESHED$ tanesi yenilendi; $FAILED$ başarısız, $SKIPPED$ atlandı",
     "description": "History line for a completed refresh.",
@@ -289,10 +297,6 @@
   "errorUnknown": {
     "message": "Bilinmeyen hata",
     "description": "Generic fallback error text."
-  },
-  "errorUnknownDuringRefresh": {
-    "message": "Yenileme sırasında bilinmeyen bir hata oluştu",
-    "description": "Generic fallback error text raised while refreshing a tab."
   },
   "errorRefreshTimeout": {
     "message": "Sekme $SECONDS$ saniye içinde yenilenemedi (zaman aşımı)",

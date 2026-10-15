@@ -189,6 +189,14 @@
       "total": { "content": "$2", "example": "8" }
     }
   },
+  "historyEntryInterrupted": {
+    "message": "Interrupted: $REFRESHED$ of $TOTAL$ reloaded",
+    "description": "History line for a refresh that stopped because the extension's background worker stopped before it finished.",
+    "placeholders": {
+      "refreshed": { "content": "$1", "example": "3" },
+      "total": { "content": "$2", "example": "8" }
+    }
+  },
   "historyEntrySummary": {
     "message": "$REFRESHED$ of $TOTAL$ reloaded; $FAILED$ failed, $SKIPPED$ skipped",
     "description": "History line for a completed refresh.",
@@ -289,10 +297,6 @@
   "errorUnknown": {
     "message": "Unknown error",
     "description": "Generic fallback error text."
-  },
-  "errorUnknownDuringRefresh": {
-    "message": "Something went wrong while reloading the tab",
-    "description": "Generic fallback error text raised while refreshing a tab."
   },
   "errorRefreshTimeout": {
     "message": "Timed out refreshing tab after $SECONDS$ seconds",

@@ -100,12 +100,17 @@ let measuredTotalBytes = 0;
 // run as finished.
 let operationGeneration = 0;
 let mediaAccessAsked = false;
+// A run covers only tabs of the same kind as this popup's window, normal or incognito.
+let windowIncognito = false;
 
 refreshButton.disabled = true;
 const siteAccessInitialization = initializeSiteAccess();
+const windowInitialization = chrome.windows.getCurrent().then(currentWindow => {
+    windowIncognito = currentWindow.incognito === true;
+});
 initializeHistory();
 initializeStats();
-Promise.allSettled([siteAccessInitialization, restoreOperationStatus()]).then(() => {
+Promise.allSettled([siteAccessInitialization, windowInitialization, restoreOperationStatus()]).then(() => {
     if (!activeRefreshOperation) refreshButton.disabled = false;
 });
 
@@ -175,7 +180,7 @@ function requestRefresh() {
     errorContainer.style.display = 'none';
     statusText.textContent = t('statusStarting');
 
-    chrome.runtime.sendMessage({ action: 'startRefresh' }, (response) => {
+    chrome.runtime.sendMessage({ action: 'startRefresh', incognito: windowIncognito }, (response) => {
         const errorMessage = chrome.runtime.lastError?.message || response?.message;
         if (errorMessage || !response?.success) {
             activeRefreshOperation = false;
@@ -541,7 +546,9 @@ function updateHistoryDisplay(history) {
             || (Array.isArray(item.failedTabs) ? item.failedTabs.length : 0);
         const skippedCount = Number(item.skippedCount) || 0;
         const summary = document.createElement('div');
-        summary.textContent = item.cancelled
+        summary.textContent = item.interrupted
+            ? t('historyEntryInterrupted', item.successfulTabs || 0, item.totalTabs || 0)
+            : item.cancelled
             ? t('historyEntryCancelled', item.successfulTabs || 0, item.totalTabs || 0)
             : t('historyEntrySummary', item.successfulTabs || 0, item.totalTabs || 0, failedCount, skippedCount);
         summary.className = failedCount > 0 ? 'history-failure' : 'history-success';

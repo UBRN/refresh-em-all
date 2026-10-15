@@ -75,6 +75,9 @@ function executePopupJs({ operationState = { active: false }, history = [], cach
     contains: jest.fn().mockResolvedValue(true),
     request: jest.fn().mockResolvedValue(false)
   };
+  chrome.windows = {
+    getCurrent: jest.fn().mockResolvedValue({ id: 1, incognito: false })
+  };
 
   new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
   return chrome.runtime.onMessage.callbackQueue[0];

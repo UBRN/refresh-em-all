@@ -22,7 +22,9 @@ tabs. A tab record can include its tab and window identifiers, URL, title,
 favicon URL, loading status, discarded status, audible state, and other tab
 metadata supplied by the Chrome Tabs API. Refresh Em All uses this information
 to identify refreshable tabs, avoid restricted browser pages, refresh tabs, and
-show progress in the popup.
+show progress in the popup. A refresh started from a normal window covers only
+normal tabs, and one started from an incognito window covers only incognito
+tabs, so incognito tab information never appears in a normal window's popup.
 
 When optional site access is granted, the extension checks an accessible page's
 video and audio elements before reloading it. It may temporarily handle the
@@ -46,19 +48,19 @@ Refresh Em All uses the following browser-managed storage:
   records (each with the tab id, URL, title, and favicon URL that Chrome
   supplies), progress, the processed-tab cursor, per-tab status, and local
   failure details. The snapshot exists so an open popup can redraw a run in
-  progress, and so a run whose service worker Chrome shuts down mid-refresh can
-  continue with the tabs it had not reached yet. The extension removes the full
-  snapshot when an operation finishes. If a continuation is not safe, for
-  example because the run was cancelled or has already been continued three
-  times, the full snapshot is replaced with an interrupted marker holding only
-  progress and counts, with no tab records, URLs, titles, favicons, or per-tab
-  statuses; that marker can remain for the rest of the browser session so the
-  popup can report the interruption. `chrome.storage.session` is memory-backed,
+  progress. The extension removes the full snapshot when an operation finishes.
+  If Chrome shuts down the service worker before a run finishes, the run is not
+  continued: the extension records it in history as interrupted and replaces
+  the full snapshot with an interrupted marker holding only progress and
+  counts, with no tab records, URLs, titles, favicons, or per-tab statuses. The
+  marker is removed once the popup has reported the interruption, or when the
+  browser session ends. `chrome.storage.session` is memory-backed,
   is never synced, is not readable by web pages, and Chrome discards it when
   the browser session ends.
 - `chrome.storage.local` holds at most ten refresh-history summaries under
   `refreshHistory`. Each summary contains a timestamp, tab totals, successful,
-  failed, and skipped counts, and whether the operation was cancelled. History
+  failed, and skipped counts, and whether the operation was cancelled or
+  interrupted. History
   summaries do not contain tab URLs or titles.
 - `chrome.storage.local` also holds `cacheStats`, which contains byte totals
   only: the most recent operation, an all-time total, and at most 31 daily
@@ -75,12 +77,10 @@ Refresh Em All uses the following browser-managed storage:
   on that website can read the website's own stored playback state while the
   entry exists.
 
-Current versions do not write refresh information to Chrome Sync. To clean up
-data created by older versions, the extension checks for legacy refresh history
-and error-reporting consent in `chrome.storage.sync`, copies at most ten
-sanitized history summaries to local storage when needed, and removes the
-legacy sync keys. It also removes any legacy pending-error-report data from
-local extension storage.
+Refresh Em All does not read or write Chrome Sync. Versions before 2.0 kept
+refresh history in `chrome.storage.sync`; versions 2.0 through 2.5 moved at
+most ten sanitized history summaries to local storage and removed the sync
+copy on every start. Current versions no longer perform that migration.
 
 ## Error handling, analytics, and transmission
 
