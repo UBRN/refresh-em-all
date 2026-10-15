@@ -12,8 +12,7 @@ refresh-em-all/
 ├── assets/              # Extension icons
 ├── scripts/             # Deterministic release packaging
 ├── tests/               # Test files and utilities
-│   ├── e2e/             # End-to-end tests
-│   ├── stress/          # Stress tests
+│   ├── e2e/             # End-to-end and reliability tests
 │   └── *.test.js        # Unit tests
 ├── background.js        # Extension background script
 ├── content-script.js    # Just-in-time media state restoration injected after refresh
@@ -28,12 +27,8 @@ refresh-em-all/
 
 1. Clone the repository
 2. Select the repository's Node 24 LTS version: `nvm use` (when using nvm)
-3. Install dependencies: `npm ci --legacy-peer-deps`
+3. Install dependencies: `npm ci`
 4. Run tests: `npm test`
-
-The peer-dependency flag is currently required because `jest-chrome@0.8.0`
-declares Jest 26/27 support while this repository uses Jest 29. Removing that
-compatibility flag requires a reviewed test-mock migration.
 
 ## Testing Guidelines
 
@@ -43,7 +38,7 @@ Common commands while developing:
 - `npm run e2e` runs the essential end-to-end and smoke tests.
 
 `TESTING.md` is the canonical reference for the full test surface: every
-command, the reliability and stress profiles, and the current test counts.
+command, the reliability profiles, and the current test counts.
 
 Generated coverage, screenshots, and JSON results are written to ignored output
 directories and must not be committed.

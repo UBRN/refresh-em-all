@@ -23,5 +23,6 @@ describe('E2E reliability harness', () => {
     expect(PROFILES.smoke).toMatchObject({ tabCount: 8, tabsPerWindow: 4 });
     expect(PROFILES.medium).toMatchObject({ tabCount: 20, tabsPerWindow: 10 });
     expect(PROFILES.full).toMatchObject({ tabCount: 50, tabsPerWindow: 25 });
+    expect(PROFILES.large).toMatchObject({ tabCount: 100, tabsPerWindow: 50 });
   });
 });

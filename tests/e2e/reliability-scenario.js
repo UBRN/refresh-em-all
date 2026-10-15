@@ -24,6 +24,11 @@ const PROFILES = {
     tabCount: 50,
     tabsPerWindow: 25,
     operationTimeout: 120000
+  },
+  large: {
+    tabCount: 100,
+    tabsPerWindow: 50,
+    operationTimeout: 240000
   }
 };
 
@@ -129,8 +134,8 @@ function verifyBatchRange(profile, queriedTabCount) {
   if (profile === 'medium' && (queriedTabCount <= 20 || queriedTabCount > 50)) {
     throw new Error(`Medium profile must exercise the >20 tab branch; queried ${queriedTabCount}`);
   }
-  if (profile === 'full' && queriedTabCount <= 50) {
-    throw new Error(`Full profile must exercise the >50 tab branch; queried ${queriedTabCount}`);
+  if ((profile === 'full' || profile === 'large') && queriedTabCount <= 50) {
+    throw new Error(`The ${profile} profile must exercise the >50 tab branch; queried ${queriedTabCount}`);
   }
 }
 

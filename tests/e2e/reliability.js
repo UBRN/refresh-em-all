@@ -9,7 +9,7 @@ function selectedProfile() {
 async function run() {
   const profile = selectedProfile();
   if (!PROFILES[profile]) {
-    throw new Error(`Unknown reliability profile "${profile}". Use smoke, medium, or full.`);
+    throw new Error(`Unknown reliability profile "${profile}". Use smoke, medium, full, or large.`);
   }
 
   const harness = await createHarness({ profile, trace: profile === 'full' });

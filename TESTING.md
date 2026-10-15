@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **98 tests across 6 suites**
+- Jest unit/integration/contract suite: **104 tests across 6 suites**
 - Fast browser suite: **6 scenarios** (the denied-access path, 4 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
@@ -17,8 +17,7 @@ Static coverage percentages are not kept here because an undated snapshot quickl
 
 Node 24 LTS is the CI and local-development default recorded in `.nvmrc`.
 Node 26 is not currently supported by the installed Puppeteer dependency chain.
-Install the locked dependencies with `npm ci --legacy-peer-deps`; the flag is
-needed for the documented `jest-chrome`/Jest peer-version mismatch.
+Install the locked dependencies with `npm ci`.
 
 ## Commands
 
@@ -31,8 +30,7 @@ npm run e2e:package
 npm run e2e:reliability:smoke
 npm run e2e:reliability:medium
 npm run e2e:reliability
-npm run verify
-npm run stress-test
+npm run e2e:reliability:large
 ```
 
 ## Jest unit, integration, and contract coverage
@@ -54,22 +52,27 @@ npm run stress-test
 - Proves a stalled reload times out without issuing a standard cached fallback
 - Cancels active operations
 - Finalizes cancellation immediately and prevents stale callbacks and retries from mutating a replacement refresh
-- Resumes active session snapshots from their processed-tab cursor and caps repeated resumes
-- Ignores inactive snapshots and safely reconciles completed, capped, and malformed session state
+- Records a run whose worker stopped as interrupted in history instead of resuming it, records an already-cancelled one as cancelled, and reports the interruption to the popup once
+- Ignores inactive snapshots and safely reconciles malformed session state
+- Starts each worker lifetime above the generations a previous worker used
+- Refreshes only tabs whose incognito mode matches the window that started the run
+- Stops a timed-out tab attempt from reloading the tab or adding bytes, and counts stale bytes once per tab across retries
+- Records a run cancelled during the permission lookup without the previous run's counts or bytes
+- Keeps finishing runs when stored history is not a list
+- Skips the pending media-restore write when a page load changes nothing
 - Excludes late script measurements from the replacement refresh's cache statistics
 - Discards a tab query or permission result that belongs to a cancelled generation
-- Cancels a restored operation whose permission lookup is still pending
 - Refuses to capture or reload for a tab whose generation was cancelled mid-callback
 - Serializes back-to-back finalizations so neither run loses statistics or history order
 - Carries the operation generation in worker state and in every progress broadcast
-- Filters malformed tab records out of a restored snapshot and normalizes it for the popup
-- Resets the resume budget when a new manual refresh starts
+- Filters malformed tab records out of a stored snapshot and normalizes it for the popup
 - Drops tab records when reconciling an interrupted operation
-- Migrates old Chrome Sync history without retaining titles or URLs
 
 ### Popup
 
 - Prevents duplicate refresh starts
+- Tells the worker whether its window is incognito when starting a refresh
+- Labels interrupted runs in history
 - Requests optional host access from the first refresh only once and still starts after refusal
 - Provides the permanent Settings request path and renders both granted and denied states
 - Displays per-tab success, failure, and skipped states
@@ -103,7 +106,7 @@ npm run stress-test
 
 ### E2E harness and release workflow contracts
 
-- Bounds harness concurrency while preserving result order and exercises the smoke, medium, and full profile ranges
+- Bounds harness concurrency while preserving result order and exercises the smoke, medium, full, and large profile ranges
 - Keeps release publication tag-only, explicitly targeted at GitHub, and limited to the required write permission
 
 ## Cache measurement limits
@@ -155,10 +158,12 @@ playing audio state. They differ only in scale and timeout:
 | `npm run e2e:reliability:smoke` | 8 | Fast local/PR smoke coverage |
 | `npm run e2e:reliability:medium` | 20 | Changes to tab management, storage, popup/background code, or the service worker |
 | `npm run e2e:reliability` | 50 | Weekly, manual, and release-tag full-scale reliability |
+| `npm run e2e:reliability:large` | 100 | Manual check before a release that changes tab processing or the service worker |
 
 The medium profile crosses the extension's `>20` queried-tab batching threshold.
 The full profile crosses the `>50` threshold and preserves the original 25-tabs-
-per-window assertion.
+per-window assertion. The large profile runs 100 tabs, 50 per window; no
+workflow runs it.
 
 The profiles use a generated local audio file and disable Chrome's user-gesture
 requirement for autoplay so playback restoration is deterministic. Real streaming
@@ -187,12 +192,6 @@ Fast-suite failures are stored in a separate directory for each scenario so one
 failure cannot overwrite another. On failure the harness retains screenshots before
 closing the popup, browser and extension state, console errors, and, on the full
 profile, a Chrome trace. CI uploads these diagnostics for 14 days.
-
-## Verification and stress tests
-
-`npm run verify` exercises a larger browser flow and writes diagnostic screenshots/results under `test-results/verification/`.
-
-`npm run stress-test` increases tab counts and records timing and memory information under `test-results/stress/`. A run exits unsuccessfully if it records errors, a crash point, or repeated timeouts; failed runs are not marked as passed.
 
 ## Remaining manual checks
 

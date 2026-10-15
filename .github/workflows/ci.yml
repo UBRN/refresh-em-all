@@ -26,7 +26,7 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Run unit and integration tests
         run: npm test -- --runInBand
       - name: Run essential E2E and 8-tab smoke tests

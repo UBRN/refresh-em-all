@@ -50,7 +50,7 @@ who has not granted page access sees it.
 Use Node.js 24 and the locked dependencies:
 
 ```bash
-npm ci --legacy-peer-deps
+npm ci
 npm run store-assets:capture -- \
   --zip /absolute/path/to/refresh-em-all-v2.5.0.zip \
   --sha256 e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7 \

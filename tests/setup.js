@@ -1,4 +1,4 @@
-const chrome = require('jest-chrome');
+const chrome = {};
 const fs = require('fs');
 const path = require('path');
 

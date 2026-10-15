@@ -58,7 +58,7 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Run medium reliability profile
         run: xvfb-run --auto-servernum npm run e2e:reliability:medium
       - name: Upload reliability diagnostics
@@ -86,7 +86,7 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Run full reliability profile
         run: xvfb-run --auto-servernum npm run e2e:reliability
       - name: Upload reliability diagnostics
