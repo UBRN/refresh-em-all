@@ -36,16 +36,20 @@ would not use.
   - Enforces delays between batches to allow Chrome's garbage collector to run.
 - **Discarded Tab Handling**: Detects tabs that have been discarded (sleeping) by Chrome and performs a cache-bypassing reload without changing the user's active tab. Because a discarded tab's document is unloaded, media state cannot be captured first.
 - **Sequential Execution**: Processes the queue sequentially to maintain browser responsiveness.
+- **Single-Tab Refresh**: "Refresh only this tab" reloads just the active tab of the popup's window through the same path as a full run: the same cache-bypass invariant, lock, cancellation, history entry (marked `singleTab`) and statistics. It needs no new permission. It is offered only for tabs the worker would not skip, so browser pages (`chrome://`, `about:`, extension pages and the other restricted schemes) disable it with a short reason; the Chrome Web Store, which the worker reloads, keeps it enabled.
+- **Active Tab Last**: Chrome closes the popup as soon as the tab under it reloads. A full run therefore reloads that tab last, so the popup can show progress for everything before it.
 - **Result Semantics**: A tab is counted as refreshed when Chrome accepts the reload request without a `runtime.lastError`. This does not guarantee that the resulting page later finishes loading successfully.
 
 ### 3.2 State Preservation
 - **Media Preservation**: Before refreshing a normal, non-discarded tab, the extension scans for `<video>` and `<audio>` elements when the optional `<all_urls>` host permission has been granted. It attempts to capture playback position, play/pause, mute, volume, and playback rate in the page's own `sessionStorage` for restoration after reload. The host page can read that state while it exists. Restoration is best effort and depends on the page's media implementation and Chrome's autoplay rules.
 - **No-Permission Path**: Without the optional host permission, the extension skips script injection and proceeds directly to a cache-bypassing reload. It does not capture media state or measure cached resource bytes on that path.
 - **Capture Failure Fallback**: If media capture is denied or throws, the tab is still reloaded with local-cache bypass; the fallback omits media preservation, not cache bypass.
+- **Capture Timeout**: A page that does not answer the media capture within three seconds is reloaded without it, and a late answer is ignored.
+- **Unstarted Media**: Media captured as paused at 0 s was never played, so restoration leaves the page's own autoplay alone instead of holding it paused.
 
 ### 3.3 Cache Measurement
 - **Measurement**: Before each scripted reload, the injected `preserveMediaState` function reads `performance.getEntriesByType('resource')`. It sums `encodedBodySize` only when `transferSize === 0 && decodedBodySize > 0`; it does not read or retain timing values.
-- **Lower-Bound Semantics**: Every displayed cache figure is "at least" the recorded byte count. Some cross-origin resources do not expose their sizes, and Chrome's Resource Timing buffer holds 250 entries by default; the extension does not enlarge it. Both limits can cause undercounting, so the real number can be higher but not lower.
+- **Approximate Figures**: The popup shows every cache figure as approximate ("about"). The recorded count is a lower bound: some cross-origin resources do not expose their sizes, and Chrome's Resource Timing buffer holds 250 entries by default, which the extension does not enlarge. Both limits cause undercounting, so the real amount is usually higher.
 - **Aggregation**: `chrome.storage.local.cacheStats` stores byte counts for `lastRun`, `total`, and at most 31 daily buckets keyed by local date. Completing a refresh without optional host access still records `lastRun: 0`; retained daily buckets continue to age through the rolling 7-day and 30-day windows.
 
 ### 3.4 Error Management
@@ -61,18 +65,19 @@ would not use.
 - **Interrupted-Operation Recovery**: Progress is persisted in `chrome.storage.session`. If Chrome stops the service worker before a run finishes, the next worker start records the run in history as interrupted, with the counts it reached, rather than pretending it completed or resuming it automatically. The popup reports the interruption once; a run the user had already cancelled is recorded as cancelled.
 
 ### 3.5 User Interface
-- **Popup Dashboard**:
-  - **Start Button**: Single prominent action to initiate process.
-  - **Cancel Button**: Available during an active refresh and reports cancellation failures.
-  - **Progress Visuals**:
-    - Linear progress bar showing percentage complete.
-    - Dynamic status text (`Refreshing 5/20 tabs...`).
-    - Granular tab list showing status indicators (Loading, Success ✓, Error ✗) for every individual tab.
-  - **Visual Feedback**: Confetti animation upon successful completion of all tabs.
-- **History Log**: Keeps a local record of the last 10 refresh operations, detailing success rates and timestamps.
-- **Cache Statistics**: Shows the last run, today, rolling 7-day, rolling 30-day, and all-time measured byte totals as lower-bound figures. Settings provides a local reset for `cacheStats`.
-- **Optional Host Access**: The first refresh on a fresh profile asks once for `<all_urls>` access. Settings keeps a permanent control for requesting it later, and refusal does not block reloads.
-- **Operation Recovery**: Reopening the popup restores active progress from session storage or reports that an operation was interrupted.
+- **Fixed Frame**: The popup is a fixed 360 by 480 px frame. Its hero, action and detail slots change in place, so the popup window never resizes. Motion uses only transform and opacity, five durations (90, 140, 220, 300, 560 ms), one ease-out curve and two damped springs; it uses no View Transitions and only system fonts. It needs Chrome 117 (`minimum_chrome_version`).
+- **Refresh All Tabs**: The single primary action. While a run is active its slot shows the progress bar; Cancel sits in the hero, away from it.
+- **Progress**: The bar follows the run with a critically damped spring and creeps toward the next step while a tab is in flight, never past 90 percent of that step and never backwards. The count and percent never claim an unfinished tab, and the bar's `aria-valuenow` carries only the real value. One dot per tab shows reloaded, failed and skipped tabs; after a cancel, tabs that never ran stay quiet. The animation stops while the popup is hidden.
+- **Result**: A badge and one sentence report the outcome: all reloaded, reloaded with skipped browser pages, failed (with the failing tabs and Chrome's reason), or stopped. The measured bytes of the run appear once, counting up.
+- **Toolbar Badge**: During a run the toolbar badge shows the percentage. Because Chrome closes the popup when the tab under it reloads, the badge shows the result for four seconds afterwards: a tick after a run that reloaded at least one tab with no failures, a mark after any failure, nothing after a cancel or an interruption.
+- **Confetti**: A short canvas burst (44 pieces, 1.5 s, the icon's colors) after a run over every tab that ended with no cancel and no failure, reloaded at least one tab, and finished while the popup was visible. It never plays on reopening the popup or for a single tab.
+- **Refresh Only This Tab**: A quiet text button at the bottom of the detail slot, far from the primary button, names the active tab's site and has a short line under it ("Skips the cache. Videos pick up where they left off."). On browser pages it is disabled and the line gives the reason.
+- **Secondary Views**: Recent reloads, Files Downloaded Again and Settings are one grouped list; each row shows a live summary and opens a view inside the popup.
+- **History Log**: Keeps a local record of the last 10 refresh operations with relative times; single-tab, stopped and interrupted runs are labeled.
+- **Cache Statistics**: Shows the last run, today, rolling 7-day, rolling 30-day, and all-time measured byte totals as approximate figures. Settings provides a local reset for `cacheStats` with a six-second Undo.
+- **Optional Host Access**: The first refresh on a fresh profile first asks in the popup whether to keep videos where they were left. Only "Allow and refresh" opens Chrome's permission dialog for `<all_urls>`; "Just refresh" reloads without it. Either answer is remembered, so the question appears once. Settings keeps a permanent control for requesting access later, and refusal does not block reloads.
+- **Operation Recovery**: Reopening the popup restores active progress from session storage or reports once that an operation was interrupted.
+- **Accessibility**: Keyboard focus follows the controls as states change, focus rings stay visible inside the grouped list, long titles never widen the popup, and screen readers hear the start, each quarter of the run and the result rather than every tab.
 - **Error Reporting**:
   - Detailed local view of specific tab errors in the UI.
   - No browsing data or telemetry is sent to external services.
@@ -83,11 +88,11 @@ would not use.
   - Follows the browser UI language; English is the fallback locale.
 
 ## 4. Technical Architecture
-- **Manifest Version**: V3
+- **Manifest Version**: V3, `minimum_chrome_version` 117
 - **Permissions Required**:
   - `tabs`: To query and manipulate tabs.
   - `scripting`: To inject cache measurement and media capture before reload, then inject media restoration after reload when optional host access is available.
-  - `storage`: To save session operation state, the `pendingMediaRestores` map in `chrome.storage.session` (`{ tabId: expiry timestamp }`, which keeps a tab's media restoration alive if the MV3 service worker is evicted between reload and completion), local refresh history, `cacheStats`, and the one-time `mediaAccessAsked` prompt flag, and to migrate legacy extension storage. The captured media state itself uses the relevant page's `sessionStorage`, not the Chrome `storage` permission.
+  - `storage`: To save session operation state, the `pendingMediaRestores` map in `chrome.storage.session` (`{ tabId: expiry timestamp }`, which keeps a tab's media restoration alive if the MV3 service worker is evicted between reload and completion), local refresh history (entries may carry `singleTab`), `cacheStats`, and the one-time `mediaAccessAsked` prompt flag, and to migrate legacy extension storage. The captured media state itself uses the relevant page's `sessionStorage`, not the Chrome `storage` permission.
 - **Optional Host Permission**:
   - `<all_urls>`: Requested at runtime from the first refresh or the permanent Settings control. It enables cache measurement and media capture/restoration on supported pages; reloads still proceed without it.
 - **Local Processing**: All logic runs client-side. No user data or telemetry is sent to external servers.

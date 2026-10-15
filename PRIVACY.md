@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective date: August 24, 2026
+Effective date: October 15, 2026
 
 Refresh Em All refreshes open tabs and attempts to preserve supported audio and
 video playback state. The extension performs this work locally in Chrome. The
@@ -25,6 +25,9 @@ to identify refreshable tabs, avoid restricted browser pages, refresh tabs, and
 show progress in the popup. A refresh started from a normal window covers only
 normal tabs, and one started from an incognito window covers only incognito
 tabs, so incognito tab information never appears in a normal window's popup.
+When the popup opens, it reads the active tab of its window to name that tab's
+site on "Refresh only this tab", to decide whether that action is available,
+and to reload that tab last in a full run. It does not store that information.
 
 When optional site access is granted, the extension checks an accessible page's
 video and audio elements before reloading it. It may temporarily handle the
@@ -54,21 +57,29 @@ Refresh Em All uses the following browser-managed storage:
   the full snapshot with an interrupted marker holding only progress and
   counts, with no tab records, URLs, titles, favicons, or per-tab statuses. The
   marker is removed once the popup has reported the interruption, or when the
-  browser session ends. `chrome.storage.session` is memory-backed,
+  browser session ends.
+- `chrome.storage.session` also holds `pendingMediaRestores`, a map from tab id
+  to an expiry time, for tabs whose captured media state is waiting to be
+  restored after their reload. It keeps that restoration working if Chrome stops
+  the service worker in between. It contains no URLs, titles, or media state;
+  an entry is removed when the tab finishes loading or closes, and is ignored
+  once 30 seconds have passed. `chrome.storage.session` is memory-backed,
   is never synced, is not readable by web pages, and Chrome discards it when
   the browser session ends.
 - `chrome.storage.local` holds at most ten refresh-history summaries under
   `refreshHistory`. Each summary contains a timestamp, tab totals, successful,
-  failed, and skipped counts, and whether the operation was cancelled or
-  interrupted. History
+  failed, and skipped counts, whether the operation was cancelled or
+  interrupted, and whether it covered a single tab. History
   summaries do not contain tab URLs or titles.
 - `chrome.storage.local` also holds `cacheStats`, which contains byte totals
   only: the most recent operation, an all-time total, and at most 31 daily
   totals keyed by local date. It contains no URLs, hostnames, per-site, or
   per-tab data. The reset control in the popup clears it.
 - `chrome.storage.local` holds the Boolean `mediaAccessAsked` flag so the popup
-  asks automatically for optional site access at most once. The Settings button
-  remains available if the user wants to request access later.
+  asks about optional site access at most once, on the first refresh. It asks in
+  the popup first; Chrome's permission dialog opens only if the user chooses to
+  allow access. The Settings button remains available if the user wants to
+  request access later.
 - The relevant page's `sessionStorage` temporarily holds media state under the
   `refreshEmAllMediaState` key so it can survive that page's reload. The bundled
   content script removes the entry when it reads it. If it cannot be consumed,
@@ -89,9 +100,8 @@ console. Refresh Em All does not send error reports, telemetry, analytics,
 browsing activity, tab information, or media state to the developer or to an
 analytics or advertising service. It has no developer-operated data endpoint.
 
-The popup can display a favicon URL supplied by Chrome for an open tab. Chrome
-may load or reuse that icon from the site that provides it; Refresh Em All does
-not attach its stored refresh, media, or error information to that request.
+The popup does not display tab favicons, so opening it makes no request to the
+sites of your open tabs.
 
 Refresh Em All does not sell user data, share it with data brokers,
 advertisers, or analytics services, use it for creditworthiness or lending, or

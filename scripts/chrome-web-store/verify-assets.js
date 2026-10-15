@@ -98,25 +98,6 @@ function validateSvg() {
   }
 }
 
-function dominantEdgeColour(data, info) {
-  const counts = new Map();
-  const record = (x, y) => {
-    const index = (y * info.width + x) * info.channels;
-    const colour = `${data[index]},${data[index + 1]},${data[index + 2]}`;
-    counts.set(colour, (counts.get(colour) || 0) + 1);
-  };
-  for (let x = 0; x < info.width; x += 1) {
-    record(x, 0);
-    record(x, info.height - 1);
-  }
-  for (let y = 1; y < info.height - 1; y += 1) {
-    record(0, y);
-    record(info.width - 1, y);
-  }
-  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0][0]
-    .split(',').map(Number);
-}
-
 async function inspectPackagedIcon(zipPath) {
   if (!expectedPackageSha) {
     throw new Error('--zip requires --sha256 <hex> so the audited package is pinned explicitly');
@@ -141,27 +122,27 @@ async function inspectPackagedIcon(zipPath) {
   const icon = entryMap.get(iconPath);
   const image = sharp(icon);
   const metadata = await image.metadata();
-  const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
-  const background = dominantEdgeColour(data, info);
+  const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  // Store rule: 96x96 artwork inside a transparent 16 px margin on a 128x128 icon.
   let left = info.width;
   let top = info.height;
   let right = -1;
   let bottom = -1;
   for (let y = 0; y < info.height; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
-      const index = (y * info.width + x) * info.channels;
-      const delta = Math.max(
-        Math.abs(data[index] - background[0]),
-        Math.abs(data[index + 1] - background[1]),
-        Math.abs(data[index + 2] - background[2])
-      );
-      if (delta > 5) {
+      if (data[(y * info.width + x) * info.channels + 3] > 0) {
         left = Math.min(left, x);
         top = Math.min(top, y);
         right = Math.max(right, x);
         bottom = Math.max(bottom, y);
       }
     }
+  }
+  if (metadata.width !== 128 || metadata.height !== 128) {
+    throw new Error(`Store icon must be 128x128; received ${metadata.width}x${metadata.height}`);
+  }
+  if (right < 0 || left < 16 || top < 16 || right > 111 || bottom > 111) {
+    throw new Error(`Store icon artwork must stay inside a transparent 16 px margin: ${JSON.stringify({ left, top, right, bottom })}`);
   }
 
   fs.mkdirSync(reviewRoot, { recursive: true });
@@ -185,7 +166,7 @@ async function inspectPackagedIcon(zipPath) {
       height: metadata.height,
       channels: metadata.channels,
       hasAlpha: metadata.hasAlpha,
-      approximateArtworkBounds: right < 0 ? null : {
+      artworkBounds: {
         left,
         top,
         right,
@@ -193,7 +174,7 @@ async function inspectPackagedIcon(zipPath) {
         width: right - left + 1,
         height: bottom - top + 1
       },
-      finding: `Valid 128x128 PNG; opaque padding is retained for v${manifest.version} and documented as a future improvement.`
+      finding: `Valid 128x128 PNG with ${right - left + 1}x${bottom - top + 1} px artwork inside a transparent 16 px margin.`
     }
   };
   fs.mkdirSync(resultRoot, { recursive: true });

@@ -20,6 +20,7 @@ With one click, you can:
 - Reload sleeping tabs without bringing them to the front
 - See which reloads Chrome accepted, which failed, and which were skipped
 - Cancel while a reload is running
+- Reload only the tab you are looking at
 
 Errors are shown only to you on this device. The extension does not send error
 reports anywhere.
@@ -30,8 +31,8 @@ reports anywhere.
 - Fetches fresh files instead of reusing copies Chrome saved earlier
 - Keeps playback position, play/pause state, mute, volume, and playback speed
   on a best-effort basis
-- Measures at least the size of files that came from copies Chrome saved
-  earlier and will now be downloaded again
+- Estimates the size of files that came from copies Chrome saved earlier and
+  were downloaded again
 - Shows figures for the last reload, today, the last 7 days, the last 30 days,
   and all time
 - Works without permission to read the pages you refresh; if you say no, no
@@ -50,16 +51,21 @@ reports anywhere.
   the page, its player, and Chrome's autoplay rules.
 - A successful result means Chrome accepted the reload. It does not mean the
   page finished loading.
-- Every saved-file figure says **at least** because the real number is higher. Some
-  files do not tell the page their size, and Chrome keeps only a limited number
-  of the load records it already has for the page.
+- Every saved-file figure is an estimate, labeled **about**. The real amount is
+  usually higher: some files do not tell the page their size, and Chrome keeps
+  only a limited number of the load records it already has for the page.
+- Chrome closes the popup when the tab under it reloads. That tab reloads last,
+  and the toolbar icon shows the result for a few seconds: a tick, or a mark if
+  a tab failed.
 - The figures do not show deleted cache, freed disk space, or a measured amount
-  saved. They add up files that came from copies Chrome saved earlier and will
-  now be downloaded again.
+  saved. They add up files that came from copies Chrome saved earlier and were
+  downloaded again.
 
 ## Optional permission
 
-Refresh Em All asks for permission to read the pages you refresh. It uses this
+On your first refresh, Refresh Em All asks in its popup whether to keep videos
+where you left them; Chrome's own permission dialog opens only if you choose to
+allow it. The permission lets the extension read the pages you refresh. It uses this
 optional permission only to keep videos and audio where you left them on a
 best-effort basis and to measure files served from copies Chrome saved earlier.
 Reloading still works if you say no. You can grant the permission later in

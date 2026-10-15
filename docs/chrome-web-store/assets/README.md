@@ -1,37 +1,38 @@
 # Chrome Web Store visual assets
 
-These files are reviewable listing inputs for Refresh Em All v2.5.0. They are
+These files are reviewable listing inputs for Refresh Em All v2.6.0. They are
 not part of the extension runtime package and must not be added to the package
 allowlist in `scripts/package-extension.js`.
 
 ## Provenance
 
-The screenshots are captured from `refresh-em-all-v2.5.0.zip` (134,346 bytes)
+The screenshots are captured from `refresh-em-all-v2.6.0.zip` (188,142 bytes)
 after requiring this SHA-256:
 
 ```text
-e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7
+49e1f3b93481a55481b18edcf88517fd92f6938b2bd5cde49fcbdb88b74145f7
 ```
 
-Each capture run also asserts that the loaded extension reports version 2.5.0
+Each capture run also asserts that the loaded extension reports version 2.6.0
 and that the popup's resolved `@@ui_locale` matches the requested `--locale`,
 so a localized set cannot silently be a copy of another language.
 
 The capture script safely extracts the ZIP into a temporary directory, loads
 only that directory in an isolated Chrome for Testing profile, uses neutral
-localhost fixtures, and removes the profile and extracted files afterward.
+fixtures served from a local server under the name `example.com` (Chrome maps it
+to the loopback address with `--host-resolver-rules`), and removes the profile
+and extracted files afterward.
 The capture does not touch the Store icon inside the package.
 
 ## Capture viewport
 
 The capture viewport is 1024x640 CSS pixels at a device scale factor of 1.25,
-which renders to exactly 1280x800. It has grown twice, each time because the
-popup outgrew the frame and the capture failed closed rather than shipping a
-clipped card: 640x400 at 2x stopped fitting when the cache-statistics section
-landed, and 880x550 stopped fitting for v2.4.3 because the v2.4.2 retheme took
-the tallest state to roughly 589 CSS pixels. The viewport is sized for that
-worst case and the card is centred, so shorter states show even slack above and
-below rather than a card clipped at the top.
+which renders to exactly 1280x800. Since v2.6.0 the popup is a fixed 360x480 CSS
+pixel frame, so every state fits with the card centred. The ready shot loads the
+popup behind an active fixture tab, so "Refresh only this tab" names that
+neutral site as it would for a user. The in-progress shot freezes a copy of the
+popup when its count matches its chips, and the history and settings shots open
+those views inside the popup.
 
 The capture pins `prefers-color-scheme: light`. The popup gained a dark theme in
 v2.4.2, and the framing applied at capture time forces a white card, so on a
@@ -52,18 +53,18 @@ Use Node.js 24 and the locked dependencies:
 ```bash
 npm ci
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.5.0.zip \
-  --sha256 e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7 \
-  --expect-version 2.5.0 --locale en
+  --zip /absolute/path/to/refresh-em-all-v2.6.0.zip \
+  --sha256 49e1f3b93481a55481b18edcf88517fd92f6938b2bd5cde49fcbdb88b74145f7 \
+  --expect-version 2.6.0 --locale en
 npm run store-assets:capture -- \
-  --zip /absolute/path/to/refresh-em-all-v2.5.0.zip \
-  --sha256 e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7 \
-  --expect-version 2.5.0 --locale tr
+  --zip /absolute/path/to/refresh-em-all-v2.6.0.zip \
+  --sha256 49e1f3b93481a55481b18edcf88517fd92f6938b2bd5cde49fcbdb88b74145f7 \
+  --expect-version 2.6.0 --locale tr
 npm run store-assets:promo
 npm run store-assets:verify -- \
-  --zip /absolute/path/to/refresh-em-all-v2.5.0.zip \
-  --sha256 e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7 \
-  --expect-version 2.5.0
+  --zip /absolute/path/to/refresh-em-all-v2.6.0.zip \
+  --sha256 49e1f3b93481a55481b18edcf88517fd92f6938b2bd5cde49fcbdb88b74145f7 \
+  --expect-version 2.6.0
 ```
 
 Generated diagnostics and downscaled review copies are written beneath
@@ -90,11 +91,10 @@ profiles, bookmarks, URLs, external websites, personal information, DevTools,
 automation banners, local paths, and test identifiers. Review screenshots at
 both 1280×800 and 640×400, and review the promo at both 440×280 and 220×140.
 
-## Deferred icon improvement
+## Icon
 
-v2.4.4 points `manifest.json` `icons` at the colorful set, so the packaged
-Store icon is now `assets/icon-refresh-em-colorful-128.png`, the artwork the
-toolbar already used. It is a valid PNG with exact dimensions, but its padding
-is opaque rather than transparent. Any future transparent-padding correction
-must be a separately scoped package version and must not replace an already
-published ZIP.
+The packaged Store icon is `assets/icon-128.png`: the blue tile drawn from
+`assets/icon.svg`, with 96x96 px artwork inside a transparent 16 px margin.
+`npm run generate-icons` renders every icon size and both favicons from the two
+SVG sources, and `store-assets:verify --zip` fails if the packaged icon's
+artwork leaves that margin.

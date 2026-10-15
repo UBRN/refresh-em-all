@@ -16,7 +16,9 @@ const screenshotRoot = path.join(repositoryRoot, 'docs/chrome-web-store/assets/s
 const resultDirectory = path.join(repositoryRoot, 'test-results/chrome-web-store');
 const localeRoot = path.join(repositoryRoot, '_locales');
 const defaultExpectedVersion = require(path.join(repositoryRoot, 'package.json')).version;
-const fixedHistoryTimestamp = '2026-01-15T12:00:00.000Z';
+// The popup shows history times relative to now, so the seeded entry is pinned to a
+// fixed distance from the capture rather than a fixed date.
+const historyAgeMs = 2 * 60 * 60 * 1000;
 
 // The popup is localized, so every status string this capture waits on has to be rendered from
 // the same catalog Chrome will use. This mirrors chrome.i18n.getMessage's substitution rules.
@@ -194,6 +196,7 @@ async function applyCapturePresentation(page) {
       animation-duration: 0s !important;
       animation-delay: 0s !important;
       transition-duration: 0s !important;
+      transition-delay: 0s !important;
       caret-color: transparent !important;
     }
     #confetti { display: none !important; }
@@ -229,6 +232,8 @@ async function openSubView(page, rowSelector) {
   if (await page.$('#subView.on')) await page.click('#back');
   await page.click(rowSelector);
   await page.waitForSelector('#subView.on');
+  // Let the slide-in finish before the shot.
+  await new Promise(resolve => setTimeout(resolve, 600));
 }
 
 // The run is fast, so the shot freezes a copy of the popup the moment its count shows
@@ -239,12 +244,15 @@ async function freezePopupMidRun(page) {
     const read = () => ({
       state: document.body.dataset.state,
       count: Number(document.querySelector('#runCount')?.textContent),
+      processed: ['#countReloaded', '#countFailed', '#countSkipped']
+        .reduce((sum, selector) => sum + Number(document.querySelector(selector)?.dataset.value || 0), 0),
       total: document.querySelector('#runTotal')?.textContent || '',
       valueNow: document.querySelector('#progressBar')?.getAttribute('aria-valuenow')
     });
     const freezeWhenReady = () => {
       const current = read();
-      if (current.state === 'running' && current.count >= 4 && current.count <= 6) {
+      if (current.state === 'running' && current.count >= 3 && current.count <= 6
+        && current.count === current.processed) {
         document.body.replaceWith(document.body.cloneNode(true));
         resolve(current);
         return;
@@ -465,12 +473,12 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 1800));
     layouts.complete = await capture(popup, screenshotDirectory, screenshotNames.complete);
 
-    await popup.evaluate(async timestamp => {
+    await popup.evaluate(async ageMs => {
       const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
       if (refreshHistory.length !== 1) throw new Error(`Expected one history entry, received ${refreshHistory.length}`);
-      refreshHistory[0].timestamp = timestamp;
+      refreshHistory[0].timestamp = new Date(Date.now() - ageMs).toISOString();
       await chrome.storage.local.set({ refreshHistory });
-    }, fixedHistoryTimestamp);
+    }, historyAgeMs);
     await popup.reload({ waitUntil: 'domcontentloaded' });
     await popup.waitForSelector('#openHistory');
     await openSubView(popup, '#openHistory');
@@ -506,7 +514,7 @@ async function main() {
         accessibleTabs: 6,
         restrictedTabs: 2,
         windows: 2,
-        fixedHistoryTimestamp,
+        historyAgeMs,
         refreshOrder: refreshOrder.map(tab => ({
           index: tab.index,
           window: tab.windowId === fixture.currentWindowId ? 'primary' : 'secondary',

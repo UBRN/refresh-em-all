@@ -1,23 +1,22 @@
 # Chrome Web Store Listing Proposal
 
 This document contains proposed submission text and a code-backed declaration
-audit for Refresh Em All v2.5.0. It does not authorize publication.
+audit for Refresh Em All v2.6.0. It does not authorize publication.
 
-v2.5.0 is a visual release. The popup had kept the palette, spacing and
-typography it shipped with, and every change since v2.1 had been functional,
-so the presentation layer was never revisited. This version replaces it: a new
-palette with two elevation levels, an explicit type ramp, history, statistics
-and settings grouped into cards with disclosure chevrons, shorter transitions,
-tab tiles that tint by outcome, and a statistics block whose labels and figures
-are separate elements so the all-time total can carry the emphasis. It also
-fixes a completion bug in which the celebration animation required zero skipped
-tabs and therefore almost never ran, even though the progress bar read 100
-percent.
+v2.6.0 rebuilds the popup and adds one feature. The popup is a fixed frame
+whose slots change in place, so its window never resizes; History, Files and
+Settings open as views inside it. The progress bar follows the run smoothly,
+a clean run over every tab ends with a short confetti burst, and the first
+refresh asks in the popup before Chrome's permission dialog appears. "Refresh
+only this tab" reloads just the tab under the popup through the same path. The
+icon is redrawn as a blue tile with a transparent margin. Chrome closes the
+popup when the tab under it reloads, so that tab now reloads last and the
+toolbar badge shows the result for a few seconds. Measured byte totals are
+labeled approximate.
 
-It changes no permission, no data handling, and no network behavior. It does
-change the interface, and it replaces five message catalog keys with six in
-both locales, so the statistics rows read differently in the product while the
-listing text below is unaffected.
+It changes no permission and no network behavior. It needs Chrome 117 or later
+(`minimum_chrome_version`). History entries gain a `singleTab` flag, and the
+popup no longer shows tab favicons.
 
 The permission model below is unchanged since v2.4.0, which made all-sites host
 access optional and requested it at runtime for media preservation and cache
@@ -53,6 +52,9 @@ volume, and playback rate. Restoration is best effort and depends on the page,
 its media player, and Chrome's autoplay rules. Sleeping tabs reload without
 coming to the foreground, but their unloaded media cannot be checked first.
 
+"Refresh only this tab" reloads just the tab you are looking at, the same way.
+It is not offered on Chrome's own pages, which no extension can reload.
+
 The interface is available in English and Turkish, and follows your browser's
 language automatically.
 
@@ -66,38 +68,40 @@ timing value leaves the page.
 The background worker combines those per-tab numbers into one total for the
 run. On completion it stores the local `cacheStats` counter as `{ lastRun,
 total, days: { "YYYY-MM-DD": bytes } }`, pruning `days` to the most recent 31
-dates. The popup reports at least the amount found for the last run, today, the
+dates. The popup reports about how much it found for the last run, today, the
 last 7 days, the last 30 days, and all time. The counter is not tied to an
 identifier and is never sent anywhere.
 
 These figures do not say how much cache was deleted or how much disk space was
-freed. They show files that were served from saved copies and will now be
-downloaded again.
+freed. They show files that were served from saved copies and were downloaded
+again.
 
-Every figure says "at least" because some files do not tell the page their
-size, so they are not counted. Chrome also keeps only a limited number of load
-records for a page, 250 by default, and Refresh Em All does not raise that
-limit. When either limit applies, the real number is higher. You can reset the
+Every figure is an estimate, labeled "about". Some files do not tell the page
+their size, so they are not counted. Chrome also keeps only a limited number of
+load records for a page, 250 by default, and Refresh Em All does not raise that
+limit. When either limit applies, the real amount is higher. You can reset the
 totals from Settings.
 
 Keeping videos and audio where you left them and measuring these files require
 permission to read the pages you refresh. Without that permission, Refresh Em
 All still reloads your tabs and fetches fresh files instead of reusing saved
 copies. No measurement runs, and the popup says page access is unavailable. The
-last-run figure becomes at least 0 bytes, while the last 7 days and last 30 days
+last-run figure becomes 0 bytes, while the last 7 days and last 30 days
 keep changing as older days fall outside those periods.
 
 While a refresh is running, Chrome's memory-backed, nonsynced session storage
 holds a temporary snapshot under `refreshOperationState`. It contains the tab
 objects in the run, including tab IDs, URLs, titles, favicon URLs, and per-tab
 status, with the same tab details for failures. This lets the popup redraw the
-run and lets the operation resume after a Manifest V3 service worker eviction.
+run. If Chrome stops the Manifest V3 service worker mid-run, the run is recorded
+as interrupted rather than resumed.
 It is never exposed to web pages. Chrome discards it when the browser session
 ends, and Refresh Em All removes it when the operation finishes.
 
 Durable `refreshHistory` storage keeps at most ten counts-only summaries:
 timestamp, total tabs, successful tabs, failed count, skipped count, and the
-cancelled flag. It contains no URLs, titles, or favicons. Refresh Em All sends
+cancelled, interrupted and single-tab flags. It contains no URLs, titles, or
+favicons. Refresh Em All sends
 no tab details, cache counters, history, telemetry, or error reports anywhere,
 and it uses no remote code.
 
@@ -148,6 +152,9 @@ geleni yapar; sonuç sayfaya, medya oynatıcısına ve Chrome'un otomatik oynatm
 kurallarına bağlıdır. Uyuyan sekmeler öne getirilmeden yeniden yüklenir, ancak
 henüz yüklenmemiş medyaları önceden denetlenemez.
 
+"Yalnız bu sekmeyi yenile", baktığınız sekmeyi aynı şekilde tek başına yeniden
+yükler. Hiçbir uzantının yenileyemediği Chrome sayfalarında sunulmaz.
+
 Arayüz İngilizce ve Türkçe olarak sunulur ve tarayıcınızın diline göre kendini
 ayarlar.
 
@@ -161,16 +168,16 @@ kaynak adı veya zamanlama değeri sayfadan çıkmaz.
 Arka plan worker'ı sekme değerlerini tek bir çalışma toplamında birleştirir.
 Çalışma bitince yerel `cacheStats` sayacını `{ lastRun, total, days: {
 "YYYY-MM-DD": bytes } }` biçiminde yazar ve `days` alanını en yeni 31 tarihle
-sınırlar. Açılır penceredeki her değer en az miktarı gösterir: son çalıştırma,
+sınırlar. Açılır penceredeki her değer yaklaşık miktarı gösterir: son çalıştırma,
 bugün, son 7 gün, son 30 gün ve tüm zamanlar. Sayaç hiçbir tanımlayıcıyla
 ilişkilendirilmez ve hiçbir yere gönderilmez.
 
 Bu değerler önbellekten ne kadar veri silindiğini veya diskte ne kadar yer
-açıldığını göstermez. Daha önce kaydedilmiş kopyalardan sunulan ve şimdi yeniden
-indirilecek dosyaları gösterir.
+açıldığını göstermez. Daha önce kaydedilmiş kopyalardan sunulan ve yeniden
+indirilen dosyaları gösterir.
 
-Her değerde "en az" yazar. Çünkü bazı dosyalar boyutlarını sayfaya bildirmez ve
-hesaba katılmaz. Chrome ayrıca bir sayfa için sınırlı sayıda yükleme kaydı tutar;
+Her değer bir tahmindir ve "yaklaşık" diye gösterilir. Bazı dosyalar boyutlarını
+sayfaya bildirmez ve hesaba katılmaz. Chrome ayrıca bir sayfa için sınırlı sayıda yükleme kaydı tutar;
 varsayılan sınır 250'dir ve Refresh Em All bu sınırı artırmaz. Bu sınırlardan
 biri devreye girdiğinde gerçek miktar daha yüksektir. Toplamları Ayarlar'dan
 sıfırlayabilirsiniz.
@@ -179,7 +186,7 @@ Videoları ve sesleri bıraktığınız yerde tutmak ve bu dosyaları ölçmek,
 yenilediğiniz sayfaları okuma izni gerektirir. İzin vermezseniz Refresh Em All
 sekmelerinizi yine yeniden yükler ve Chrome'un daha önce kaydettiği kopyaları
 kullanmak yerine dosyaları yeniden indirir. Ölçüm yapılmaz ve açılır pencere
-sayfa erişiminin bulunmadığını bildirir. Son çalıştırma değeri en az 0 bayt olur;
+sayfa erişiminin bulunmadığını bildirir. Son çalıştırma değeri 0 bayt olur;
 eski günler dönem dışına çıktıkça son 7 ve son 30 gün değerleri değişmeye devam
 eder.
 
@@ -187,13 +194,13 @@ Yenileme sürerken Chrome'un bellekte tutulan ve eşitlenmeyen oturum depolamas�
 `refreshOperationState` anahtarında geçici bir anlık görüntü saklar. Bu görüntü;
 çalışmadaki sekmelerin kimliklerini, URL'lerini, başlıklarını, favicon URL'lerini,
 sekme başına durumu ve başarısız sekmeler için aynı ayrıntıları içerir. Açılır
-pencerenin çalışmayı yeniden çizmesini ve Manifest V3 service worker'ı bellekten
-çıkarıldığında işlemin sürdürülmesini sağlar. Web sayfalarına açılmaz. Chrome
+pencerenin çalışmayı yeniden çizmesini sağlar. Manifest V3 service worker'ı
+çalışma sırasında durursa çalışma sürdürülmez, kesildi olarak kaydedilir. Web sayfalarına açılmaz. Chrome
 tarayıcı oturumu bitince siler, Refresh Em All ise işlem bitince kaldırır.
 
 Kalıcı `refreshHistory` depolaması en fazla on adet yalnızca sayı içeren özet
 tutar: zaman damgası, toplam sekme, başarılı sekme, başarısız sayısı, atlanan
-sayısı ve iptal durumu. URL, başlık veya favicon içermez. Refresh Em All sekme
+sayısı ile iptal, kesilme ve tek sekme bilgisi. URL, başlık veya favicon içermez. Refresh Em All sekme
 ayrıntılarını, önbellek sayaçlarını, geçmişi, telemetriyi veya hata raporlarını
 hiçbir yere göndermez ve uzak kod kullanmaz.
 
@@ -210,7 +217,7 @@ yerel HTTP önbelleğini atlayarak yeniden yüklemektir.
 
 ## Permission justifications and audit
 
-The v2.5.0 manifest keeps `tabs`, `scripting`, and `storage` required and keeps
+The v2.6.0 manifest keeps `tabs`, `scripting`, and `storage` required and keeps
 `<all_urls>` in `optional_host_permissions`, where it has been since v2.4.0.
 The popup requests that host access at runtime; refusing it does not prevent
 cache-bypassing tab reloads.
@@ -219,7 +226,7 @@ cache-bypassing tab reloads.
 | --- | --- | --- |
 | `tabs` | `background.js` enumerates every open tab across all windows and reads tab URL and status. The URL is used to identify restricted pages such as `chrome:`, `chrome-extension:`, and `devtools:` so they are skipped instead of failing. | **Used; retain.** The `tabs` permission exposes the URL needed for restricted-page classification. Removing it hides `tab.url` for browser-internal pages `<all_urls>` cannot match, so those pages leave the skipped path. See "Permission reduction attempts" below. |
 | `scripting` | When optional host access is granted, `background.js` injects the packaged capture function before reload and packaged `content-script.js` for restoration afterward, only in tabs the user granted access to. | **Used; retain.** It supports media-position restoration and cached-bytes measurement for the reload. It is not used when host access is absent. |
-| `storage` | `chrome.storage.session` holds the temporary operation snapshot. `chrome.storage.local` holds the counts-only ten-entry history and the aggregate cached-bytes counter. | **Used; retain.** Required to redraw or resume an active reload, show summary history, and show the local cached-bytes counter. |
+| `storage` | `chrome.storage.session` holds the temporary operation snapshot. `chrome.storage.local` holds the counts-only ten-entry history and the aggregate cached-bytes counter. | **Used; retain.** Required to redraw an active reload or report an interrupted one, show summary history, and show the local cached-bytes counter. |
 | Host access / `<all_urls>` | Declared in `optional_host_permissions` and requested from the popup at runtime. It authorizes only packaged media capture/restoration and the cache measurement introduced in v2.3.0 on accessible websites. | **Optional; request at runtime.** A refusal leaves cache-bypassing refresh fully operational. Media preservation stops, no measurement runs, and the popup reports that access is unavailable. Chrome-controlled and other restricted pages remain inaccessible and are skipped; `file://` access still depends on the user's Chrome setting. |
 | Programmatic media restoration | The bundled `content-script.js` is not declared as a permanent content script. When optional host access is present, `background.js` injects it only after a tab this extension refreshed reaches `complete` and media capture may have saved state. | **Used only with optional host access.** Without the grant, the worker goes directly to a cache-bypassing reload and performs no page injection. |
 
@@ -230,7 +237,7 @@ the optional host permission support the single cache-bypassing reload purpose.
 
 Chrome's guidance is to request relevant, least-privilege, and where possible
 optional permissions. The all-sites host permission has been optional and
-runtime-requested since v2.4.0; v2.5.0 changes no permission. `tabs` is retained
+runtime-requested since v2.4.0; v2.6.0 changes no permission. `tabs` is retained
 for the separate restricted-page classification and display-metadata behavior
 established by Candidate 1. The permission model is already minimal and has been
 stable since v2.4.0, so this release makes no reduction attempt of its own; the
@@ -242,8 +249,10 @@ access.**
 - *Manifest and prompt.* `<all_urls>` moved from `host_permissions` to
   `optional_host_permissions` in v2.4.0. A fresh install begins with no granted
   origins.
-  The popup requests access directly inside the user's first Refresh All Tabs
-  click and records that it has asked, so it never prompts automatically twice.
+  On the user's first Refresh All Tabs click, the popup asks in its own view
+  whether to keep videos where they were left. Only "Allow and refresh" opens
+  Chrome's permission dialog; "Just refresh" reloads without it. The popup
+  records the answer, so it asks once.
   Settings keeps a permanent user-triggered way to request access later.
 - *Behavior without access.* The worker resolves permission once at the start
   of each operation. Without access it performs the same cache-bypassing reloads
@@ -270,8 +279,9 @@ access.**
 
 - *What was tested.* Every `chrome.tabs.*` call site was traced. The only
   sensitive fields consumed are `tab.url` (restricted-page classification in
-  `background.js` `isRestrictedTabUrl`), and `tab.title` / `tab.favIconUrl`
-  (popup tab indicators, tooltips, accessible names, and the failure list).
+  `background.js` `isRestrictedTabUrl`, and the site name and availability of
+  "Refresh only this tab" in the popup) and `tab.title` (the single-tab line
+  and the failure list).
 - *Precise blocker.* Host permission exposes those fields only for URLs the
   pattern actually matches. `<all_urls>` does **not** match `about:`, `chrome:`,
   `chrome-search:`, `chrome-untrusted:`, `chrome-extension:`, `devtools:`, or
@@ -279,7 +289,7 @@ access.**
   Without `tabs`, those tabs arrive with `url === undefined`,
   `isRestrictedTabUrl(undefined)` returns false, and the tab leaves the skipped
   path entirely. Restricted pages stop being reported as **skipped**, and their
-  titles disappear from the popup's indicators and failure list.
+  titles disappear from the popup's failure list.
 - *Evidence, and its limits.* `tests/background.test.js` contains a runnable
   regression test, `reports a tab with no readable URL as reloadable, not
   skipped`, which feeds a tab with `url: undefined` and asserts that no
@@ -355,8 +365,9 @@ change".
   and the local cached-bytes counter in `cacheStats`. The session snapshot holds
   tab objects and per-tab status only while a run is active. Durable history has
   no URLs, titles, or favicons.
-- **optional host access (`<all_urls>`):** Requested at runtime from the user's
-  first refresh action, and available later from Settings. It is used only to
+- **optional host access (`<all_urls>`):** Requested at runtime only when the
+  user chooses "Allow and refresh" on the first refresh, and available later
+  from Settings. It is used only to
   capture and restore supported media state and to perform the cache measurement
   introduced in v2.3.0 on accessible sites. If the user refuses, all accessible
   tabs are still refreshed with local-cache bypass; media preservation stops,
@@ -389,7 +400,7 @@ remain consistent.
 Declare these categories:
 
 - **Web history:** Open-tab URLs, titles, and favicon URLs are processed locally
-  to identify and refresh tabs, show progress, and recover an active operation.
+  to identify and refresh tabs, show progress, and redraw an active operation.
   The extension does not build or transmit a browsing-history log.
 - **Website content:** Supported audio/video element properties, media source
   URLs, and the extension's media-state value in page `sessionStorage` are
@@ -421,9 +432,8 @@ Certify that handled data:
 - is not transmitted to developer-operated telemetry, analytics, or error
   reporting endpoints.
 
-The popup displays Chrome-provided favicons. Chrome may load or reuse an icon
-from its source site, but the extension does not attach stored tab, media,
-history, or error records to that request.
+The popup does not display tab favicons, so opening it requests nothing from
+the sites of open tabs.
 
 ## Support information
 
@@ -489,7 +499,7 @@ dashboard fact that cannot be verified from this repository.
 
 ### Nomination step
 
-Featured nomination is manual. After the public v2.5.0 version is live and
+Featured nomination is manual. After the public v2.6.0 version is live and
 stable, submit it through **One Stop Support** in the Developer Dashboard. There
 is no API and no automatic nomination.
 
@@ -503,43 +513,39 @@ The listing assets and their reproducible sources live under
 `docs/chrome-web-store/assets/`. They are documentation-only Store inputs and
 are not included in the extension package.
 
-The icon record below is verified against the v2.5.0 submission package
+The icon record below is verified against the v2.6.0 submission package
 itself: asset validation reads `icons.128` out of that ZIP and audits the file
-it names. The screenshots are current: all ten were recaptured for v2.5.0 from
-the artifact recorded below, so their provenance matches the package being
-submitted. The submission artifact was rebuilt from this working tree and
-recorded as follows:
+it names. All ten screenshots were recaptured for v2.6.0 from the artifact
+recorded below, so their provenance matches the package being submitted. The
+submission artifact was rebuilt from this working tree and recorded as follows:
 
-- **ZIP filename:** `refresh-em-all-v2.5.0.zip`
-- **Byte size:** 134346 bytes
+- **ZIP filename:** `refresh-em-all-v2.6.0.zip`
+- **Byte size:** 188142 bytes
 - **SHA-256:**
-  `e3a19b3dc59ddd7865b2c67f38f19ec9f182af4f0f9986b34d794b0fcd8890a7`
-- All ten 1280×800 screenshots were captured from the v2.5.0 package described
+  `49e1f3b93481a55481b18edcf88517fd92f6938b2bd5cde49fcbdb88b74145f7`
+- All ten 1280×800 screenshots were captured from the v2.6.0 package described
   above, after the capture script verified its hash and reported version.
   - English: `assets/screenshots/*.png` (5 files)
   - Turkish: `assets/screenshots/tr/*.png` (5 files)
 - Each capture run also asserts the popup's resolved `@@ui_locale` matches the
   requested locale, so a Turkish set cannot silently be an English one. Asset
   validation additionally rejects duplicate images across locales.
-- The screenshots show the ready, in-progress, completed, history, and privacy
-  settings states using neutral localhost fixtures and an isolated browser
-  profile. Browser chrome, URLs, personal data, local paths, DevTools,
+- The screenshots show the ready, in-progress, completed, history, and settings
+  views using neutral `example.com` fixtures served locally and an isolated
+  browser profile. Browser chrome, URLs, personal data, local paths, DevTools,
   automation banners, and test identifiers are excluded.
 - The capture viewport is 1024×640 CSS px at a 1.25 device scale factor, which
-  is exactly the 1280×800 the Store requires. It was widened from 880×550 for
-  v2.4.3 because the rethemed popup is 589 CSS px tall and no longer fitted the
-  old frame. Both locales fit without clipping or horizontal overflow.
-- The capture pins `prefers-color-scheme: light`. The popup gained a dark theme
-  in v2.4.2, and on a runner reporting dark it rendered near-white text onto the
-  capture's white card, which produced illegible screenshots.
+  is exactly the 1280×800 the Store requires. The popup is a fixed 360×480 CSS
+  px frame, so every state fits without clipping or horizontal overflow in both
+  locales.
+- The capture pins `prefers-color-scheme: light`, because the capture frames
+  the popup on a white card.
 - The required 440×280 promotional PNG is rendered from a self-contained SVG
-  source with repository-local tooling and no external fonts or images.
-- The packaged 128×128 icon is `assets/icon-refresh-em-colorful-128.png` since
-  v2.4.4, the same artwork the toolbar shows. The audit records a valid 128×128
-  PNG with artwork bounds of 95×78 px. Its padding is still opaque, which
-  remains documented as a possible future improvement; correcting it would
-  require a separately scoped package version rather than replacing a published
-  ZIP.
+  source with repository-local tooling and no external fonts or images. v2.6.0
+  redraws it around the new icon.
+- The packaged 128×128 icon is `assets/icon-128.png`, the blue tile drawn from
+  `assets/icon.svg`. The audit records a valid 128×128 PNG with 96×96 px
+  artwork inside a transparent 16 px margin, as the Store asks.
 
 See `docs/chrome-web-store/assets/README.md` for provenance, commands, output
 dimensions, and review constraints.
@@ -551,19 +557,19 @@ them. Dashboard-only items live in
 [`dashboard-checklist.md`](dashboard-checklist.md) and are **not** ticked here.
 
 - [x] Generate five 1280×800 English PNG screenshots from the actual verified
-      v2.5.0 package, showing the popup before, during, and after a refresh plus
+      v2.6.0 package, showing the popup before, during, and after a refresh plus
       local history and privacy settings. Human visual approval is still
       required.
 - [x] Generate the matching five Turkish 1280×800 screenshots from the same
-      verified v2.5.0 package with a Turkish browser UI locale. Human visual
+      verified v2.6.0 package with a Turkish browser UI locale. Human visual
       approval is still required.
 - [x] Generate the required 440×280 PNG promotional image from its repository
       SVG source. Human visual approval is still required.
-- [x] Validate the 128×128 icon in the actual v2.5.0 package against current
-      Store guidance. Record any retained opaque padding as a known limitation.
+- [x] Validate the 128×128 icon in the actual v2.6.0 package against current
+      Store guidance: 96×96 px artwork inside a transparent 16 px margin.
       The audit is written to `test-results/chrome-web-store/icon-audit.json`;
       human visual approval is still required.
-- [ ] Confirm the actual v2.5.0 package contains both locale catalogs and
+- [ ] Confirm the actual v2.6.0 package contains both locale catalogs and
       nothing undeclared. The packaging allowlist fails closed on an undeclared
       locale, a stray file inside `_locales/`, or a missing default-locale
       catalog.
@@ -575,14 +581,14 @@ them. Dashboard-only items live in
 - [ ] Declare **Web history** and **Website content**, complete the Limited Use
       certifications, and confirm no unsupported data category is selected.
 - [ ] Add reviewer notes explaining that refresh begins only after the user
-      clicks **Refresh All Tabs**, each actual reload bypasses local cache,
+      clicks **Refresh All Tabs** or **Refresh only this tab**, each actual reload bypasses local cache,
       cached browsing data and site data are not deleted, restricted pages are
       skipped, media restoration is best effort, packaged `content-script.js`
       is injected programmatically only after a tab with captured media state
       finishes reloading, the interface is localized with Chrome's built-in
       `chrome.i18n` using packaged static catalogs, and no remote code or
       external reporting endpoint exists.
-- [ ] The v2.5.0 package has been built and verified (filename, byte size, and
+- [ ] The v2.6.0 package has been built and verified (filename, byte size, and
       SHA-256 recorded above under Visual assets). Before upload, confirm the
       SHA-256 of the exact file being uploaded matches that recorded hash.
 - [ ] Work through [`dashboard-checklist.md`](dashboard-checklist.md) in full.
