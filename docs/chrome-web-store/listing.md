@@ -1,22 +1,21 @@
 # Chrome Web Store Listing Proposal
 
 This document contains proposed submission text and a code-backed declaration
-audit for Refresh Em All v2.6.0. It does not authorize publication.
+audit for Refresh Em All v2.7.0. It does not authorize publication.
 
-v2.6.0 rebuilds the popup and adds one feature. The popup is a fixed frame
-whose slots change in place, so its window never resizes; History, Files and
-Settings open as views inside it. The progress bar follows the run smoothly,
-a clean run over every tab ends with a short confetti burst, and the first
-refresh asks in the popup before Chrome's permission dialog appears. "Refresh
-only this tab" reloads just the tab under the popup through the same path. The
-icon is redrawn as a blue tile with a transparent margin. Chrome closes the
-popup when the tab under it reloads, so that tab now reloads last and the
-toolbar badge shows the result for a few seconds. Measured byte totals are
-labeled approximate.
+v2.7.0 is named by the words people search for: "Refresh Em All: Reload All
+Tabs", with a summary that starts with "Reload all tabs". The popup header keeps
+the short name. The ready screen says how many tabs and windows a run covers,
+and both refresh buttons wait while the browser reports no network. Sleeping
+tabs go back to sleep once reloaded. With page reading allowed, a run over every
+tab leaves a tab with typed, unsent text alone. The ready screen offers to retry
+the last run's failed tabs. Runs above 50 tabs keep the pace of smaller ones.
+The popup's copy promises kept videos only while page reading is allowed, and
+names the warning Chrome shows before granting it. Incognito runs leave nothing
+in history or statistics.
 
-It changes no permission and no network behavior. It needs Chrome 117 or later
-(`minimum_chrome_version`). History entries gain a `singleTab` flag, and the
-popup no longer shows tab favicons.
+It changes no permission and no network behavior. History entries gain the
+failed tabs' Chrome ids after a run with failures.
 
 The permission model below is unchanged since v2.4.0, which made all-sites host
 access optional and requested it at runtime for media preservation and cache
@@ -53,9 +52,21 @@ where you left them. This includes playback position, play or pause, mute,
 volume, and playback rate. Restoration is best effort and depends on the page,
 its media player, and Chrome's autoplay rules. Sleeping tabs reload without
 coming to the foreground, but their unloaded media cannot be checked first.
+Once reloaded, they go back to sleep, so a large session does not stay in
+memory.
+
+With page reading allowed, Refresh Em All also asks each page whether a text
+box holds text you typed and have not sent. A run over every tab leaves that
+tab alone and says so, so a reload does not wipe your draft. The page answers
+only yes or no; the text is not read out, stored, or sent.
 
 "Refresh only this tab" reloads just the tab you are looking at, the same way.
 It is not offered on Chrome's own pages, which no extension can reload.
+
+Before you start, the popup says how many tabs and windows a reload covers.
+While your computer is offline, the buttons wait, so your tabs do not turn into
+error pages. When a reload could not reach some tabs, the popup offers to retry
+just those.
 
 The interface is available in English and Turkish, and follows your browser's
 language automatically.
@@ -102,8 +113,9 @@ ends, and Refresh Em All removes it when the operation finishes.
 
 Durable `refreshHistory` storage keeps at most ten counts-only summaries:
 timestamp, total tabs, successful tabs, failed count, skipped count, and the
-cancelled, interrupted and single-tab flags. It contains no URLs, titles, or
-favicons. Refresh Em All sends
+cancelled, interrupted and single-tab flags, and, after a run with failures,
+the Chrome ids of the failed tabs so the popup can offer to retry them. It
+contains no URLs, titles, or favicons. Refresh Em All sends
 no tab details, cache counters, history, telemetry, or error reports anywhere,
 and it uses no remote code.
 
@@ -153,10 +165,22 @@ bıraktığınız yerde tutmaya çalışır. Buna oynatma konumu, oynatma veya d
 sessize alma, ses düzeyi ve oynatma hızı dahildir. Bu geri yükleme için elinden
 geleni yapar; sonuç sayfaya, medya oynatıcısına ve Chrome'un otomatik oynatma
 kurallarına bağlıdır. Uyuyan sekmeler öne getirilmeden yeniden yüklenir, ancak
-henüz yüklenmemiş medyaları önceden denetlenemez.
+henüz yüklenmemiş medyaları önceden denetlenemez. Yenilendikten sonra yeniden
+uyurlar, böylece büyük bir oturum bellekte kalmaz.
+
+Sayfa okumaya izin verildiğinde Refresh Em All her sayfaya, bir yazı kutusunda
+yazıp henüz göndermediğiniz bir metin olup olmadığını da sorar. Tüm sekmeleri
+yenilerken o sekmeye dokunmaz ve bunu söyler; böylece yenileme taslağınızı
+silmez. Sayfa yalnızca evet ya da hayır der; metin okunmaz, saklanmaz ve
+gönderilmez.
 
 "Yalnız bu sekmeyi yenile", baktığınız sekmeyi aynı şekilde tek başına yeniden
 yükler. Hiçbir uzantının yenileyemediği Chrome sayfalarında sunulmaz.
+
+Başlamadan önce açılır pencere, yenilemenin kaç pencerede kaç sekmeyi
+kapsadığını söyler. Bilgisayarınız çevrimdışıyken düğmeler bekler, böylece
+sekmeleriniz hata sayfasına dönmez. Bazı sekmeler yenilenemezse açılır pencere
+yalnız onları yeniden denemeyi önerir.
 
 Arayüz İngilizce ve Türkçe olarak sunulur ve tarayıcınızın diline göre kendini
 ayarlar.
@@ -203,7 +227,8 @@ tarayıcı oturumu bitince siler, Refresh Em All ise işlem bitince kaldırır.
 
 Kalıcı `refreshHistory` depolaması en fazla on adet yalnızca sayı içeren özet
 tutar: zaman damgası, toplam sekme, başarılı sekme, başarısız sayısı, atlanan
-sayısı ile iptal, kesilme ve tek sekme bilgisi. URL, başlık veya favicon içermez. Refresh Em All sekme
+sayısı ile iptal, kesilme ve tek sekme bilgisi; başarısız sekmeler olduysa, yeniden
+denemeyi önerebilmek için o sekmelerin Chrome kimlikleri. URL, başlık veya favicon içermez. Refresh Em All sekme
 ayrıntılarını, önbellek sayaçlarını, geçmişi, telemetriyi veya hata raporlarını
 hiçbir yere göndermez ve uzak kod kullanmaz.
 
@@ -220,7 +245,7 @@ yerel HTTP önbelleğini atlayarak yeniden yüklemektir.
 
 ## Permission justifications and audit
 
-The v2.6.0 manifest keeps `tabs`, `scripting`, and `storage` required and keeps
+The v2.7.0 manifest keeps `tabs`, `scripting`, and `storage` required and keeps
 `<all_urls>` in `optional_host_permissions`, where it has been since v2.4.0.
 The popup requests that host access at runtime; refusing it does not prevent
 cache-bypassing tab reloads.
@@ -240,7 +265,7 @@ the optional host permission support the single cache-bypassing reload purpose.
 
 Chrome's guidance is to request relevant, least-privilege, and where possible
 optional permissions. The all-sites host permission has been optional and
-runtime-requested since v2.4.0; v2.6.0 changes no permission. `tabs` is retained
+runtime-requested since v2.4.0; v2.7.0 changes no permission. `tabs` is retained
 for the separate restricted-page classification and display-metadata behavior
 established by Candidate 1. The permission model is already minimal and has been
 stable since v2.4.0, so this release makes no reduction attempt of its own; the
@@ -502,7 +527,7 @@ dashboard fact that cannot be verified from this repository.
 
 ### Nomination step
 
-Featured nomination is manual. After the public v2.6.0 version is live and
+Featured nomination is manual. After the public v2.7.0 version is live and
 stable, submit it through **One Stop Support** in the Developer Dashboard. There
 is no API and no automatic nomination.
 
@@ -516,17 +541,17 @@ The listing assets and their reproducible sources live under
 `docs/chrome-web-store/assets/`. They are documentation-only Store inputs and
 are not included in the extension package.
 
-The icon record below is verified against the v2.6.0 submission package
+The icon record below is verified against the v2.7.0 submission package
 itself: asset validation reads `icons.128` out of that ZIP and audits the file
-it names. All ten screenshots were recaptured for v2.6.0 from the artifact
+it names. All ten screenshots were recaptured for v2.7.0 from the artifact
 recorded below, so their provenance matches the package being submitted. The
 submission artifact was rebuilt from this working tree and recorded as follows:
 
-- **ZIP filename:** `refresh-em-all-v2.6.0.zip`
-- **Byte size:** 188142 bytes
+- **ZIP filename:** `refresh-em-all-v2.7.0.zip`
+- **Byte size:** 199959 bytes
 - **SHA-256:**
-  `49e1f3b93481a55481b18edcf88517fd92f6938b2bd5cde49fcbdb88b74145f7`
-- All ten 1280×800 screenshots were captured from the v2.6.0 package described
+  `c3df16ae9ded34eb1ebf112336c2b69096f4ed733f2def436c4d027f53654f92`
+- All ten 1280×800 screenshots were captured from the v2.7.0 package described
   above, after the capture script verified its hash and reported version.
   - English: `assets/screenshots/*.png` (5 files)
   - Turkish: `assets/screenshots/tr/*.png` (5 files)
@@ -544,8 +569,8 @@ submission artifact was rebuilt from this working tree and recorded as follows:
 - The capture pins `prefers-color-scheme: light`, because the capture frames
   the popup on a white card.
 - The required 440×280 promotional PNG is rendered from a self-contained SVG
-  source with repository-local tooling and no external fonts or images. v2.6.0
-  redraws it around the new icon.
+  source with repository-local tooling and no external fonts or images. It was
+  redrawn around the blue tile icon in v2.6.0 and is unchanged in v2.7.0.
 - The packaged 128×128 icon is `assets/icon-128.png`, the blue tile drawn from
   `assets/icon.svg`. The audit records a valid 128×128 PNG with 96×96 px
   artwork inside a transparent 16 px margin, as the Store asks.
@@ -560,19 +585,19 @@ them. Dashboard-only items live in
 [`dashboard-checklist.md`](dashboard-checklist.md) and are **not** ticked here.
 
 - [x] Generate five 1280×800 English PNG screenshots from the actual verified
-      v2.6.0 package, showing the popup before, during, and after a refresh plus
+      v2.7.0 package, showing the popup before, during, and after a refresh plus
       local history and privacy settings. Human visual approval is still
       required.
 - [x] Generate the matching five Turkish 1280×800 screenshots from the same
-      verified v2.6.0 package with a Turkish browser UI locale. Human visual
+      verified v2.7.0 package with a Turkish browser UI locale. Human visual
       approval is still required.
 - [x] Generate the required 440×280 PNG promotional image from its repository
       SVG source. Human visual approval is still required.
-- [x] Validate the 128×128 icon in the actual v2.6.0 package against current
+- [x] Validate the 128×128 icon in the actual v2.7.0 package against current
       Store guidance: 96×96 px artwork inside a transparent 16 px margin.
       The audit is written to `test-results/chrome-web-store/icon-audit.json`;
       human visual approval is still required.
-- [ ] Confirm the actual v2.6.0 package contains both locale catalogs and
+- [ ] Confirm the actual v2.7.0 package contains both locale catalogs and
       nothing undeclared. The packaging allowlist fails closed on an undeclared
       locale, a stray file inside `_locales/`, or a missing default-locale
       catalog.
@@ -591,7 +616,7 @@ them. Dashboard-only items live in
       finishes reloading, the interface is localized with Chrome's built-in
       `chrome.i18n` using packaged static catalogs, and no remote code or
       external reporting endpoint exists.
-- [ ] The v2.6.0 package has been built and verified (filename, byte size, and
+- [ ] The v2.7.0 package has been built and verified (filename, byte size, and
       SHA-256 recorded above under Visual assets). Before upload, confirm the
       SHA-256 of the exact file being uploaded matches that recorded hash.
 - [ ] Work through [`dashboard-checklist.md`](dashboard-checklist.md) in full.
