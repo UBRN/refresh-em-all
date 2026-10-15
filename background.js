@@ -32,6 +32,10 @@ let batchTimeoutId = null;
 let staleBytesThisRun = 0;
 // True when the run covers only the tab the popup was opened over.
 let singleTabRun = false;
+// Whether the run covers incognito tabs. Only popups of that window kind see it.
+let runIncognito = false;
+// True until this worker has read the run a previous worker may have left unfinished.
+let interruptedRunPending = false;
 let hasSiteAccess = false;
 
 // Tabs the extension just reloaded that are still waiting for media restoration.
@@ -147,7 +151,14 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
 chrome.tabs.onRemoved.addListener(clearPendingMediaRestore);
 
 // Listen for messages from popup or content scripts
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(function onMessage(message, sender, sendResponse) {
+    // Until a run a previous worker left unfinished is recorded, a status answer would
+    // serve it as live, and a new claim would keep it out of history.
+    if (interruptedRunPending && (message.action === 'startRefresh' || message.action === 'getOperationStatus')) {
+        interruptedRunRecorded.then(() => onMessage(message, sender, sendResponse));
+        return true;
+    }
+
     if (message.action === 'startRefresh') {
         if (activeRefreshOperation) {
             sendResponse({ success: false, message: t('errorOperationInProgress') });
@@ -159,6 +170,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Normal and incognito tabs stay apart: a run covers only the tabs of the
         // same kind as the window the popup was opened from.
         const incognito = message.incognito === true;
+        runIncognito = incognito;
         // With a tab id the run covers that one tab and takes the same lock,
         // cancel, history and statistics path as a run over every tab.
         const tabId = Number.isInteger(message.tabId) ? message.tabId : null;
@@ -184,29 +196,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
     else if (message.action === 'getOperationStatus') {
+        const answer = (snapshot) => {
+            // A popup in a window of the other kind learns nothing about this run.
+            if ((snapshot.incognito === true) !== (message.incognito === true)) {
+                sendResponse({ active: false });
+                return;
+            }
+            // An interrupted run is reported once; after that it lives in history.
+            if (snapshot.interrupted) clearPersistedOperationState();
+            sendResponse(snapshot);
+        };
+
         if (activeRefreshOperation) {
-            sendResponse(getOperationSnapshot());
+            answer(getOperationSnapshot());
             return true;
         }
 
         if (chrome.storage.session) {
             chrome.storage.session.get(['refreshOperationState'], (result) => {
                 const storedState = result.refreshOperationState;
-                // An interrupted run is reported once; after that it lives in history.
-                if (storedState?.interrupted) clearPersistedOperationState();
-                sendResponse(storedState
+                answer(storedState
                     ? normalizeStoredOperation(storedState)
                     : getOperationSnapshot());
             });
             return true;
         }
 
-        sendResponse(getOperationSnapshot());
+        answer(getOperationSnapshot());
         return true;
     }
     else if (message.action === 'cancelOperation') {
-        // Cancel the ongoing operation
-        if (activeRefreshOperation) {
+        // Cancel the ongoing operation, only from a window of the run's kind
+        if (activeRefreshOperation && runIncognito === (message.incognito === true)) {
             operationCancelled = true;
             if (batchTimeoutId) {
                 clearTimeout(batchTimeoutId);
@@ -238,6 +259,7 @@ function getOperationSnapshot() {
         currentTabs: tabsToRefresh,
         tabStatuses,
         singleTab: singleTabRun,
+        incognito: runIncognito,
         cancelled: operationCancelled,
         startTime: startTime ? startTime.toISOString() : null,
         staleBytes: staleBytesThisRun,
@@ -282,14 +304,17 @@ function isTabRecord(value) {
 // ask for those reloads at this later moment. It goes into history with the counts
 // it reached, and the popup reports the interruption once.
 function recordInterruptedOperation() {
-    if (!chrome.storage.session || activeRefreshOperation) return;
+    if (!chrome.storage.session) return Promise.resolve();
 
-    chrome.storage.session.get(['refreshOperationState'], (result) => {
+    interruptedRunPending = true;
+    return new Promise(resolve => chrome.storage.session.get(['refreshOperationState'], (result) => {
+        interruptedRunPending = false;
+        // Waiting messages run after this whole callback, so after the writes it dispatches.
+        resolve();
         if (chrome.runtime.lastError) return;
 
         const stored = result.refreshOperationState;
         if (!stored || stored.active !== true) return;
-        if (activeRefreshOperation) return;
 
         startRefreshOperation();
         const generation = currentGeneration;
@@ -303,6 +328,7 @@ function recordInterruptedOperation() {
             : [];
         staleBytesThisRun = Number.isFinite(stored.staleBytes) ? stored.staleBytes : 0;
         singleTabRun = stored.singleTab === true;
+        runIncognito = stored.incognito === true;
         const restoredStartTime = new Date(stored.startTime);
         if (stored.startTime && !Number.isNaN(restoredStartTime.getTime())) startTime = restoredStartTime;
         // A cancel that was accepted before the worker stopped is a cancellation, not an interruption.
@@ -327,12 +353,13 @@ function recordInterruptedOperation() {
                 failedTabs: failedTabs.length,
                 skippedTabs: skippedTabs.length,
                 singleTab: singleTabRun,
+                incognito: runIncognito,
                 lastUpdated: new Date().toISOString()
             }
         }, () => {
             void chrome.runtime.lastError;
         });
-    });
+    }));
 }
 
 // Prepare and start the refresh operation once tabs are available
@@ -383,6 +410,7 @@ async function initializeAndStartRefresh(tabs, sendResponse, generation, incogni
     chrome.runtime.sendMessage({
         action: 'refreshStarted',
         generation,
+        incognito: runIncognito,
         singleTab: singleTabRun,
         tabs: tabsToRefresh
     }).catch(() => {
@@ -413,7 +441,7 @@ function handleRefreshStartFailure(message, sendResponse, generation) {
     endRefreshOperation(false, generation);
 }
 
-recordInterruptedOperation();
+const interruptedRunRecorded = recordInterruptedOperation();
 
 // Function to start refresh operation
 function startRefreshOperation() {
@@ -477,6 +505,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
         failedCount: failedTabs.length,
         skippedCount: skippedTabs.length,
         cancelled: operationCancelled,
+        interrupted,
         singleTab: singleTabRun,
         staleBytes: staleBytesThisRun
     };
@@ -497,6 +526,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
     // Snapshot what those callbacks need instead of reading it live.
     const finalStaleBytes = staleBytesThisRun;
     const finalFailedTabs = failedTabs;
+    const finalIncognito = runIncognito;
 
     clearPersistedOperationState();
     // Queued rather than fired straight away: cacheStats and refreshHistory are
@@ -534,6 +564,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
                 chrome.runtime.sendMessage({
                     action: 'refreshComplete',
                     generation,
+                    incognito: finalIncognito,
                     success: finalSuccess,
                     details: operationDetails,
                     failedTabs: finalFailedTabs
@@ -904,6 +935,7 @@ function updateProgress(current, total, generation) {
     chrome.runtime.sendMessage({
         action: 'refreshProgress',
         generation,
+        incognito: runIncognito,
         current,
         total,
         percent,

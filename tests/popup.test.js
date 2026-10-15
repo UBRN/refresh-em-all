@@ -97,6 +97,58 @@ describe('Popup controller', () => {
     expect($('readySub').textContent).toBe('Across your incognito windows');
   });
 
+  test('asks about and cancels only runs of its own window kind', async () => {
+    const onMessage = executePopupJs({ incognito: true });
+    await settle();
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'getOperationStatus', incognito: true },
+      expect.any(Function)
+    );
+
+    onMessage({ action: 'refreshStarted', generation: 2, incognito: true, tabs: tabs(2) });
+    $('cancelRefresh').click();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'cancelOperation', incognito: true },
+      expect.any(Function)
+    );
+  });
+
+  test('ignores the broadcasts of a run in a window of the other kind', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+
+    onMessage({ action: 'refreshStarted', generation: 2, incognito: true, singleTab: true, tabs: [{ id: 132, title: 'Private statement', url: 'https://bank.example/private' }] });
+    onMessage({ action: 'refreshProgress', generation: 2, incognito: true, current: 1, total: 1, percent: 100 });
+    onMessage({
+      action: 'refreshComplete', generation: 2, incognito: true, success: false,
+      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 0, failedCount: 1 },
+      failedTabs: [{ id: 132, title: 'Private statement', error: 'Failed' }]
+    });
+    await settle(1500);
+
+    expect(state()).toBe('ready');
+    expect(document.body.textContent).not.toContain('Private statement');
+    expect(document.body.textContent).not.toContain('bank.example');
+  });
+
+  test('says a reload is already running when the running one is in a window of the other kind', async () => {
+    executePopupJs();
+    await settle();
+    chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+      if (message.action === 'startRefresh') callback({ success: false, message: 'Your tabs are already being reloaded' });
+      else if (message.action === 'getOperationStatus') callback({ active: false });
+      return Promise.resolve({});
+    });
+
+    $('refreshAll').click();
+    await settle();
+
+    expect(state()).toBe('failed');
+    expect($('failSub').textContent).toBe('Your tabs are already being reloaded');
+    expect($('refreshAll').disabled).toBe(false);
+  });
+
   test('requests optional page-reading permission from the settings view', async () => {
     executePopupJs({ siteAccess: false, requestAccessResult: true });
     await settle();
@@ -406,6 +458,28 @@ describe('Popup controller', () => {
     expect($('countReloaded').textContent).toBe('2');
   });
 
+  test('a run whose worker stopped midway ends as interrupted, without confetti', async () => {
+    const onMessage = executePopupJs({
+      operationState: { active: true, generation: 1000, processedTabs: 5, refreshedTabs: 5, currentTabs: tabs(20), tabStatuses: {} }
+    });
+    await settle();
+    $('cancelRefresh').focus();
+    expect(state()).toBe('running');
+
+    onMessage({
+      action: 'refreshComplete', generation: 2000, success: false,
+      details: { totalTabs: 20, processedTabs: 5, successfulTabs: 5, failedCount: 0, skippedCount: 0, cancelled: false, interrupted: true },
+      failedTabs: []
+    });
+    await settle(1500);
+
+    expect(state()).toBe('stopped');
+    expect($('stopTitle').textContent).toBe('The last reload stopped before it finished.');
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('25');
+    expect(document.activeElement).toBe($('refreshAll'));
+    expect(getContext).not.toHaveBeenCalled();
+  });
+
   test('keeps the start reason when the worker also reports a zero-tab run', async () => {
     const onMessage = executePopupJs();
     await settle();
@@ -425,6 +499,26 @@ describe('Popup controller', () => {
     expect($('failSub').textContent).toBe('There are no tabs to reload');
     expect($('failedList').hidden).toBe(true);
     expect($('refreshAll').disabled).toBe(false);
+  });
+
+  test('moves focus to Refresh when the this-tab reload cannot start', async () => {
+    executePopupJs();
+    await settle();
+    chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+      if (message.action === 'startRefresh') {
+        Object.defineProperty(chrome.runtime, 'lastError', { configurable: true, value: { message: 'Could not establish connection' } });
+        callback();
+        Object.defineProperty(chrome.runtime, 'lastError', { configurable: true, value: undefined });
+      }
+      return Promise.resolve({});
+    });
+
+    $('refreshThisTab').focus();
+    $('refreshThisTab').click();
+    await settle();
+
+    expect(state()).toBe('failed');
+    expect(document.activeElement).toBe($('refreshAll'));
   });
 
   test.each([
@@ -700,6 +794,23 @@ describe('Popup controller', () => {
     } finally {
       delete navigator.onLine;
     }
+  });
+
+  test.each([
+    ['Just refresh', 'justRefresh'],
+    ['Allow and refresh', 'allowAndRefresh']
+  ])('offline, "%s" on the permission question does not start a reload', async (_label, id) => {
+    executePopupJs({ siteAccess: false, mediaAccessAsked: false });
+    await settle();
+    $('refreshAll').click();
+    expect(state()).toBe('ask');
+
+    window.dispatchEvent(new Event('offline'));
+    $(id).click();
+    await settle();
+    window.dispatchEvent(new Event('online'));
+
+    expect(chrome.runtime.sendMessage.mock.calls.filter(([message]) => message.action === 'startRefresh')).toHaveLength(0);
   });
 
   test('does not activate stress mode after five settings clicks', async () => {

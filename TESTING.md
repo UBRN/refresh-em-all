@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **135 tests across 6 suites**
+- Jest unit/integration/contract suite: **147 tests across 6 suites**
 - Fast browser suite: **9 scenarios** (the first-run question, the denied-access path, 6 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
@@ -55,9 +55,11 @@ npm run e2e:reliability:large
 - Cancels active operations
 - Finalizes cancellation immediately and prevents stale callbacks and retries from mutating a replacement refresh
 - Records a run whose worker stopped as interrupted in history instead of resuming it, records an already-cancelled one as cancelled, and reports the interruption to the popup once
+- Holds a status or start request that wakes the worker until a stopped run is recorded, so the stopped run is never served as live or left out of history, and marks its completion message as interrupted
 - Ignores inactive snapshots and safely reconciles malformed session state
 - Starts each worker lifetime above the generations a previous worker used
 - Refreshes only tabs whose incognito mode matches the window that started the run
+- Answers status and cancel requests, and stamps run broadcasts, so that a popup in a window of the other kind neither sees nor cancels the run
 - Stops a timed-out tab attempt from reloading the tab or adding bytes, and counts stale bytes once per tab across retries
 - Records a run cancelled during the permission lookup without the previous run's counts or bytes
 - Keeps finishing runs when stored history is not a list
@@ -91,10 +93,12 @@ The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails 
 - Announces start, quarter milestones and the result to screen readers, not every tab
 - Ignores progress and completion messages from an older operation generation, and a late cancel callback
 - Quiets the tabs that never ran after a cancel and keeps failures in the counts
-- Restores a running operation when the popup is reopened and reports an interrupted run once
+- Restores a running operation when the popup is reopened and reports an interrupted run once, and shows a run that stops midway as interrupted, without confetti
+- Asks about and cancels only runs of its own window kind, ignores the other kind's broadcasts, and only says a reload is running when that run is in a window of the other kind
+- Keeps both buttons of the permission question from starting a reload while offline
 - Keeps the start-failure reason when the worker also reports a zero-tab run
 - Plays confetti only after a clean run over every tab that reloaded at least one tab, while the popup is visible, and never on reopen or for a single tab
-- Moves keyboard focus between Refresh and Cancel as runs start and end, and between the list and its sub views
+- Moves keyboard focus between Refresh and Cancel as runs start and end, onto Refresh after a start failure, and between the list and its sub views
 - Renders sanitized local history with relative times, single-tab and interrupted labels
 - Renders the measured totals as estimates; Reset statistics offers Undo for six seconds and Undo keeps bytes measured since
 - Offers "Refresh only this tab" by site name, disables it with a reason on browser pages, keeps it on the Web Store, runs the single-tab path, and names the site when a single-tab run stops

@@ -1238,8 +1238,96 @@ describe('Background refresh worker', () => {
       failedTabs: 1,
       skippedTabs: 1,
       singleTab: false,
+      incognito: false,
       lastUpdated: expect.any(String)
     });
+  });
+
+  describe('a worker woken while a stopped run is still stored as active', () => {
+    let pendingReads;
+
+    // Chrome answers storage reads in the order they were issued, each from the
+    // state at that point, and only after the current task ends.
+    beforeEach(() => {
+      pendingReads = [];
+      chrome.storage.session.get.mockImplementation((keys, callback) => {
+        const snapshot = Object.fromEntries(keys
+          .filter(key => Object.hasOwn(sessionStore, key))
+          .map(key => [key, sessionStore[key]]));
+        pendingReads.push(() => callback(snapshot));
+      });
+      sessionStore.refreshOperationState = {
+        active: true,
+        generation: 5,
+        currentTabs: [70, 71, 72].map(id => ({ id, title: `Tab ${id}`, url: `https://example.com/${id}` })),
+        processedTabs: 1,
+        refreshedTabs: 1,
+        failedTabDetails: [],
+        skippedTabIds: [],
+        tabStatuses: { 70: 'success', 71: 'pending', 72: 'pending' },
+        cancelled: false,
+        staleBytes: 0,
+        startTime: '2026-10-15T09:00:00.000Z'
+      };
+    });
+
+    async function answerReads() {
+      for (let round = 0; round < 20; round++) {
+        while (pendingReads.length) pendingReads.shift()();
+        await jest.advanceTimersByTimeAsync(0);
+      }
+    }
+
+    test('answers the waking status request with the interruption, not a live run', async () => {
+      const { onMessage } = executeBackgroundJs();
+      const respond = jest.fn();
+
+      onMessage({ action: 'getOperationStatus' }, {}, respond);
+      await answerReads();
+
+      expect(respond).toHaveBeenCalledTimes(1);
+      expect(respond).toHaveBeenCalledWith(expect.objectContaining({ active: false, interrupted: true, processedTabs: 1 }));
+      expect(sessionStore.refreshOperationState).toBeUndefined();
+    });
+
+    test('records the stopped run in history before a waking refresh request claims the worker', async () => {
+      chrome.tabs.query.mockImplementation((query, callback) => callback([
+        { id: 9, title: 'New', url: 'https://example.com/new', discarded: false }
+      ]));
+      const { onMessage } = executeBackgroundJs();
+
+      onMessage({ action: 'startRefresh' }, {}, jest.fn());
+      await answerReads();
+      await jest.runAllTimersAsync();
+      await answerReads();
+
+      const savedEntries = chrome.storage.local.set.mock.calls
+        .map(([value]) => value.refreshHistory?.[0])
+        .filter(Boolean);
+      expect(savedEntries).toEqual([
+        expect.objectContaining({ totalTabs: 3, successfulTabs: 1, interrupted: true }),
+        expect.objectContaining({ totalTabs: 1, successfulTabs: 1 })
+      ]);
+      expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([9]);
+    });
+  });
+
+  test('marks the completion message of an interrupted run as interrupted', async () => {
+    sessionStore.refreshOperationState = {
+      active: true,
+      currentTabs: [{ id: 74, title: 'One', url: 'https://example.com/one' }],
+      processedTabs: 0,
+      refreshedTabs: 0,
+      cancelled: false
+    };
+
+    executeBackgroundJs();
+    await jest.runAllTimersAsync();
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshComplete',
+      details: expect.objectContaining({ interrupted: true, cancelled: false })
+    }));
   });
 
   test('does not attribute a late script result to the replacement refresh', async () => {
@@ -1349,6 +1437,68 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([132]);
     expect(startedTabIds()).toEqual([132]);
+  });
+
+  test('keeps a run out of the status and cancel answers for a window of the other kind', async () => {
+    chrome.scripting.executeScript.mockImplementation(() => {});
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 131, incognito: false, title: 'Normal', url: 'https://example.com/normal', discarded: false },
+      { id: 132, incognito: true, title: 'Private statement', url: 'https://bank.example/private', discarded: false }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh', incognito: true }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(0);
+
+    const normalStatus = jest.fn();
+    onMessage({ action: 'getOperationStatus', incognito: false }, {}, normalStatus);
+    expect(normalStatus).toHaveBeenCalledWith({ active: false });
+
+    const normalCancel = jest.fn();
+    onMessage({ action: 'cancelOperation', incognito: false }, {}, normalCancel);
+    expect(normalCancel).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+
+    const privateStatus = jest.fn();
+    onMessage({ action: 'getOperationStatus', incognito: true }, {}, privateStatus);
+    expect(privateStatus).toHaveBeenCalledWith(expect.objectContaining({
+      active: true,
+      currentTabs: [expect.objectContaining({ id: 132 })]
+    }));
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshStarted', incognito: true
+    }));
+
+    const privateCancel = jest.fn();
+    onMessage({ action: 'cancelOperation', incognito: true }, {}, privateCancel);
+    await jest.runAllTimersAsync();
+    expect(privateCancel).toHaveBeenCalledWith({ success: true });
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshComplete', incognito: true
+    }));
+  });
+
+  test('reports an interrupted incognito run only to an incognito window', async () => {
+    sessionStore.refreshOperationState = {
+      active: true,
+      incognito: true,
+      currentTabs: [{ id: 133, incognito: true, title: 'Private', url: 'https://example.com/private' }],
+      processedTabs: 0,
+      refreshedTabs: 0,
+      cancelled: false
+    };
+    const { onMessage } = executeBackgroundJs();
+    await jest.runAllTimersAsync();
+
+    const normalStatus = jest.fn();
+    onMessage({ action: 'getOperationStatus', incognito: false }, {}, normalStatus);
+    const privateStatus = jest.fn();
+    onMessage({ action: 'getOperationStatus', incognito: true }, {}, privateStatus);
+
+    expect(normalStatus).toHaveBeenCalledWith({ active: false });
+    expect(privateStatus).toHaveBeenCalledWith(expect.objectContaining({ interrupted: true, incognito: true }));
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshComplete', incognito: true
+    }));
   });
 
   test('reloads a tab without media capture when the page does not answer in three seconds', async () => {

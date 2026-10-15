@@ -523,7 +523,7 @@ function rememberAccessAsked() {
 }
 
 function requestRefresh(tabId) {
-    if (activeRefreshOperation) return;
+    if (activeRefreshOperation || !online) return;
     rememberFocus();
     activeRefreshOperation = true;
     updateControls();
@@ -537,10 +537,14 @@ function requestRefresh(tabId) {
         const errorMessage = chrome.runtime.lastError?.message || response?.message;
         if (!errorMessage && response?.success) return;
 
-        // Another popup or window already started a run: show that one.
+        // Another popup or window already started a run: show that one, or only say
+        // that one is running when it belongs to a window of the other kind.
         if (errorMessage === t('errorOperationInProgress')) {
             activeRefreshOperation = false;
-            restoreOperationStatus().then(updateControls);
+            restoreOperationStatus().then(() => {
+                if (activeRefreshOperation) updateControls();
+                else showStartFailure(errorMessage);
+            });
             return;
         }
         showStartFailure(errorMessage || t('errorUnknown'));
@@ -555,7 +559,7 @@ function cancelRun(button) {
     bar.inflight = false;
     trackText.textContent = t('statusCancelling');
     announce(t('statusCancelling'));
-    chrome.runtime.sendMessage({ action: 'cancelOperation' }, (response) => {
+    chrome.runtime.sendMessage({ action: 'cancelOperation', incognito: windowIncognito }, (response) => {
         if (!activeRefreshOperation) return;
         if (chrome.runtime.lastError || !response?.success) {
             button.disabled = false;
@@ -568,6 +572,9 @@ function cancelRun(button) {
 }
 
 chrome.runtime.onMessage.addListener((message) => {
+    // A run in a window of the other kind, normal or incognito, is not this popup's to show.
+    if (message.incognito === !windowIncognito) return;
+
     if (message.action === 'refreshStarted') {
         if (isObsoleteOperation(message)) return;
         operationGeneration = Number.isFinite(message.generation)
@@ -664,6 +671,12 @@ function handleRefreshComplete(data) {
     const wasRunning = activeRefreshOperation;
     activeRefreshOperation = false;
     updateControls();
+
+    if (details.interrupted === true) {
+        showInterrupted(result);
+        refreshStoredViews();
+        return;
+    }
 
     // The worker could not start (no tabs, or the query failed): it reports that as
     // a run of zero tabs with one failure entry carrying the reason.
@@ -784,14 +797,27 @@ function showStartFailure(message) {
     activeRefreshOperation = false;
     barHalt();
     renderFailure(t('errorStartTitle'), message, null);
+    // Enable Refresh before focus can move to it.
+    updateControls();
     const focused = setState('failed');
     moveFocusFromHidden(focused, refreshButton);
     announce(t('statusStartFailed', message));
-    updateControls();
+}
+
+function showInterrupted(result) {
+    buildDots([], {}, false);
+    setCounts(result.reloaded, result.failed, result.skipped, false);
+    barSet(result.processed, result.total);
+    footDone.textContent = '';
+    $('stopTitle').textContent = t('statusInterrupted');
+    $('stopSub').textContent = t('errorInterruptedDetail');
+    const focused = setState('stopped');
+    moveFocusFromHidden(focused, refreshButton);
+    announce(t('statusInterrupted'));
 }
 
 function restoreOperationStatus() {
-    return new Promise((resolve) => chrome.runtime.sendMessage({ action: 'getOperationStatus' }, (snapshot) => {
+    return new Promise((resolve) => chrome.runtime.sendMessage({ action: 'getOperationStatus', incognito: windowIncognito }, (snapshot) => {
         if (chrome.runtime.lastError || !snapshot) {
             resolve();
             return;
@@ -809,15 +835,13 @@ function restoreOperationStatus() {
                 }
             });
         } else if (snapshot.interrupted) {
-            const total = Number(snapshot.totalTabs) || 0;
-            buildDots([], {}, false);
-            setCounts(Number(snapshot.refreshedTabs) || 0, Number(snapshot.failedTabs) || 0, Number(snapshot.skippedTabs) || 0, false);
-            barSet(Number(snapshot.processedTabs) || 0, total);
-            footDone.textContent = '';
-            $('stopTitle').textContent = t('statusInterrupted');
-            $('stopSub').textContent = t('errorInterruptedDetail');
-            setState('stopped');
-            announce(t('statusInterrupted'));
+            showInterrupted({
+                total: Number(snapshot.totalTabs) || 0,
+                processed: Number(snapshot.processedTabs) || 0,
+                reloaded: Number(snapshot.refreshedTabs) || 0,
+                failed: Number(snapshot.failedTabs) || 0,
+                skipped: Number(snapshot.skippedTabs) || 0
+            });
         }
         resolve();
     }));
@@ -1190,11 +1214,11 @@ function burstConfetti() {
 // constant above already defined.
 
 const siteAccessInitialization = initializeSiteAccess();
-const windowInitialization = chrome.windows.getCurrent().then(currentWindow => {
+const windowKind = chrome.windows.getCurrent().then(currentWindow => {
     windowIncognito = currentWindow.incognito === true;
     renderReadySub();
-    return chrome.tabs.query({});
-}).then(tabs => {
+});
+const windowInitialization = windowKind.then(() => chrome.tabs.query({})).then(tabs => {
     const covered = (Array.isArray(tabs) ? tabs : []).filter(tab => (tab.incognito === true) === windowIncognito);
     if (covered.length > 0) openTabs = { tabs: covered.length, windows: new Set(covered.map(tab => tab.windowId)).size };
     renderReadyDetail();
@@ -1216,7 +1240,8 @@ Promise.allSettled([
     siteAccessInitialization,
     windowInitialization,
     activeTabInitialization,
-    restoreOperationStatus()
+    // The worker answers only about runs of this window's kind, so it must be known first.
+    windowKind.finally(restoreOperationStatus)
 ]).then(() => {
     initializing = false;
     updateControls();
