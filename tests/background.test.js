@@ -1,12 +1,6 @@
-const fs = require('fs');
-const path = require('path');
-const { createInstrumenter } = require('istanbul-lib-instrument');
+const instrumentedSource = require('./instrumented-source');
 
-const backgroundPath = path.join(__dirname, '..', 'background.js');
-const backgroundJs = createInstrumenter().instrumentSync(
-  fs.readFileSync(backgroundPath, 'utf8'),
-  backgroundPath
-);
+const backgroundJs = instrumentedSource('background.js');
 
 function executeBackgroundJs() {
   chrome.runtime.onMessage.callbackQueue = [];
@@ -29,6 +23,9 @@ function executeBackgroundJs() {
     onRemoved: chrome.tabs.onRemoved.callbackQueue[0]
   };
 }
+
+// The popup, opened from the toolbar or in a tab, as Chrome describes the sender.
+const popupPage = { id: 'test-extension-id', url: 'chrome-extension://test-extension-id/popup.html' };
 
 function setRuntimeLastError(value) {
   Object.defineProperty(chrome.runtime, 'lastError', {
@@ -102,7 +99,7 @@ describe('Background refresh worker', () => {
     ));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
     const { onUpdated } = executeBackgroundJs();
     chrome.scripting.executeScript.mockClear();
@@ -138,7 +135,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
 
     document.body.innerHTML = [
@@ -182,7 +179,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
 
     const originalDescriptor = Object.getOwnPropertyDescriptor(performance, 'getEntriesByType');
@@ -206,7 +203,7 @@ describe('Background refresh worker', () => {
       }
     }
 
-    expect(result).toEqual({ success: true, count: 0, staleBytes: 1200 });
+    expect(result).toEqual({ count: 0, staleBytes: 1200 });
   });
 
   test('stores merged cache statistics and prunes daily totals to 31 dates', async () => {
@@ -229,7 +226,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     const statsWriteIndex = chrome.storage.local.set.mock.calls.findIndex(([value]) => value.cacheStats);
@@ -263,7 +260,7 @@ describe('Background refresh worker', () => {
     const { onMessage } = executeBackgroundJs();
     const sendResponse = jest.fn();
 
-    onMessage({ action: 'startRefresh' }, {}, sendResponse);
+    onMessage({ action: 'startRefresh' }, popupPage, sendResponse);
     await jest.runAllTimersAsync();
 
     expect(sendResponse).toHaveBeenCalledWith({ success: true });
@@ -300,7 +297,7 @@ describe('Background refresh worker', () => {
     }));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expectEveryReloadToBypassLocalCache(27);
@@ -321,7 +318,7 @@ describe('Background refresh worker', () => {
     }));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -338,7 +335,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.permissions.contains).toHaveBeenCalledWith({ origins: ['<all_urls>'] });
@@ -356,7 +353,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -376,7 +373,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expectEveryReloadToBypassLocalCache(7, 3);
@@ -399,7 +396,7 @@ describe('Background refresh worker', () => {
     chrome.tabs.get.mockImplementation((tabId, callback) => callback({ id: tabId, status: 'loading', discarded: false }));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expectEveryReloadToBypassLocalCache(4);
@@ -419,7 +416,7 @@ describe('Background refresh worker', () => {
     }));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
@@ -442,7 +439,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
@@ -469,25 +466,10 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expectEveryReloadToBypassLocalCache(9);
-  });
-
-  test('falls back to a cache-bypassing reload when media scripting throws synchronously', async () => {
-    chrome.tabs.query.mockImplementation((query, callback) => callback([
-      { id: 10, title: 'Script exception', url: 'https://example.com/exception', discarded: false }
-    ]));
-    chrome.scripting.executeScript.mockImplementation(() => {
-      throw new Error('Synchronous scripting failure');
-    });
-    const { onMessage } = executeBackgroundJs();
-
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
-    await jest.runAllTimersAsync();
-
-    expectEveryReloadToBypassLocalCache(10);
   });
 
   test('injects media restoration after a refreshed tab finishes loading', async () => {
@@ -499,7 +481,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage, onUpdated } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
     await onUpdated(14, { status: 'complete' });
@@ -519,7 +501,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage, onUpdated } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
     await onUpdated(15, { status: 'loading' });
@@ -548,7 +530,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage, onUpdated } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
     await onUpdated(17, { status: 'complete' });
@@ -562,7 +544,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage, onUpdated } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
     await onUpdated(18, { status: 'complete' });
@@ -582,7 +564,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage, onUpdated, onRemoved } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
     expect(onRemoved).toEqual(expect.any(Function));
@@ -601,7 +583,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage, onUpdated } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(100);
     expect(onUpdated).toEqual(expect.any(Function));
     await onUpdated(20, { status: 'complete' });
@@ -624,7 +606,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage, onUpdated } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(5000);
     await onUpdated(21, { status: 'complete' });
 
@@ -643,7 +625,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     // Let only the already-existing batch scheduling run, then assert the reload
     // has fired without advancing timers any further.
     await Promise.resolve();
@@ -663,7 +645,7 @@ describe('Background refresh worker', () => {
     chrome.tabs.reload.mockImplementation(() => {});
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expectEveryReloadToBypassLocalCache(11);
@@ -691,13 +673,13 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
     expect(reloadCallbacks.has(40)).toBe(true);
 
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
     const secondStartResponse = jest.fn();
-    onMessage({ action: 'startRefresh' }, {}, secondStartResponse);
+    onMessage({ action: 'startRefresh' }, popupPage, secondStartResponse);
     await jest.advanceTimersByTimeAsync(0);
     expect(reloadCallbacks.has(41)).toBe(true);
 
@@ -744,10 +726,10 @@ describe('Background refresh worker', () => {
     const { onMessage } = executeBackgroundJs();
     const firstStartResponse = jest.fn();
 
-    onMessage({ action: 'startRefresh' }, {}, firstStartResponse);
+    onMessage({ action: 'startRefresh' }, popupPage, firstStartResponse);
     expect(firstQueryCallback).toEqual(expect.any(Function));
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
 
     firstQueryCallback([
@@ -785,11 +767,11 @@ describe('Background refresh worker', () => {
     const { onMessage } = executeBackgroundJs();
     const firstStartResponse = jest.fn();
 
-    onMessage({ action: 'startRefresh' }, {}, firstStartResponse);
+    onMessage({ action: 'startRefresh' }, popupPage, firstStartResponse);
     await Promise.resolve();
     expect(resolveFirstPermission).toEqual(expect.any(Function));
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
 
     resolveFirstPermission(true);
@@ -818,10 +800,10 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
     expect(getCallback).toEqual(expect.any(Function));
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
     getCallback({
       id: 105,
       status: 'complete',
@@ -844,10 +826,10 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
     expect(captureCallback).toEqual(expect.any(Function));
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
     captureCallback([{ result: { success: true, count: 0, staleBytes: 100 } }]);
     await jest.runAllTimersAsync();
 
@@ -860,12 +842,12 @@ describe('Background refresh worker', () => {
     ]));
     let onMessage;
     chrome.scripting.executeScript.mockImplementation(() => {
-      onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+      onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
       throw new Error('Capture failed after cancellation');
     });
     ({ onMessage } = executeBackgroundJs());
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.tabs.reload).not.toHaveBeenCalled();
@@ -914,9 +896,9 @@ describe('Background refresh worker', () => {
     const { onMessage } = executeBackgroundJs();
     deferReads = true;
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     cacheReads.pop()();
@@ -943,10 +925,10 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
     const statusResponse = jest.fn();
-    onMessage({ action: 'getOperationStatus' }, {}, statusResponse);
+    onMessage({ action: 'getOperationStatus' }, popupPage, statusResponse);
 
     expect(statusResponse).toHaveBeenCalledWith(expect.objectContaining({ generation: workerStart + 1 }));
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -981,15 +963,15 @@ describe('Background refresh worker', () => {
     ));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(400);
     expect(chrome.tabs.reload).toHaveBeenCalledTimes(5);
 
     const cancelResponse = jest.fn();
-    onMessage({ action: 'cancelOperation' }, {}, cancelResponse);
+    onMessage({ action: 'cancelOperation' }, popupPage, cancelResponse);
     await Promise.resolve();
     const secondStartResponse = jest.fn();
-    onMessage({ action: 'startRefresh' }, {}, secondStartResponse);
+    onMessage({ action: 'startRefresh' }, popupPage, secondStartResponse);
     await jest.runAllTimersAsync();
 
     expect(cancelResponse).toHaveBeenCalledWith({ success: true });
@@ -1013,9 +995,9 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.tabs.reload).toHaveBeenCalledTimes(1);
@@ -1106,8 +1088,8 @@ describe('Background refresh worker', () => {
     const firstResponse = jest.fn();
     const secondResponse = jest.fn();
 
-    onMessage({ action: 'getOperationStatus' }, {}, firstResponse);
-    onMessage({ action: 'getOperationStatus' }, {}, secondResponse);
+    onMessage({ action: 'getOperationStatus' }, popupPage, firstResponse);
+    onMessage({ action: 'getOperationStatus' }, popupPage, secondResponse);
 
     expect(firstResponse).toHaveBeenCalledWith(expect.objectContaining({ interrupted: true, progress: 33 }));
     expect(secondResponse).toHaveBeenCalledWith(expect.objectContaining({ active: false, interrupted: false }));
@@ -1194,7 +1176,7 @@ describe('Background refresh worker', () => {
     const { onMessage } = executeBackgroundJs();
     const sendResponse = jest.fn();
 
-    onMessage({ action: 'getOperationStatus' }, {}, sendResponse);
+    onMessage({ action: 'getOperationStatus' }, popupPage, sendResponse);
 
     expect(sendResponse).toHaveBeenCalledWith({
       ...storedState,
@@ -1231,15 +1213,13 @@ describe('Background refresh worker', () => {
     expect(interruptedRecord).toEqual({
       active: false,
       interrupted: true,
-      progress: 50,
       totalTabs: 2,
       processedTabs: 1,
       refreshedTabs: 0,
       failedTabs: 1,
       skippedTabs: 1,
       singleTab: false,
-      incognito: false,
-      lastUpdated: expect.any(String)
+      incognito: false
     });
   });
 
@@ -1282,7 +1262,7 @@ describe('Background refresh worker', () => {
       const { onMessage } = executeBackgroundJs();
       const respond = jest.fn();
 
-      onMessage({ action: 'getOperationStatus' }, {}, respond);
+      onMessage({ action: 'getOperationStatus' }, popupPage, respond);
       await answerReads();
 
       expect(respond).toHaveBeenCalledTimes(1);
@@ -1296,7 +1276,7 @@ describe('Background refresh worker', () => {
       ]));
       const { onMessage } = executeBackgroundJs();
 
-      onMessage({ action: 'startRefresh' }, {}, jest.fn());
+      onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
       await answerReads();
       await jest.runAllTimersAsync();
       await answerReads();
@@ -1354,10 +1334,10 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
     expect(firstCaptureCallback).toEqual(expect.any(Function));
     expect(secondReloadCallback).toEqual(expect.any(Function));
@@ -1379,8 +1359,8 @@ describe('Background refresh worker', () => {
     const { onMessage } = executeBackgroundJs();
     const cancelResponse = jest.fn();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
-    onMessage({ action: 'cancelOperation' }, {}, cancelResponse);
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, cancelResponse);
     await jest.runAllTimersAsync();
 
     expect(cancelResponse).toHaveBeenCalledWith({ success: true });
@@ -1401,14 +1381,14 @@ describe('Background refresh worker', () => {
       .map(message => message.generation);
 
     let { onMessage } = executeBackgroundJs();
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
     // Chrome stops an idle worker after about 30 seconds; the next event starts a new one.
     jest.advanceTimersByTime(30000);
     ({ onMessage } = executeBackgroundJs());
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     const [first, second, third] = startedGenerations();
@@ -1427,16 +1407,39 @@ describe('Background refresh worker', () => {
       .filter(message => message.action === 'refreshStarted')
       .at(-1).tabs.map(tab => tab.id);
 
-    onMessage({ action: 'startRefresh', incognito: false }, {}, jest.fn());
+    onMessage({ action: 'startRefresh', incognito: false }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([131]);
     expect(startedTabIds()).toEqual([131]);
 
     chrome.tabs.reload.mockClear();
-    onMessage({ action: 'startRefresh', incognito: true }, {}, jest.fn());
+    onMessage({ action: 'startRefresh', incognito: true }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([132]);
     expect(startedTabIds()).toEqual([132]);
+  });
+
+  test('answers only this extension\'s own pages', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 134, title: 'Page', url: 'https://example.com/page', discarded: false }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+    const injectedIntoPage = { id: 'test-extension-id', url: 'https://example.com/page', tab: { id: 134 } };
+    const otherExtension = { id: 'other-extension-id', url: 'chrome-extension://other-extension-id/popup.html' };
+
+    for (const sender of [injectedIntoPage, otherExtension]) {
+      const respond = jest.fn();
+      expect(onMessage({ action: 'startRefresh' }, sender, respond)).toBeUndefined();
+      expect(onMessage({ action: 'getOperationStatus' }, sender, respond)).toBeUndefined();
+      expect(respond).not.toHaveBeenCalled();
+    }
+    expect(chrome.tabs.query).not.toHaveBeenCalled();
+
+    const popupInTab = { ...popupPage, tab: { id: 135 } };
+    const started = jest.fn();
+    onMessage({ action: 'startRefresh' }, popupInTab, started);
+    await jest.runAllTimersAsync();
+    expect(started).toHaveBeenCalledWith({ success: true });
   });
 
   test('keeps a run out of the status and cancel answers for a window of the other kind', async () => {
@@ -1447,19 +1450,19 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh', incognito: true }, {}, jest.fn());
+    onMessage({ action: 'startRefresh', incognito: true }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
 
     const normalStatus = jest.fn();
-    onMessage({ action: 'getOperationStatus', incognito: false }, {}, normalStatus);
+    onMessage({ action: 'getOperationStatus', incognito: false }, popupPage, normalStatus);
     expect(normalStatus).toHaveBeenCalledWith({ active: false });
 
     const normalCancel = jest.fn();
-    onMessage({ action: 'cancelOperation', incognito: false }, {}, normalCancel);
+    onMessage({ action: 'cancelOperation', incognito: false }, popupPage, normalCancel);
     expect(normalCancel).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 
     const privateStatus = jest.fn();
-    onMessage({ action: 'getOperationStatus', incognito: true }, {}, privateStatus);
+    onMessage({ action: 'getOperationStatus', incognito: true }, popupPage, privateStatus);
     expect(privateStatus).toHaveBeenCalledWith(expect.objectContaining({
       active: true,
       currentTabs: [expect.objectContaining({ id: 132 })]
@@ -1469,7 +1472,7 @@ describe('Background refresh worker', () => {
     }));
 
     const privateCancel = jest.fn();
-    onMessage({ action: 'cancelOperation', incognito: true }, {}, privateCancel);
+    onMessage({ action: 'cancelOperation', incognito: true }, popupPage, privateCancel);
     await jest.runAllTimersAsync();
     expect(privateCancel).toHaveBeenCalledWith({ success: true });
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -1490,9 +1493,9 @@ describe('Background refresh worker', () => {
     await jest.runAllTimersAsync();
 
     const normalStatus = jest.fn();
-    onMessage({ action: 'getOperationStatus', incognito: false }, {}, normalStatus);
+    onMessage({ action: 'getOperationStatus', incognito: false }, popupPage, normalStatus);
     const privateStatus = jest.fn();
-    onMessage({ action: 'getOperationStatus', incognito: true }, {}, privateStatus);
+    onMessage({ action: 'getOperationStatus', incognito: true }, popupPage, privateStatus);
 
     expect(normalStatus).toHaveBeenCalledWith({ active: false });
     expect(privateStatus).toHaveBeenCalledWith(expect.objectContaining({ interrupted: true, incognito: true }));
@@ -1516,7 +1519,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(2999);
     expect(chrome.tabs.reload).not.toHaveBeenCalled();
     await jest.advanceTimersByTimeAsync(1);
@@ -1545,7 +1548,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([133, 134]);
@@ -1563,7 +1566,7 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh', incognito: false, activeTabId: 150 }, {}, jest.fn());
+    onMessage({ action: 'startRefresh', incognito: false, activeTabId: 150 }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([151, 152, 150]);
@@ -1583,7 +1586,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.advanceTimersByTimeAsync(3000);
 
     expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text });
@@ -1599,8 +1602,8 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: '' });
@@ -1617,9 +1620,9 @@ describe('Background refresh worker', () => {
     const { onMessage } = executeBackgroundJs();
     const sendResponse = jest.fn();
 
-    onMessage({ action: 'startRefresh', incognito: false, tabId: 141 }, {}, sendResponse);
+    onMessage({ action: 'startRefresh', incognito: false, tabId: 141 }, popupPage, sendResponse);
     const concurrent = jest.fn();
-    onMessage({ action: 'startRefresh', incognito: false }, {}, concurrent);
+    onMessage({ action: 'startRefresh', incognito: false }, popupPage, concurrent);
     await jest.runAllTimersAsync();
 
     expect(sendResponse).toHaveBeenCalledWith({ success: true });
@@ -1651,7 +1654,7 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     expect(reloadAttempts).toBe(2);
@@ -1687,12 +1690,12 @@ describe('Background refresh worker', () => {
     });
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await Promise.resolve();
     expect(resolveSecondPermission).toEqual(expect.any(Function));
-    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     const completions = chrome.runtime.sendMessage.mock.calls
@@ -1715,9 +1718,9 @@ describe('Background refresh worker', () => {
     ]));
     const { onMessage } = executeBackgroundJs();
 
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
-    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'startRefresh' }, popupPage, jest.fn());
     await jest.runAllTimersAsync();
 
     const completions = chrome.runtime.sendMessage.mock.calls

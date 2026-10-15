@@ -51,7 +51,6 @@ function resolveMessage(key, substitutions) {
 }
 
 chrome.i18n = {
-  ...(chrome.i18n || {}),
   getUILanguage: jest.fn(() => currentLocale),
   getMessage: jest.fn((key, substitutions) => resolveMessage(key, substitutions))
 };
@@ -70,7 +69,6 @@ onRemovedAddListener.mockImplementation(cb => {
 
 // Set up Chrome API mock structures with proper Jest mocks
 chrome.tabs = {
-  ...chrome.tabs,
   query: jest.fn(),
   get: jest.fn(),
   update: jest.fn(),
@@ -99,7 +97,8 @@ onMessageAddListener.mockImplementation(cb => {
 });
 
 chrome.runtime = {
-  ...chrome.runtime,
+  id: 'test-extension-id',
+  getURL: path => `chrome-extension://test-extension-id/${path}`,
   sendMessage: jest.fn().mockImplementation(() => Promise.resolve({})),
   onMessage: {
     addListener: onMessageAddListener,
@@ -117,8 +116,6 @@ onClickedAddListener.mockImplementation(cb => {
 });
 
 chrome.action = {
-  ...chrome.action,
-  setIcon: jest.fn(),
   setBadgeText: jest.fn(),
   setBadgeBackgroundColor: jest.fn(),
   setBadgeTextColor: jest.fn(),
@@ -131,13 +128,6 @@ chrome.action = {
 };
 
 chrome.storage = {
-  ...chrome.storage,
-  sync: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn()
-  },
   local: {
     get: jest.fn(),
     set: jest.fn(),

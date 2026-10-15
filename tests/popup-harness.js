@@ -2,13 +2,14 @@
 // against it, so a renamed id or a missing element fails the popup tests.
 const fs = require('fs');
 const path = require('path');
-const { createInstrumenter } = require('istanbul-lib-instrument');
+const instrumentedSource = require('./instrumented-source');
 
 const repositoryRoot = path.join(__dirname, '..');
-const popupPath = path.join(repositoryRoot, 'popup.js');
-const popupSource = fs.readFileSync(popupPath, 'utf8');
-const popupJs = createInstrumenter().instrumentSync(popupSource, popupPath);
+const popupSource = fs.readFileSync(path.join(repositoryRoot, 'popup.js'), 'utf8');
+const popupJs = instrumentedSource('popup.js');
 const popupHtml = fs.readFileSync(path.join(repositoryRoot, 'popup.html'), 'utf8');
+
+const workerScript = { id: 'test-extension-id', url: 'chrome-extension://test-extension-id/background.js' };
 
 function renderPopupDom() {
   const parsed = new DOMParser().parseFromString(popupHtml, 'text/html');
@@ -18,10 +19,6 @@ function renderPopupDom() {
     document.body.setAttribute(attribute.name, attribute.value);
   });
   document.body.innerHTML = parsed.body.innerHTML;
-}
-
-async function flushPromises() {
-  for (let index = 0; index < 8; index++) await Promise.resolve();
 }
 
 function executePopupJs({
@@ -70,9 +67,11 @@ function executePopupJs({
   };
 
   new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
-  const onMessage = chrome.runtime.onMessage.callbackQueue[0];
+  // Tests speak as the worker, which Chrome names as this extension's own script.
+  const listener = chrome.runtime.onMessage.callbackQueue[0];
+  const onMessage = (message, sender = workerScript) => listener(message, sender);
   onMessage.storage = storage;
   return onMessage;
 }
 
-module.exports = { executePopupJs, flushPromises, popupHtml, popupSource, renderPopupDom, repositoryRoot };
+module.exports = { executePopupJs, popupHtml, popupSource, repositoryRoot };

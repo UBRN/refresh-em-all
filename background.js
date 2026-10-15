@@ -13,7 +13,6 @@ let processedTabs = 0;
 let failedTabs = [];
 let skippedTabs = [];
 let tabStatuses = {};
-let startTime;
 let operationCancelled = false;
 let operationFinalized = false;
 // Every refresh operation gets a generation number. Async work captures the
@@ -124,17 +123,13 @@ function scheduleMediaRestore(tabId) {
 }
 
 function restoreMediaStateInTab(tabId) {
-    try {
-        chrome.scripting.executeScript({
-            target: { tabId },
-            files: ['content-script.js']
-        }, () => {
-            // The tab may have navigated away, closed, or be restricted by now.
-            void chrome.runtime.lastError;
-        });
-    } catch (error) {
-        console.debug('[Refresh Em All] Media restoration injection failed:', error);
-    }
+    chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content-script.js']
+    }, () => {
+        // The tab may have navigated away, closed, or be restricted by now.
+        void chrome.runtime.lastError;
+    });
 }
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
@@ -152,6 +147,10 @@ chrome.tabs.onRemoved.addListener(clearPendingMediaRestore);
 
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener(function onMessage(message, sender, sendResponse) {
+    // Only this extension's own pages talk to the worker. A script injected into a web
+    // page carries that page's URL, so a compromised page cannot start or read a run.
+    if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
+
     // Until a run a previous worker left unfinished is recorded, a status answer would
     // serve it as live, and a new claim would keep it out of history.
     if (interruptedRunPending && (message.action === 'startRefresh' || message.action === 'getOperationStatus')) {
@@ -243,13 +242,11 @@ chrome.runtime.onMessage.addListener(function onMessage(message, sender, sendRes
 });
 
 function getOperationSnapshot() {
-    const totalTabs = tabsToRefresh.length;
     return {
         active: activeRefreshOperation,
         generation: currentGeneration,
         interrupted: false,
-        progress: totalTabs > 0 ? Math.round((processedTabs / totalTabs) * 100) : 0,
-        totalTabs,
+        totalTabs: tabsToRefresh.length,
         processedTabs,
         refreshedTabs,
         failedTabs: failedTabs.length,
@@ -261,9 +258,7 @@ function getOperationSnapshot() {
         singleTab: singleTabRun,
         incognito: runIncognito,
         cancelled: operationCancelled,
-        startTime: startTime ? startTime.toISOString() : null,
-        staleBytes: staleBytesThisRun,
-        lastUpdated: new Date().toISOString()
+        staleBytes: staleBytesThisRun
     };
 }
 
@@ -329,8 +324,6 @@ function recordInterruptedOperation() {
         staleBytesThisRun = Number.isFinite(stored.staleBytes) ? stored.staleBytes : 0;
         singleTabRun = stored.singleTab === true;
         runIncognito = stored.incognito === true;
-        const restoredStartTime = new Date(stored.startTime);
-        if (stored.startTime && !Number.isNaN(restoredStartTime.getTime())) startTime = restoredStartTime;
         // A cancel that was accepted before the worker stopped is a cancellation, not an interruption.
         operationCancelled = stored.cancelled === true;
         const interrupted = !operationCancelled;
@@ -341,20 +334,17 @@ function recordInterruptedOperation() {
         // Tab records are dropped on purpose: the popup only reports progress for an
         // interrupted run, so there is no reason to keep URLs or titles in session
         // storage. endRefreshOperation dispatches the clear first, so this write survives.
-        const totalTabs = tabsToRefresh.length;
         chrome.storage.session.set({
             refreshOperationState: {
                 active: false,
                 interrupted: true,
-                progress: totalTabs > 0 ? Math.round((processedTabs / totalTabs) * 100) : 0,
-                totalTabs,
+                totalTabs: tabsToRefresh.length,
                 processedTabs,
                 refreshedTabs,
                 failedTabs: failedTabs.length,
                 skippedTabs: skippedTabs.length,
                 singleTab: singleTabRun,
-                incognito: runIncognito,
-                lastUpdated: new Date().toISOString()
+                incognito: runIncognito
             }
         }, () => {
             void chrome.runtime.lastError;
@@ -367,7 +357,7 @@ async function initializeAndStartRefresh(tabs, sendResponse, generation, incogni
     // The tabs.query callback can land after this run was cancelled and another
     // one took its place. Claiming the shared state now would reset that run.
     if (isStaleGeneration(generation)) {
-        if (typeof sendResponse === 'function') sendResponse({ success: false });
+        sendResponse({ success: false });
         return;
     }
 
@@ -399,7 +389,7 @@ async function initializeAndStartRefresh(tabs, sendResponse, generation, incogni
 
     // The permission lookup is another await boundary the run can be replaced across.
     if (isStaleGeneration(generation)) {
-        if (typeof sendResponse === 'function') sendResponse({ success: false });
+        sendResponse({ success: false });
         return;
     }
 
@@ -420,9 +410,7 @@ async function initializeAndStartRefresh(tabs, sendResponse, generation, incogni
     // Process tabs in batches for better performance
     refreshTabsInBatches(tabsToRefresh, generation);
 
-    if (typeof sendResponse === 'function') {
-        sendResponse({ success: true });
-    }
+    sendResponse({ success: true });
 }
 
 function handleRefreshStartFailure(message, sendResponse, generation) {
@@ -434,9 +422,7 @@ function handleRefreshStartFailure(message, sendResponse, generation) {
         error: errorMessage
     }];
 
-    if (typeof sendResponse === 'function') {
-        sendResponse({ success: false, message: errorMessage });
-    }
+    sendResponse({ success: false, message: errorMessage });
 
     endRefreshOperation(false, generation);
 }
@@ -459,7 +445,6 @@ function startRefreshOperation() {
     tabStatuses = {};
     staleBytesThisRun = 0;
     singleTabRun = false;
-    startTime = new Date();
 
     // No icon swap here: the badge below is what signals that a refresh is running.
 
@@ -497,8 +482,6 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
 
     // Log operation details including any errors
     const operationDetails = {
-        startTime: startTime ? startTime.toISOString() : new Date().toISOString(),
-        endTime: new Date().toISOString(),
         totalTabs: tabsToRefresh.length,
         processedTabs,
         successfulTabs: refreshedTabs,
@@ -755,10 +738,6 @@ function recordTabFailure(tab, error, generation) {
 }
 
 async function refreshTab(tab, retryCount = 0, loadingWaitStartedAt = Date.now(), attempt) {
-    if (!tab || !Number.isInteger(tab.id) || tab.id === chrome.tabs.TAB_ID_NONE) {
-        return 'skipped';
-    }
-
     // Check if tab still exists
     return new Promise((resolve) => {
         chrome.tabs.get(tab.id, (tabInfo) => {
@@ -825,69 +804,63 @@ function preserveStateAndRefreshTab(tab, retryCount, resolve, attempt) {
         captureSettled = true;
         basicReload(tab, retryCount, resolve, attempt);
     }, MEDIA_CAPTURE_TIMEOUT_MS);
-    try {
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: preserveMediaState
-        }, (injectionResults) => {
-            if (captureSettled) {
-                void chrome.runtime.lastError;
-                return;
-            }
-            captureSettled = true;
-            clearTimeout(captureTimeoutId);
-            if (isStaleAttempt(attempt)) {
-                resolve('skipped');
-                return;
-            }
-
-            const error = chrome.runtime.lastError;
-            if (error) {
-                basicReload(tab, retryCount, resolve, attempt);
-                return;
-            }
-
-            // A retry captures the same unchanged page again; count its bytes once.
-            const measuredStaleBytes = injectionResults?.[0]?.result?.staleBytes;
-            if (!attempt.staleBytesCounted && Number.isFinite(measuredStaleBytes)) {
-                attempt.staleBytesCounted = true;
-                staleBytesThisRun += measuredStaleBytes;
-            }
-            const capturedCount = injectionResults?.[0]?.result?.count;
-            // Unexpected or absent results restore rather than silently dropping captured state.
-            const hasStateToRestore = capturedCount !== 0;
-
-            chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
-                if (chrome.runtime.lastError) {
-                    if (retryCount < MAX_RETRIES) {
-                        setTimeout(() => {
-                            if (isStaleAttempt(attempt)) { resolve('skipped'); return; }
-                            refreshTab(tab, retryCount + 1, undefined, attempt).then(resolve);
-                        }, 500 * (retryCount + 1));
-                    } else {
-                        recordTabFailure(
-                            tab,
-                            chrome.runtime.lastError.message || t('errorReloadFailed'),
-                            attempt.generation
-                        );
-                        resolve(false);
-                    }
-                } else {
-                    // Scheduled only after the reload is dispatched: an
-                    // already-loading tab can otherwise reach "complete" for
-                    // its previous navigation and consume the saved state.
-                    if (!isStaleAttempt(attempt) && hasStateToRestore) {
-                        scheduleMediaRestore(tab.id);
-                    }
-                    resolve(true);
-                }
-            });
-        });
-    } catch (error) {
+    chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: preserveMediaState
+    }, (injectionResults) => {
+        if (captureSettled) {
+            void chrome.runtime.lastError;
+            return;
+        }
         captureSettled = true;
         clearTimeout(captureTimeoutId);
-        basicReload(tab, retryCount, resolve, attempt);
-    }
+        if (isStaleAttempt(attempt)) {
+            resolve('skipped');
+            return;
+        }
+
+        const error = chrome.runtime.lastError;
+        if (error) {
+            basicReload(tab, retryCount, resolve, attempt);
+            return;
+        }
+
+        // A retry captures the same unchanged page again; count its bytes once.
+        const measuredStaleBytes = injectionResults?.[0]?.result?.staleBytes;
+        if (!attempt.staleBytesCounted && Number.isFinite(measuredStaleBytes)) {
+            attempt.staleBytesCounted = true;
+            staleBytesThisRun += measuredStaleBytes;
+        }
+        const capturedCount = injectionResults?.[0]?.result?.count;
+        // Unexpected or absent results restore rather than silently dropping captured state.
+        const hasStateToRestore = capturedCount !== 0;
+
+        chrome.tabs.reload(tab.id, { bypassCache: true }, () => {
+            if (chrome.runtime.lastError) {
+                if (retryCount < MAX_RETRIES) {
+                    setTimeout(() => {
+                        if (isStaleAttempt(attempt)) { resolve('skipped'); return; }
+                        refreshTab(tab, retryCount + 1, undefined, attempt).then(resolve);
+                    }, 500 * (retryCount + 1));
+                } else {
+                    recordTabFailure(
+                        tab,
+                        chrome.runtime.lastError.message || t('errorReloadFailed'),
+                        attempt.generation
+                    );
+                    resolve(false);
+                }
+            } else {
+                // Scheduled only after the reload is dispatched: an
+                // already-loading tab can otherwise reach "complete" for
+                // its previous navigation and consume the saved state.
+                if (!isStaleAttempt(attempt) && hasStateToRestore) {
+                    scheduleMediaRestore(tab.id);
+                }
+                resolve(true);
+            }
+        });
+    });
 }
 
 // Basic reload without trying to preserve state
@@ -922,11 +895,6 @@ function basicReload(tab, retryCount, resolve, attempt) {
 // Function to update progress
 function updateProgress(current, total, generation) {
     if (!activeRefreshOperation || isStaleGeneration(generation)) return;
-
-    if (!total) {
-        chrome.action.setBadgeText({ text: "" });
-        return;
-    }
 
     const percent = Math.floor((current / total) * 100);
     chrome.action.setBadgeText({ text: percent + "%" });
@@ -1024,20 +992,19 @@ function preserveMediaState() {
                 ) : true,
                 // Store additional attributes to better identify the YouTube player state
                 videoId: new URLSearchParams(window.location.search).get('v') ||
-                    window.location.pathname.split('/').pop(),
-                timestamp: Math.floor(Date.now() / 1000)
+                    window.location.pathname.split('/').pop()
             };
         }
 
         // Save to sessionStorage if we have media elements
         if (Object.keys(mediaStates).length > 0) {
             sessionStorage.setItem('refreshEmAllMediaState', JSON.stringify(mediaStates));
-            return { success: true, count: Object.keys(mediaStates).length, staleBytes };
+            return { count: Object.keys(mediaStates).length, staleBytes };
         }
 
-        return { success: true, count: 0, staleBytes };
+        return { count: 0, staleBytes };
     } catch (error) {
+        // No count comes back, so the worker still restores whatever was saved.
         console.error("Error preserving media state:", error);
-        return { success: false, error: error.message };
     }
 }

@@ -437,9 +437,7 @@ function verifyZip(zipPath, manifest) {
     const entries = parseZip(zipBuffer);
     const filenames = entries.map(entry => entry.filename);
 
-    if (new Set(filenames).size !== filenames.length) {
-        throw new Error('ZIP contains duplicate entries');
-    }
+    // RUNTIME_FILES has no duplicates, so this also rejects a duplicated entry.
     if (JSON.stringify(filenames) !== JSON.stringify(RUNTIME_FILES)) {
         throw new Error(
             `ZIP file list differs from the runtime allowlist:\n` +
@@ -457,8 +455,7 @@ function verifyZip(zipPath, manifest) {
     return { filenames, size: zipBuffer.length };
 }
 
-function writeZip(zipPath, manifest) {
-    validateRuntimeAllowlist(manifest);
+function writeZip(zipPath) {
     fs.mkdirSync(DIST_DIR, { recursive: true });
     const temporaryPath = `${zipPath}.tmp-${process.pid}`;
 
@@ -499,7 +496,7 @@ function main() {
     }
 
     if (!verifyOnly) {
-        writeZip(zipPath, manifest);
+        writeZip(zipPath);
     }
     if (!fs.existsSync(zipPath)) {
         throw new Error(`Package does not exist: ${path.relative(ROOT, zipPath)}`);
@@ -527,7 +524,5 @@ module.exports = {
     extractZip,
     getReleaseMetadata,
     parseZip,
-    validateRuntimeAllowlist,
-    verifyZip,
-    writeZip
+    verifyZip
 };

@@ -1,12 +1,6 @@
-const fs = require('fs');
-const path = require('path');
-const { createInstrumenter } = require('istanbul-lib-instrument');
+const instrumentedSource = require('./instrumented-source');
 
-const contentScriptPath = path.join(__dirname, '..', 'content-script.js');
-const contentScript = createInstrumenter().instrumentSync(
-  fs.readFileSync(contentScriptPath, 'utf8'),
-  contentScriptPath
-);
+const contentScript = instrumentedSource('content-script.js');
 
 function executeContentScript(savedState) {
   sessionStorage.getItem.mockReturnValue(savedState);

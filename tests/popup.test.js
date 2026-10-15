@@ -114,6 +114,18 @@ describe('Popup controller', () => {
     );
   });
 
+  test('ignores messages from a script injected into a web page', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+
+    onMessage(
+      { action: 'refreshStarted', generation: 2, tabs: tabs(3) },
+      { id: 'test-extension-id', url: 'https://example.com/', tab: { id: 4 } }
+    );
+
+    expect(state()).toBe('ready');
+  });
+
   test('ignores the broadcasts of a run in a window of the other kind', async () => {
     const onMessage = executePopupJs();
     await settle();
@@ -796,20 +808,33 @@ describe('Popup controller', () => {
     }
   });
 
-  test.each([
-    ['Just refresh', 'justRefresh'],
-    ['Allow and refresh', 'allowAndRefresh']
-  ])('offline, "%s" on the permission question does not start a reload', async (_label, id) => {
+  test('offline, the permission question\'s buttons wait like the refresh buttons', async () => {
     executePopupJs({ siteAccess: false, mediaAccessAsked: false });
     await settle();
     $('refreshAll').click();
-    expect(state()).toBe('ask');
+    expect($('justRefresh').disabled).toBe(false);
+    expect($('allowAndRefresh').disabled).toBe(false);
 
     window.dispatchEvent(new Event('offline'));
-    $(id).click();
+    expect($('justRefresh').disabled).toBe(true);
+    expect($('allowAndRefresh').disabled).toBe(true);
+
+    window.dispatchEvent(new Event('online'));
+    expect($('justRefresh').disabled).toBe(false);
+    expect($('allowAndRefresh').disabled).toBe(false);
+  });
+
+  test('going offline while Chrome asks for access keeps "Allow and refresh" from starting a reload', async () => {
+    executePopupJs({ siteAccess: false, mediaAccessAsked: false, requestAccessResult: true });
+    await settle();
+    $('refreshAll').click();
+
+    $('allowAndRefresh').click();
+    window.dispatchEvent(new Event('offline'));
     await settle();
     window.dispatchEvent(new Event('online'));
 
+    expect(chrome.permissions.request).toHaveBeenCalledTimes(1);
     expect(chrome.runtime.sendMessage.mock.calls.filter(([message]) => message.action === 'startRefresh')).toHaveLength(0);
   });
 

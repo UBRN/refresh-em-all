@@ -195,6 +195,8 @@ function updateControls() {
     refreshButton.disabled = initializing || activeRefreshOperation || accessRequestPending || !online;
     // Unavailable stays focusable, so the reason under it is still read out.
     thisTabButton.disabled = refreshButton.disabled;
+    allowButton.disabled = refreshButton.disabled;
+    justRefreshButton.disabled = refreshButton.disabled;
     thisTabButton.setAttribute('aria-disabled', String(!thisTabAvailable()));
 }
 
@@ -335,19 +337,14 @@ function barHalt() {
 }
 
 function barStart(total, stepAverage, single, done = 0) {
-    barHalt();
-    bar.total = Math.max(1, total);
-    bar.done = Math.min(done, bar.total);
-    bar.x = bar.target = bar.done / bar.total;
-    bar.v = 0;
+    // barSet renders, and the render reads single.
     bar.single = single;
+    barSet(done, total);
     bar.stepAverage = stepAverage;
     bar.lastMessageAt = performance.now();
     bar.inflight = true;
-    progressBar.setAttribute('aria-valuenow', String(Math.round(bar.x * 100)));
     if (single) progressBar.removeAttribute('aria-valuetext');
     else progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
-    barRender();
     barKick();
 }
 
@@ -477,8 +474,6 @@ window.addEventListener('online', () => setOnline(true));
 window.addEventListener('offline', () => setOnline(false));
 
 refreshButton.addEventListener('click', () => {
-    if (activeRefreshOperation || refreshButton.disabled) return;
-
     // The first refresh explains the optional permission before Chrome asks for it.
     if (!siteAccessGranted && !mediaAccessAsked) {
         const focused = setState('ask');
@@ -500,7 +495,7 @@ justRefreshButton.addEventListener('click', () => {
 });
 
 thisTabButton.addEventListener('click', () => {
-    if (activeRefreshOperation || thisTabButton.disabled || !thisTabAvailable()) return;
+    if (!thisTabAvailable()) return;
     rememberFocus();
     requestRefresh(activeTab.id);
 });
@@ -571,7 +566,10 @@ function cancelRun(button) {
     });
 }
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender) => {
+    // Only the worker and this extension's own pages are listened to, never a script
+    // injected into a web page.
+    if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
     // A run in a window of the other kind, normal or incognito, is not this popup's to show.
     if (message.incognito === !windowIncognito) return;
 
@@ -691,7 +689,6 @@ function handleRefreshComplete(data) {
         refreshStoredViews();
     };
     if (result.cancelled || !wasRunning) {
-        barHalt();
         barSet(result.processed, result.total);
         show();
     } else {

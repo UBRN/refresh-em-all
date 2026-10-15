@@ -42,11 +42,13 @@ permissions:
   contents: read
 
 jobs:
-  medium:
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.profile == 'medium') }}
-    name: 20-tab reliability
+  reliability:
+    # Pull requests and pushes run the 20-tab profile, the weekly schedule the 50-tab one.
+    name: ${{ (github.event_name == 'schedule' || inputs.profile == 'full') && '50-tab' || '20-tab' }} reliability
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PROFILE: ${{ github.event_name == 'schedule' && 'full' || inputs.profile || 'medium' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,41 +61,13 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Run medium reliability profile
-        run: xvfb-run --auto-servernum npm run e2e:reliability:medium
+      - name: Run reliability profile
+        run: xvfb-run --auto-servernum node tests/e2e/reliability.js --profile="$PROFILE"
       - name: Upload reliability diagnostics
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: medium-reliability-diagnostics
-          path: test-results/e2e/medium/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  full:
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.profile == 'full') }}
-    name: 50-tab reliability
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Run full reliability profile
-        run: xvfb-run --auto-servernum npm run e2e:reliability
-      - name: Upload reliability diagnostics
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: full-reliability-diagnostics
-          path: test-results/e2e/full/
+          name: ${{ env.PROFILE }}-reliability-diagnostics
+          path: test-results/e2e/${{ env.PROFILE }}/
           if-no-files-found: ignore
           retention-days: 14

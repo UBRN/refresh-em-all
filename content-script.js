@@ -47,12 +47,8 @@
             return;
         }
 
-        const playPromise = media.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-            playPromise.catch(() => {
-                // Autoplay policies can prevent restoration; the other state is still retained.
-            });
-        }
+        // Autoplay policies can prevent restoration; the other state is still retained.
+        media.play().catch(() => {});
     }
 
     function restoreElement(media, savedState) {

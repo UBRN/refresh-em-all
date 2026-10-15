@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **147 tests across 6 suites**
+- Jest unit/integration/contract suite: **148 tests across 6 suites**
 - Fast browser suite: **9 scenarios** (the first-run question, the denied-access path, 6 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
@@ -50,7 +50,7 @@ npm run e2e:reliability:large
 - Refreshes a tab that navigated away from a restricted URL before its turn instead of skipping it
 - Skips a tab that navigated to a restricted URL before its turn
 - Requires `{ bypassCache: true }` on normal, discarded, media-capture
-  fallback, synchronous fallback, loading-wait, retry, and timeout paths
+  fallback, loading-wait, retry, and timeout paths
 - Proves a stalled reload times out without issuing a standard cached fallback
 - Cancels active operations
 - Finalizes cancellation immediately and prevents stale callbacks and retries from mutating a replacement refresh
@@ -60,6 +60,7 @@ npm run e2e:reliability:large
 - Starts each worker lifetime above the generations a previous worker used
 - Refreshes only tabs whose incognito mode matches the window that started the run
 - Answers status and cancel requests, and stamps run broadcasts, so that a popup in a window of the other kind neither sees nor cancels the run
+- Answers only this extension's own pages, including the popup opened in a tab, and ignores scripts injected into web pages and other extensions
 - Stops a timed-out tab attempt from reloading the tab or adding bytes, and counts stale bytes once per tab across retries
 - Records a run cancelled during the permission lookup without the previous run's counts or bytes
 - Keeps finishing runs when stored history is not a list
@@ -95,7 +96,8 @@ The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails 
 - Quiets the tabs that never ran after a cancel and keeps failures in the counts
 - Restores a running operation when the popup is reopened and reports an interrupted run once, and shows a run that stops midway as interrupted, without confetti
 - Asks about and cancels only runs of its own window kind, ignores the other kind's broadcasts, and only says a reload is running when that run is in a window of the other kind
-- Keeps both buttons of the permission question from starting a reload while offline
+- Disables both buttons of the permission question while offline, as it does the refresh buttons, and starts no reload when the network drops during Chrome's permission prompt
+- Ignores messages from a script injected into a web page
 - Keeps the start-failure reason when the worker also reports a zero-tab run
 - Plays confetti only after a clean run over every tab that reloaded at least one tab, while the popup is visible, and never on reopen or for a single tab
 - Moves keyboard focus between Refresh and Cancel as runs start and end, onto Refresh after a start failure, and between the list and its sub views
