@@ -32,7 +32,8 @@ function executePopupJs({
   mediaAccessAsked = true,
   requestAccessResult = false,
   incognito = false,
-  activeTab = { id: 7, title: 'Lofi beats - YouTube', url: 'https://www.youtube.com/watch?v=abc' }
+  activeTab = { id: 7, title: 'Lofi beats - YouTube', url: 'https://www.youtube.com/watch?v=abc' },
+  openTabs
 } = {}) {
   renderPopupDom();
   const storage = { refreshHistory: history, cacheStats, mediaAccessAsked };
@@ -57,7 +58,9 @@ function executePopupJs({
     keys.forEach(key => delete storage[key]);
     callback?.();
   });
-  chrome.tabs.query.mockImplementation(() => Promise.resolve(activeTab ? [activeTab] : []));
+  chrome.tabs.query.mockImplementation(query => Promise.resolve(
+    query.active || !openTabs ? (activeTab ? [activeTab] : []) : openTabs
+  ));
   chrome.permissions = {
     contains: jest.fn().mockResolvedValue(siteAccess),
     request: jest.fn().mockResolvedValue(requestAccessResult)

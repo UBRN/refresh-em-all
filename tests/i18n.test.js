@@ -41,6 +41,20 @@ describe('Localization contracts', () => {
     }
   });
 
+  // One word for each thing: buttons say Refresh, everything else says reload, and
+  // neither language names the cache or the popup.
+  test('catalog messages keep to the product vocabulary', () => {
+    const buttons = ['actionRefreshAll', 'refreshThisTab', 'askAllow', 'askSkip'];
+    for (const [key, { message }] of Object.entries(catalogs.en)) {
+      const text = message.replace(/Refresh Em All/g, '').replace(/\$[A-Z0-9_]+\$/g, '');
+      if (!buttons.includes(key)) expect([key, text]).not.toEqual([key, expect.stringMatching(/refresh/i)]);
+      expect([key, text]).not.toEqual([key, expect.stringMatching(/\bcache|\bpopup/i)]);
+    }
+    for (const [key, { message }] of Object.entries(catalogs.tr)) {
+      expect([key, message]).not.toEqual([key, expect.stringMatching(/yeniden yükle|önbellek|açılır pencere|Yalnızca/i)]);
+    }
+  });
+
   test('catalog messages and descriptions are not empty', () => {
     for (const catalog of Object.values(catalogs)) {
       for (const entry of Object.values(catalog)) {
@@ -123,7 +137,7 @@ describe('Localization contracts', () => {
     expect(document.getElementById('openFiles').textContent.trim()).toBe('Yeniden İndirilen Dosyalar');
     expect(document.getElementById('resetStats').textContent).toBe('İstatistikleri sıfırla');
     expect(document.getElementById('refreshThisTab').textContent.trim()).toBe('Yalnız bu sekmeyi yenileyoutube.com');
-    expect(document.getElementById('thisTabNote').textContent).toBe('Önbelleği atlar, videolar kaldığı yerden sürer.');
+    expect(document.getElementById('thisTabNote').textContent).toBe('Dosyaları yeniden indirir, videolar kaldığı yerden sürer.');
     expect(document.querySelector('[data-i18n="statsNote"]').textContent).toBe(catalogs.tr.statsNote.message);
 
     onMessage({ action: 'refreshStarted', tabs: [{ id: 1 }, { id: 2 }, { id: 3 }] });
@@ -141,7 +155,7 @@ describe('Localization contracts', () => {
   });
 
   test.each([
-    ['tr', 'Sekmeleri yeniden yükleme ilerlemesi', 'Geri'],
+    ['tr', 'Sekme yenileme ilerlemesi', 'Geri'],
     ['en', 'Tab reload progress', 'Back']
   ])('renders localized accessibility labels in %s', (locale, progressLabel, backLabel) => {
     setTestLocale(locale);

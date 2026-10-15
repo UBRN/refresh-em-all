@@ -14,7 +14,7 @@
         "<all_urls>"
     ],
     "action": {
-        "default_title": "__MSG_appName__",
+        "default_title": "__MSG_productName__",
         "default_icon": {
             "16": "assets/icon-16.png",
             "32": "assets/icon-32.png"

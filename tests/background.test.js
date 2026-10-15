@@ -670,7 +670,7 @@ describe('Background refresh worker', () => {
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
       action: 'tabFailed',
       tabId: 11,
-      error: 'Timed out refreshing tab after 30 seconds'
+      error: 'Timed out reloading tab after 30 seconds'
     }));
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
       action: 'refreshComplete',

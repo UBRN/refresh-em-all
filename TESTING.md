@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **129 tests across 6 suites**
+- Jest unit/integration/contract suite: **135 tests across 6 suites**
 - Fast browser suite: **9 scenarios** (the first-run question, the denied-access path, 6 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 

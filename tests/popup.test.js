@@ -220,9 +220,9 @@ describe('Popup controller', () => {
 
     expect(state()).toBe('failed');
     expect($('progressBar').getAttribute('aria-valuenow')).toBe('100');
-    expect($('failTitle').textContent).toBe('Failed to refresh 1 tab.');
+    expect($('failTitle').textContent).toBe('Failed to reload 1 tab.');
     expect($('failedList').textContent).toBe('TwoReload failed');
-    expect($('statusText').textContent).toBe('Failed to refresh 1 tab.');
+    expect($('statusText').textContent).toBe('Failed to reload 1 tab.');
   });
 
   test('the bar creeps while a tab is in flight but never passes the next step or goes back', async () => {
@@ -588,7 +588,7 @@ describe('Popup controller', () => {
     await settle(2000);
 
     expect($('footDone').textContent)
-      .toBe('About 2.0 KB came from copies Chrome saved earlier and was downloaded again.');
+      .toBe('About 2.0 KB came from copies Chrome saved earlier and was downloaded again, so pages show their newest version.');
 
     onMessage({ action: 'refreshStarted', tabs: tabs(1) });
     expect($('footDone').textContent).toBe('');
@@ -600,7 +600,7 @@ describe('Popup controller', () => {
 
     expect($('refreshThisTab').disabled).toBe(false);
     expect($('thisTabSite').textContent).toBe('youtube.com');
-    expect($('thisTabNote').textContent).toBe('Skips the cache. Videos pick up where they left off.');
+    expect($('thisTabNote').textContent).toBe('Fetches fresh files. Videos pick up where they left off.');
 
     $('refreshThisTab').click();
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
@@ -656,6 +656,50 @@ describe('Popup controller', () => {
 
     expect($('refreshThisTab').getAttribute('aria-disabled')).toBe('false');
     expect($('thisTabSite').textContent).toBe('chromewebstore.google.com');
+  });
+
+  test('promises kept videos under this tab only while page reading is allowed', async () => {
+    executePopupJs({ siteAccess: false, requestAccessResult: true });
+    await settle();
+    expect($('thisTabNote').textContent).toBe('Fetches fresh files.');
+
+    $('openSettings').click();
+    $('grantAccess').click();
+    await settle();
+    expect($('thisTabNote').textContent).toBe('Fetches fresh files. Videos pick up where they left off.');
+  });
+
+  test.each([
+    [[{ id: 1, windowId: 1 }], '1 tab open in 1 window.'],
+    [[{ id: 1, windowId: 1 }, { id: 2, windowId: 1 }], '2 tabs open in 1 window.'],
+    [[{ id: 1, windowId: 1 }, { id: 2, windowId: 2 }, { id: 3, windowId: 2 }, { id: 4, windowId: 3, incognito: true }],
+      '3 tabs open in 2 windows.']
+  ])('the ready screen counts the tabs a run covers', async (openTabs, count) => {
+    executePopupJs({ openTabs });
+    await settle();
+
+    expect($('readyExplain').querySelector('b').textContent).toBe(count);
+    expect($('readyExplain').textContent).toBe(`${count} Reloads the tabs it can and fetches fresh files instead of reusing copies Chrome saved earlier. Your site data stays in place.`);
+  });
+
+  test('offline, the refresh buttons wait and say why until the network is back', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+    try {
+      executePopupJs({ openTabs: [{ id: 1, windowId: 1 }, { id: 2, windowId: 1 }] });
+      await settle();
+
+      const warning = 'You are offline. Reloading now would turn your tabs into error pages, so reloading waits until you are back online.';
+      expect($('refreshAll').disabled).toBe(true);
+      expect($('refreshThisTab').disabled).toBe(true);
+      expect($('readyExplain').textContent).toBe(warning);
+      expect($('statusText').textContent).toBe(warning);
+
+      window.dispatchEvent(new Event('online'));
+      expect($('refreshAll').disabled).toBe(false);
+      expect($('readyExplain').querySelector('b').textContent).toBe('2 tabs open in 1 window.');
+    } finally {
+      delete navigator.onLine;
+    }
   });
 
   test('does not activate stress mode after five settings clicks', async () => {

@@ -83,9 +83,10 @@ const resetStats = $('resetStats');
 const undoReset = $('undoReset');
 const undoResetButton = $('undoResetButton');
 const confettiCanvas = $('confetti');
+const readyExplain = $('readyExplain');
 
 document.documentElement.lang = t('htmlLang');
-document.title = t('appName');
+document.title = t('productName');
 document.querySelectorAll('[data-i18n]').forEach(element => {
     element.textContent = t(element.dataset.i18n);
 });
@@ -110,6 +111,10 @@ let mediaAccessAsked = false;
 // A run covers only tabs of the same kind as this popup's window, normal or incognito.
 let windowIncognito = false;
 let activeTab = null;
+// Reloading without a network turns every tab into an error page, so the buttons
+// wait. Only false is reliable: true means a network, not the internet.
+let online = navigator.onLine !== false;
+let openTabs = null;
 let latestHistory = [];
 let historyRevealed = false;
 let savedStats = null;
@@ -187,7 +192,7 @@ function updateRunPill() {
 }
 
 function updateControls() {
-    refreshButton.disabled = initializing || activeRefreshOperation || accessRequestPending;
+    refreshButton.disabled = initializing || activeRefreshOperation || accessRequestPending || !online;
     // Unavailable stays focusable, so the reason under it is still read out.
     thisTabButton.disabled = refreshButton.disabled;
     thisTabButton.setAttribute('aria-disabled', String(!thisTabAvailable()));
@@ -439,9 +444,37 @@ function renderThisTab() {
     const available = thisTabAvailable();
     thisTabSite.textContent = available ? siteName(activeTab) : '';
     thisTabButton.title = available ? siteName(activeTab) : '';
-    thisTabNote.textContent = t(available ? 'refreshThisTabHint' : 'thisTabUnavailable');
+    const hint = siteAccessGranted ? 'refreshThisTabHint' : 'refreshThisTabHintNoAccess';
+    thisTabNote.textContent = t(available ? hint : 'thisTabUnavailable');
     updateControls();
 }
+
+// The ready screen says how many tabs a run covers: every tab of this window's kind.
+function renderReadyDetail() {
+    if (!online) {
+        readyExplain.textContent = t('offlineWarning');
+        return;
+    }
+    readyExplain.textContent = '';
+    if (openTabs) {
+        const count = document.createElement('b');
+        count.textContent = openTabs.windows > 1
+            ? t('readyTabCountWindows', openTabs.tabs, openTabs.windows)
+            : t(openTabs.tabs === 1 ? 'readyTabCountOne' : 'readyTabCountOneWindow', openTabs.tabs);
+        readyExplain.append(count, ' ');
+    }
+    readyExplain.append(t('refreshExplanation'));
+}
+
+function setOnline(next) {
+    online = next;
+    renderReadyDetail();
+    updateControls();
+    if (!online) announce(t('offlineWarning'));
+}
+
+window.addEventListener('online', () => setOnline(true));
+window.addEventListener('offline', () => setOnline(false));
 
 refreshButton.addEventListener('click', () => {
     if (activeRefreshOperation || refreshButton.disabled) return;
@@ -808,6 +841,7 @@ function renderSiteAccess(granted) {
     grantAccess.hidden = granted;
     $('statsAccessHint').hidden = granted;
     $('metaSettings').textContent = t(granted ? 'settingsAccessOn' : 'settingsAccessOff');
+    if (activeTab) renderThisTab();
 }
 
 function requestSiteAccess() {
@@ -1159,7 +1193,13 @@ const siteAccessInitialization = initializeSiteAccess();
 const windowInitialization = chrome.windows.getCurrent().then(currentWindow => {
     windowIncognito = currentWindow.incognito === true;
     renderReadySub();
+    return chrome.tabs.query({});
+}).then(tabs => {
+    const covered = (Array.isArray(tabs) ? tabs : []).filter(tab => (tab.incognito === true) === windowIncognito);
+    if (covered.length > 0) openTabs = { tabs: covered.length, windows: new Set(covered.map(tab => tab.windowId)).size };
+    renderReadyDetail();
 });
+if (!online) setOnline(false);
 const activeTabInitialization = Promise.resolve()
     .then(() => chrome.tabs.query({ active: true, currentWindow: true }))
     .then(tabs => {

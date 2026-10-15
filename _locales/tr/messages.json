@@ -1,15 +1,19 @@
 {
   "appName": {
+    "message": "Refresh Em All: Tüm Sekmeleri Yenile",
+    "description": "Extension name: the product name, a colon, and a short descriptor. Keep \"Refresh Em All\" untranslated; translate the descriptor."
+  },
+  "productName": {
     "message": "Refresh Em All",
-    "description": "Extension name. Product name; keep untranslated."
+    "description": "Short product name for the popup header, the popup title and the toolbar tooltip. Keep untranslated."
   },
   "htmlLang": {
     "message": "tr",
     "description": "BCP-47 language tag of THIS catalog. Resolved through Chrome's fallback chain so the popup's <html lang> always matches the language actually rendered, not the browser UI locale."
   },
   "appDescription": {
-    "message": "Tüm pencerelerdeki sekmeleri yeniden yükler; kayıtlı kopyalar yerine yeni dosyaları indirir. Medyayı olabildiğince yerinde tutar.",
-    "description": "Extension description shown in the Chrome Web Store and on chrome://extensions."
+    "message": "Tüm sekmeleri her pencerede tek tıkla yenileyin. Dosyaları yeniden indirir, videoları kaldığı yerde tutabilir.",
+    "description": "Extension description shown as the Chrome Web Store summary and on chrome://extensions. At most 132 characters; lead with the words people search for."
   },
   "actionRefreshAll": {
     "message": "Tüm Sekmeleri Yenile",
@@ -20,15 +24,47 @@
     "description": "Label of the button that cancels a running refresh."
   },
   "refreshExplanation": {
-    "message": "Yenileyebildiği sekmeleri yeniden yükler ve Chrome'un daha önce kaydettiği kopyalar yerine dosyaları yeniden indirir. Site verileriniz değişmez.",
+    "message": "Yenileyebildiği sekmeleri yeniler ve Chrome'un daha önce kaydettiği kopyalar yerine dosyaları yeniden indirir. Site verileriniz değişmez.",
     "description": "Short explanation under the buttons describing what a refresh does."
   },
+  "readyTabCountOne": {
+    "message": "1 pencerede 1 sekme açık.",
+    "description": "Ready screen: one tab open in one window, shown before the explanation."
+  },
+  "readyTabCountOneWindow": {
+    "message": "1 pencerede $TABS$ sekme açık.",
+    "description": "Ready screen: several tabs open in one window.",
+    "placeholders": {
+      "tabs": {
+        "content": "$1",
+        "example": "23"
+      }
+    }
+  },
+  "readyTabCountWindows": {
+    "message": "$WINDOWS$ pencerede $TABS$ sekme açık.",
+    "description": "Ready screen: tabs open across several windows.",
+    "placeholders": {
+      "tabs": {
+        "content": "$1",
+        "example": "23"
+      },
+      "windows": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "offlineWarning": {
+    "message": "İnternet bağlantınız yok. Şimdi yenilemek sekmeleri hata sayfasına çevirirdi; bağlantı gelince yenileyebilirsiniz.",
+    "description": "Ready screen while the computer has no network connection; the refresh buttons are disabled."
+  },
   "progressLabel": {
-    "message": "Sekmeleri yeniden yükleme ilerlemesi",
+    "message": "Sekme yenileme ilerlemesi",
     "description": "Accessible name of the progress bar."
   },
   "statusRefreshingTabs": {
-    "message": "Sekmeleriniz yeniden yükleniyor…",
+    "message": "Sekmeleriniz yenileniyor…",
     "description": "Initial status line before the first progress update arrives."
   },
   "statusStarting": {
@@ -250,7 +286,7 @@
     "description": "Label for the all-time measured byte total."
   },
   "statsRunLine": {
-    "message": "Yaklaşık $SIZE$, Chrome'un daha önce kaydettiği kopyalardan geliyordu ve yeniden indirildi.",
+    "message": "Yaklaşık $SIZE$, Chrome'un daha önce kaydettiği kopyalardan geliyordu ve yeniden indirildi; böylece sayfalar en yeni hallerini gösterir.",
     "description": "Completion line showing files measured from copies Chrome saved earlier during the latest reload.",
     "placeholders": {
       "size": {
@@ -264,7 +300,7 @@
     "description": "Button that clears locally stored cache statistics."
   },
   "statsNote": {
-    "message": "Her sayı bir tahmindir ve gerçek miktar genellikle daha yüksektir: bazı dosyalar boyutunu sayfaya bildirmez, ayrıca Chrome sayfanın yükleme kayıtlarından yalnızca sınırlı sayıda tutar. Refresh Em All bunları tarayıcınızda ölçer ve hiçbir yere göndermez.",
+    "message": "Her sayı bir tahmindir ve gerçek miktar genellikle daha yüksektir: bazı dosyalar boyutunu sayfaya bildirmez, ayrıca Chrome sayfanın yükleme kayıtlarından yalnız sınırlı sayıda tutar. Refresh Em All bunları tarayıcınızda ölçer ve hiçbir yere göndermez.",
     "description": "Privacy and measurement-limit note below the cache statistics."
   },
   "permissionGrantAction": {
@@ -296,7 +332,7 @@
     "description": "Reason returned when the browser reported no tabs."
   },
   "errorNoRefreshableTabs": {
-    "message": "Yenilenebilir sekme bulunamadı",
+    "message": "Chrome, bu uzantının yenileyebileceği bir sekme döndürmedi",
     "description": "Reason returned when every reported tab was unusable."
   },
   "errorStartGeneric": {
@@ -308,7 +344,7 @@
     "description": "Title of the synthetic failure entry recorded when a refresh never began."
   },
   "errorReloadFailed": {
-    "message": "Sekme yeniden yüklenemedi",
+    "message": "Sekme yenilenemedi",
     "description": "Fallback reason when Chrome rejected a reload without a message."
   },
   "errorUnknown": {
@@ -372,7 +408,7 @@
     "description": "First-run button: opens Chrome's permission dialog, then reloads."
   },
   "askSkip": {
-    "message": "Yalnızca yenile",
+    "message": "Yalnız yenile",
     "description": "First-run button: reloads without asking for the permission."
   },
   "runCountOf": {
@@ -528,8 +564,12 @@
     "description": "Secondary button that reloads only the active tab."
   },
   "refreshThisTabHint": {
-    "message": "Önbelleği atlar, videolar kaldığı yerden sürer.",
-    "description": "Short line under Refresh only this tab."
+    "message": "Dosyaları yeniden indirir, videolar kaldığı yerden sürer.",
+    "description": "Short line under Refresh only this tab when page reading is allowed."
+  },
+  "refreshThisTabHintNoAccess": {
+    "message": "Dosyaları yeniden indirir.",
+    "description": "Short line under Refresh only this tab when page reading is off, so videos cannot be kept in place."
   },
   "thisTabUnavailable": {
     "message": "Chrome bu sayfayı korur, buradan yenilenemez.",
@@ -554,7 +594,7 @@
     }
   },
   "statusThisTabStopped": {
-    "message": "$SITE$ beklenmeden durduruldu.",
+    "message": "$SITE$ artık beklenmiyor.",
     "description": "Final status after the user cancelled a single-tab reload. SITE is a host name.",
     "placeholders": {
       "site": {
@@ -578,7 +618,7 @@
     }
   },
   "askExplain": {
-    "message": "Sayfa okumaya izin verirseniz videolar ve sesler kaldığı yerden sürer, açılır pencere Chrome'un yeniden kullandığı dosyaları ölçebilir. İzin vermeseniz de yenileme çalışır.",
+    "message": "Videolar kaldığı yerden sürer, yeniden indirilen dosyalar ölçülür. Chrome ardından tüm sitelerdeki verileri okuma uyarısını gösterir; uzantı izni yalnız bunlar için kullanır, hiçbir şey göndermez. İzin vermeseniz de yenileme çalışır.",
     "description": "Short explanation under the first-run question."
   },
   "failedListLabel": {

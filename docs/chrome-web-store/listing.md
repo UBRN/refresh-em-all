@@ -25,10 +25,12 @@ measurement. Refreshing continues without that grant. Dashboard-only items are t
 
 ## Listing content (English)
 
-**Extension name:** Refresh Em All
+**Extension name:** Refresh Em All: Reload All Tabs (`appName` in
+`_locales/en/messages.json`)
 
-**Short description (106 characters):** Reload every tab in all your windows
-and fetch fresh files instead of reusing copies Chrome saved earlier.
+**Short description (108 characters):** Reload all tabs in every window with one
+click. Fetches fresh files and can keep videos where you left them. The Store
+shows the manifest description (`appDescription`), so the two stay identical.
 
 **Detailed description:**
 
@@ -122,10 +124,11 @@ Enter this under a **Türkçe** language tab in the Developer Dashboard. Shippin
 `_locales/tr` localizes the extension itself; it does **not** localize the Store
 listing, which is maintained separately.
 
-**Uzantı adı:** Refresh Em All
+**Uzantı adı:** Refresh Em All: Tüm Sekmeleri Yenile (`_locales/tr`)
 
-**Kısa açıklama (102 karakter):** Bütün pencerelerdeki sekmeleri tek tıkla
-yeniler; kayıtlı kopyalar yerine dosyaların yenisini indirir.
+**Kısa açıklama (110 karakter):** Tüm sekmeleri her pencerede tek tıkla
+yenileyin. Dosyaları yeniden indirir, videoları kaldığı yerde tutabilir. Store
+manifest açıklamasını (`appDescription`) gösterir; iki metin aynı kalır.
 
 **Ayrıntılı açıklama:**
 

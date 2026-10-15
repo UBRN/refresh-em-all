@@ -21,6 +21,7 @@ With one click, you can:
 - See which reloads Chrome accepted, which failed, and which were skipped
 - Cancel while a reload is running
 - Reload only the tab you are looking at
+- See how many tabs and windows a reload covers before you start
 
 Errors are shown only to you on this device. The extension does not send error
 reports anywhere.
@@ -38,6 +39,7 @@ reports anywhere.
 - Works without permission to read the pages you refresh; if you say no, no
   new saved-file data is measured and media settings cannot be read or restored
 - Shows up to ten recent reload summaries
+- Waits while your computer is offline, so your tabs do not turn into error pages
 - Uses English or Turkish, following your browser language
 
 ## Behavior and limitations

@@ -1,15 +1,19 @@
 {
   "appName": {
+    "message": "Refresh Em All: Reload All Tabs",
+    "description": "Extension name: the product name, a colon, and a short descriptor. Keep \"Refresh Em All\" untranslated; translate the descriptor."
+  },
+  "productName": {
     "message": "Refresh Em All",
-    "description": "Extension name. Product name; keep untranslated."
+    "description": "Short product name for the popup header, the popup title and the toolbar tooltip. Keep untranslated."
   },
   "htmlLang": {
     "message": "en",
     "description": "BCP-47 language tag of THIS catalog. Resolved through Chrome's fallback chain so the popup's <html lang> always matches the language actually rendered, not the browser UI locale."
   },
   "appDescription": {
-    "message": "Reloads tabs across every window and fetches fresh files instead of reusing saved copies, with best-effort media restoration.",
-    "description": "Extension description shown in the Chrome Web Store and on chrome://extensions."
+    "message": "Reload all tabs in every window with one click. Fetches fresh files and can keep videos where you left them.",
+    "description": "Extension description shown as the Chrome Web Store summary and on chrome://extensions. At most 132 characters; lead with the words people search for."
   },
   "actionRefreshAll": {
     "message": "Refresh All Tabs",
@@ -22,6 +26,38 @@
   "refreshExplanation": {
     "message": "Reloads the tabs it can and fetches fresh files instead of reusing copies Chrome saved earlier. Your site data stays in place.",
     "description": "Short explanation under the buttons describing what a refresh does."
+  },
+  "readyTabCountOne": {
+    "message": "1 tab open in 1 window.",
+    "description": "Ready screen: one tab open in one window, shown before the explanation."
+  },
+  "readyTabCountOneWindow": {
+    "message": "$TABS$ tabs open in 1 window.",
+    "description": "Ready screen: several tabs open in one window.",
+    "placeholders": {
+      "tabs": {
+        "content": "$1",
+        "example": "23"
+      }
+    }
+  },
+  "readyTabCountWindows": {
+    "message": "$TABS$ tabs open in $WINDOWS$ windows.",
+    "description": "Ready screen: tabs open across several windows.",
+    "placeholders": {
+      "tabs": {
+        "content": "$1",
+        "example": "23"
+      },
+      "windows": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "offlineWarning": {
+    "message": "You are offline. Reloading now would turn your tabs into error pages, so reloading waits until you are back online.",
+    "description": "Ready screen while the computer has no network connection; the refresh buttons are disabled."
   },
   "progressLabel": {
     "message": "Tab reload progress",
@@ -144,7 +180,7 @@
     "description": "Error box heading when the refresh never began."
   },
   "errorFailedSummaryOne": {
-    "message": "Failed to refresh $COUNT$ tab.",
+    "message": "Failed to reload $COUNT$ tab.",
     "description": "Error box heading when exactly one tab failed.",
     "placeholders": {
       "count": {
@@ -154,7 +190,7 @@
     }
   },
   "errorFailedSummaryOther": {
-    "message": "Failed to refresh $COUNT$ tabs.",
+    "message": "Failed to reload $COUNT$ tabs.",
     "description": "Error box heading when two or more tabs failed.",
     "placeholders": {
       "count": {
@@ -250,7 +286,7 @@
     "description": "Label for the all-time measured byte total."
   },
   "statsRunLine": {
-    "message": "About $SIZE$ came from copies Chrome saved earlier and was downloaded again.",
+    "message": "About $SIZE$ came from copies Chrome saved earlier and was downloaded again, so pages show their newest version.",
     "description": "Completion line showing files measured from copies Chrome saved earlier during the latest reload.",
     "placeholders": {
       "size": {
@@ -272,11 +308,11 @@
     "description": "Button that requests permission to read refreshed pages for best-effort media restoration and saved-file measurement."
   },
   "permissionGrantExplain": {
-    "message": "This optional permission lets Refresh Em All read the pages you refresh. It uses the permission to keep videos and audio where you left them on a best-effort basis, and to measure files Chrome served from saved copies. Reloading works if you say no.",
+    "message": "This optional permission lets Refresh Em All read the pages you reload. It uses the permission to keep videos and audio where you left them on a best-effort basis, and to measure files Chrome served from saved copies. Reloading works if you say no.",
     "description": "Explanation shown beside the optional page-reading permission button."
   },
   "statsAccessHint": {
-    "message": "No new data is being measured because Refresh Em All does not have permission to read the pages you refresh.",
+    "message": "No new data is being measured because Refresh Em All does not have permission to read the pages you reload.",
     "description": "Notice shown above the saved-file figures while optional page-reading permission is missing."
   },
   "settingsToggle": {
@@ -316,7 +352,7 @@
     "description": "Generic fallback error text."
   },
   "errorRefreshTimeout": {
-    "message": "Timed out refreshing tab after $SECONDS$ seconds",
+    "message": "Timed out reloading tab after $SECONDS$ seconds",
     "description": "Reason recorded when a single tab refresh exceeded its time budget.",
     "placeholders": {
       "seconds": {
@@ -326,7 +362,7 @@
     }
   },
   "errorTabRefreshFailed": {
-    "message": "Unable to refresh this tab",
+    "message": "Unable to reload this tab",
     "description": "Fallback per-tab failure reason sent to the popup."
   },
   "heroReadyTitle": {
@@ -528,8 +564,12 @@
     "description": "Secondary button that reloads only the active tab."
   },
   "refreshThisTabHint": {
-    "message": "Skips the cache. Videos pick up where they left off.",
-    "description": "Short line under Refresh only this tab."
+    "message": "Fetches fresh files. Videos pick up where they left off.",
+    "description": "Short line under Refresh only this tab when page reading is allowed."
+  },
+  "refreshThisTabHintNoAccess": {
+    "message": "Fetches fresh files.",
+    "description": "Short line under Refresh only this tab when page reading is off, so videos cannot be kept in place."
   },
   "thisTabUnavailable": {
     "message": "Chrome protects this page, so it cannot be reloaded from here.",
@@ -578,7 +618,7 @@
     }
   },
   "askExplain": {
-    "message": "With page reading allowed, videos and audio stay where you left them and the popup can measure files Chrome reused. Reloading works either way.",
+    "message": "Videos and audio stay where you left them, and Refresh Em All can measure files Chrome reused. Chrome will then warn that it can read your data on all websites; it uses that only for these two things and sends nothing anywhere. Reloading works either way.",
     "description": "Short explanation under the first-run question."
   },
   "failedListLabel": {
