@@ -22,10 +22,10 @@ const RUNTIME_FILES = [
     'popup.js',
     'favicon.png',
     'favicon.svg',
-    'assets/icon-refresh-em-colorful-16.png',
-    'assets/icon-refresh-em-colorful-32.png',
-    'assets/icon-refresh-em-colorful-48.png',
-    'assets/icon-refresh-em-colorful-128.png'
+    'assets/icon-16.png',
+    'assets/icon-32.png',
+    'assets/icon-48.png',
+    'assets/icon-128.png'
 ].sort();
 
 const ZIP_LOCAL_FILE_HEADER = 0x04034b50;
