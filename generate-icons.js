@@ -1,154 +1,79 @@
-// This is a utility script to generate icons of different sizes
-// Run this script with Node.js to create the needed icon sizes
-// You'll need to install sharp: npm install sharp
+#!/usr/bin/env node
+
+'use strict';
+
+// Renders every raster icon from the two SVG sources in assets/.
+// icon.svg is the artwork; icon-16.svg is the same artwork with heavier
+// strokes so the arrow still reads at 16 px. Both are framed for the toolbar
+// (tile edges on whole pixels at 16, 32 and 48). The 128 px icon is the Chrome
+// Web Store icon: 96 px of artwork inside a 16 px transparent margin.
 
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 
-// Check if sharp is installed
-try {
-  // Define icon sizes needed for Chrome extensions
-  const sizes = [16, 32, 48, 128];
-  
-  // Source files (original high-resolution icons)
-  const sourceFiles = [
-    { 
-      src: 'assets/icon-refresh-em-colorful.png', 
-      prefix: 'assets/icon-refresh-em-colorful'
-    },
-    { 
-      src: 'assets/icon-refresh-em.png', 
-      prefix: 'assets/icon-refresh-em'
-    }
-  ];
-  
-  // Create assets directory if it doesn't exist
-  if (!fs.existsSync('assets')) {
-    fs.mkdirSync('assets');
-  }
-  
-  // Create doc/images/overview directory if it doesn't exist
-  if (!fs.existsSync('doc/images/overview')) {
-    fs.mkdirSync('doc/images/overview', { recursive: true });
-  }
-  
-  // Process each source file and create resized versions
-  async function processIcons() {
-    for (const source of sourceFiles) {
-      console.log(`Processing ${source.src}...`);
-      
-      if (!fs.existsSync(source.src)) {
-        console.error(`Source file ${source.src} not found!`);
-        continue;
-      }
-      
-      for (const size of sizes) {
-        const outputPath = `${source.prefix}-${size}.png`;
-        
-        try {
-          await sharp(source.src)
-            .resize(size, size)
-            .toFile(outputPath);
-          
-          console.log(`Created: ${outputPath}`);
-        } catch (err) {
-          console.error(`Error creating ${outputPath}:`, err);
-        }
-      }
-    }
-    
-    console.log('All icons generated successfully!');
-  }
-  
-  // Add function to generate favicon with solid background
-  async function generateFavicon() {
-    console.log('Generating favicon...');
-    
-    // Use the colorful icon as the base since it likely has better contrast
-    const inputPath = path.join(__dirname, 'assets/icon-refresh-em-colorful.png');
-    const outputPath = path.join(__dirname, 'favicon.png');
-    
-    try {
-      // Create a favicon with a solid background
-      await sharp(inputPath)
-        .resize(32, 32, { fit: 'contain', background: '#2b5797' }) // Blue background to match browser UI
-        .toFile(outputPath);
-      
-      console.log(`✅ Created favicon.png`);
-    } catch (error) {
-      console.error('Error generating favicon:', error);
-    }
-  }
+const root = __dirname;
+const STORE_VIEWBOX = '-10.5 -10.5 148 148';
 
-  // Generate a high-resolution hero image for README
-  async function generateHeroImage() {
-    console.log('Generating hero image...');
-    
-    // Use the colorful icon as the base
-    const inputPath = path.join(__dirname, 'assets/icon-refresh-em-colorful.png');
-    const outputPath = path.join(__dirname, 'doc/images/overview/hero_image.png');
-    
-    try {
-      // Create a hero image with gradient background
-      // Create a 1200x600 canvas with blue gradient background
-      const width = 1200;
-      const height = 600;
-      
-      // Create a gradient background
-      const gradient = Buffer.from(
-        `<svg width="${width}" height="${height}">
-          <defs>
-            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#4285f4" />
-              <stop offset="100%" stop-color="#2b5797" />
-            </linearGradient>
-          </defs>
-          <rect width="${width}" height="${height}" fill="url(#gradient)" />
-        </svg>`
-      );
-      
-      // Read the icon
-      const icon = await sharp(inputPath).resize(300, 300).toBuffer();
-      
-      // Create the hero image with the icon centered
-      await sharp(gradient)
-        .composite([
-          {
-            input: icon,
-            gravity: 'center'
-          }
-        ])
-        .toFile(outputPath);
-      
-      console.log(`✅ Created hero_image.png`);
-    } catch (error) {
-      console.error('Error generating hero image:', error);
-    }
-  }
+function readSvg(name) {
+  return fs.readFileSync(path.join(root, 'assets', name), 'utf8');
+}
 
-  // Include favicon generation in the main flow
-  async function main() {
-    try {
-      // First generate both sets of icon sizes
-      await processIcons();
-      
-      // Then generate the favicon
-      await generateFavicon();
-      
-      // Generate hero image
-      await generateHeroImage();
-      
-      console.log('✅ All assets generated successfully!');
-    } catch (error) {
-      console.error('Error generating assets:', error);
-      process.exit(1);
-    }
-  }
+function withViewBox(svg, viewBox) {
+  return svg.replace(/viewBox="[^"]+"/, `viewBox="${viewBox}"`);
+}
 
-  main();
-} catch (err) {
-  console.error('Error: sharp module is not installed. Please install it using:');
-  console.error('npm install sharp');
-  process.exit(1);
-} 
+async function render(svg, size, outputPath) {
+  await sharp(Buffer.from(svg), { density: 400 })
+    .resize(size, size)
+    .toColourspace('srgb')
+    .png({ compressionLevel: 9 })
+    .toFile(path.join(root, outputPath));
+  console.log(`Created ${outputPath}`);
+}
+
+async function renderHero(svg) {
+  const width = 1200;
+  const height = 600;
+  const background = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <defs>
+        <radialGradient id="glow" cx="50%" cy="45%" r="70%">
+          <stop offset="0" stop-color="#e8efff"/>
+          <stop offset="1" stop-color="#f7f9fd"/>
+        </radialGradient>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#glow)"/>
+    </svg>`
+  );
+  const icon = await sharp(Buffer.from(withViewBox(svg, STORE_VIEWBOX)), { density: 400 })
+    .resize(320, 320)
+    .toBuffer();
+  const outputPath = 'doc/images/overview/hero_image.png';
+  await sharp(background)
+    .composite([{ input: icon, gravity: 'center' }])
+    .png({ compressionLevel: 9 })
+    .toFile(path.join(root, outputPath));
+  console.log(`Created ${outputPath}`);
+}
+
+async function main() {
+  const icon = readSvg('icon.svg');
+  const small = readSvg('icon-16.svg');
+
+  await render(small, 16, 'assets/icon-16.png');
+  await render(icon, 32, 'assets/icon-32.png');
+  await render(icon, 48, 'assets/icon-48.png');
+  await render(withViewBox(icon, STORE_VIEWBOX), 128, 'assets/icon-128.png');
+
+  fs.writeFileSync(path.join(root, 'favicon.svg'), icon);
+  console.log('Created favicon.svg');
+  await render(icon, 32, 'favicon.png');
+
+  await renderHero(icon);
+}
+
+main().catch(error => {
+  console.error(`Icon generation failed: ${error.message}`);
+  process.exitCode = 1;
+});

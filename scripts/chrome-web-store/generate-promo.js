@@ -22,7 +22,7 @@ async function main() {
 
   await sharp(Buffer.from(source))
     .resize(440, 280, { fit: 'fill' })
-    .flatten({ background: '#174ea6' })
+    .flatten({ background: '#dbe6ff' })
     .toColourspace('srgb')
     .png({ compressionLevel: 9, adaptiveFiltering: false, palette: false })
     .toFile(outputPath);

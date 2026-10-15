@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 8 118.86 118.86">
+  <defs>
+    <linearGradient id="tile" x1="64" y1="8" x2="64" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3b76f6"/>
+      <stop offset="1" stop-color="#1d4fd8"/>
+    </linearGradient>
+    <mask id="badge-gap" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+      <rect width="128" height="128" fill="#fff"/>
+      <circle cx="100" cy="100" r="26" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="8" y="8" width="104" height="104" rx="30" fill="url(#tile)" mask="url(#badge-gap)"/>
+  <path d="M74.91 38.7A26 26 0 1 1 45.09 38.7" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round"/>
+  <path d="M55.41 31.47L37.86 28.38L52.31 49.02Z" fill="#fff" stroke="#fff" stroke-width="4.2" stroke-linejoin="round"/>
+  <circle cx="100" cy="100" r="19" fill="#15964a"/>
+  <path d="M91 100.5l6 6 12-12.5" fill="none" stroke="#fff" stroke-width="6.08" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
