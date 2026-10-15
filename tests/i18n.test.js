@@ -1,87 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { createInstrumenter } = require('istanbul-lib-instrument');
+const { executePopupJs, popupSource, repositoryRoot } = require('./popup-harness');
 
-const repositoryRoot = path.join(__dirname, '..');
 const localeRoot = path.join(repositoryRoot, '_locales');
-const popupPath = path.join(repositoryRoot, 'popup.js');
-const popupSource = fs.readFileSync(popupPath, 'utf8');
-const popupJs = createInstrumenter().instrumentSync(popupSource, popupPath);
 const catalogs = Object.fromEntries(['en', 'tr'].map(locale => [
   locale,
   JSON.parse(fs.readFileSync(path.join(localeRoot, locale, 'messages.json'), 'utf8'))
 ]));
-
-function renderPopupDom() {
-  document.body.innerHTML = `
-    <h2></h2>
-    <p class="refresh-explanation"></p>
-    <button id="refreshAll">Refresh All Tabs</button>
-    <button id="cancelRefresh" style="display:none">Cancel</button>
-    <div id="loadingContainer" style="display:none">
-      <div id="progressBar" aria-valuenow="0"><div id="progressFill"></div></div>
-      <div id="statusText"></div>
-      <div id="statsRunLine" style="display:none"></div>
-      <div id="tabsContainer"></div>
-    </div>
-    <div id="errorContainer" style="display:none">
-      <div id="errorSummary"></div><div id="errorDetails"></div>
-    </div>
-    <div id="historyContainer" style="display:none">
-      <button id="historyHeader" aria-expanded="false"></button>
-      <div id="historyContent" style="display:none"></div>
-    </div>
-    <div id="statsContainer" style="display:none">
-      <button id="statsHeader" aria-expanded="false"></button>
-      <div id="statsContent" style="display:none">
-        <div id="statsTotal" class="stat-hero"></div>
-        <div id="statsToday" class="stat-row"></div>
-        <div id="statsLastRun" class="stat-row"></div>
-        <div id="statsWeek" class="stat-row"></div>
-        <div id="statsMonth" class="stat-row"></div>
-        <p id="statsAccessHint" class="privacy-info" style="display:none"></p>
-        <p id="statsNote" class="privacy-info"></p>
-      </div>
-    </div>
-    <button id="settingsHeader" aria-expanded="false"></button>
-    <div id="settingsContent" style="display:none">
-      <button id="grantAccess" style="display:none"></button>
-      <p id="grantAccessExplain" class="privacy-info" style="display:none"></p>
-      <button id="resetStats"></button>
-      <p class="privacy-info"></p>
-    </div>
-    <div id="confetti" style="display:none"></div>
-  `;
-}
-
-function executePopupJs({ operationState = { active: false }, history = [], cacheStats } = {}) {
-  renderPopupDom();
-  chrome.runtime.onMessage.callbackQueue = [];
-  chrome.runtime.onMessage.addListener.mockImplementation(callback => {
-    chrome.runtime.onMessage.callbackQueue.push(callback);
-  });
-  chrome.runtime.sendMessage.mockImplementation((message, callback) => {
-    if (message.action === 'getOperationStatus') callback?.(operationState);
-    else if (message.action === 'startRefresh') callback?.({ success: true });
-    else if (message.action === 'cancelOperation') callback?.({ success: true });
-    return Promise.resolve({});
-  });
-  chrome.storage.local.get.mockImplementation((keys, callback) => {
-    if (keys.includes('cacheStats')) callback({ cacheStats });
-    else if (keys.includes('mediaAccessAsked')) callback({ mediaAccessAsked: false });
-    else callback({ refreshHistory: history });
-  });
-  chrome.permissions = {
-    contains: jest.fn().mockResolvedValue(true),
-    request: jest.fn().mockResolvedValue(false)
-  };
-  chrome.windows = {
-    getCurrent: jest.fn().mockResolvedValue({ id: 1, incognito: false })
-  };
-
-  new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
-  return chrome.runtime.onMessage.callbackQueue[0];
-}
 
 describe('Localization contracts', () => {
   beforeEach(() => {
@@ -155,29 +80,30 @@ describe('Localization contracts', () => {
 
   test('chrome.i18n substitutes dynamic placeholders in the catalog order', () => {
     setTestLocale('en');
-    expect(chrome.i18n.getMessage('statusProgress', ['4', '8', '3', '0', '1'])).toBe(
-      '4 of 8: 3 reloaded, 0 failed, 1 skipped'
+    expect(chrome.i18n.getMessage('statusCompleteMixed', ['4', '8', '3', '0', '1'])).toBe(
+      '4 of 8 done: 3 reloaded, 0 failed, 1 skipped.'
     );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
       'All 8 tabs reloaded.'
     );
-    expect(chrome.i18n.getMessage('errorTabLine', ['2', 'Example', 'Failed'])).toBe(
-      '2. Example: Failed'
+    expect(chrome.i18n.getMessage('heroLastRun', ['2 hours ago', '6', '8'])).toBe(
+      'Last reload 2 hours ago: 6 of 8 reloaded'
     );
 
     setTestLocale('tr');
-    expect(chrome.i18n.getMessage('statusProgress', ['4', '8', '3', '0', '1'])).toBe(
-      '8 sekmeden 4 tanesi bitti: 3 yenilendi, 0 başarısız, 1 atlandı'
+    expect(chrome.i18n.getMessage('statusCompleteMixed', ['4', '8', '3', '0', '1'])).toBe(
+      '8 sekmeden 4 tanesi bitti: 3 yenilendi, 0 başarısız, 1 atlandı.'
     );
     expect(chrome.i18n.getMessage('statusCompleteAll', ['8'])).toBe(
       '8 sekmenin tümü yenilendi.'
     );
-    expect(chrome.i18n.getMessage('errorTabLine', ['2', 'Örnek', 'Hata'])).toBe(
-      '2. Örnek: Hata'
+    expect(chrome.i18n.getMessage('heroLastRun', ['2 saat önce', '6', '8'])).toBe(
+      'Son yenileme 2 saat önce: 8 sekmeden 6 tanesi yenilendi'
     );
   });
 
-  test('renders the Turkish popup and history from the catalog', () => {
+  test('renders the Turkish popup and history from the catalog', async () => {
+    jest.useFakeTimers();
     setTestLocale('tr');
     const onMessage = executePopupJs({
       history: [{
@@ -189,41 +115,40 @@ describe('Localization contracts', () => {
         cancelled: false
       }]
     });
+    await jest.advanceTimersByTimeAsync(0);
 
     expect(document.documentElement.lang).toBe('tr');
-    expect(document.getElementById('refreshAll').textContent).toBe('Tüm Sekmeleri Yenile');
-    expect(document.getElementById('settingsHeader').textContent).toBe('Ayarlar');
-    expect(document.getElementById('statsHeader').textContent).toBe('Yeniden İndirilen Dosyalar');
+    expect(document.getElementById('refreshAll').textContent.trim()).toBe('Tüm Sekmeleri Yenile');
+    expect(document.getElementById('openSettings').textContent.trim()).toBe('AyarlarSayfa okuma açık');
+    expect(document.getElementById('openFiles').textContent.trim()).toBe('Yeniden İndirilen Dosyalar');
     expect(document.getElementById('resetStats').textContent).toBe('İstatistikleri sıfırla');
-    expect(document.getElementById('statsNote').textContent).toBe(
-      'Her sayı en az gösterilen miktardır. Gerçek sayı daha yüksektir; bazı dosyalar boyutunu sayfaya bildirmez, ayrıca Chrome sayfanın yükleme kayıtlarından yalnızca sınırlı sayıda tutar. Refresh Em All bunları tarayıcınızda ölçer ve hiçbir yere göndermez.'
-    );
+    expect(document.getElementById('refreshThisTab').textContent.trim()).toBe('Yalnız bu sekmeyi yenileyoutube.com');
+    expect(document.getElementById('thisTabNote').textContent).toBe('Önbelleği atlar, videolar kaldığı yerden sürer.');
+    expect(document.querySelector('[data-i18n="statsNote"]').textContent).toBe(catalogs.tr.statsNote.message);
 
+    onMessage({ action: 'refreshStarted', tabs: [{ id: 1 }, { id: 2 }, { id: 3 }] });
     onMessage({
       action: 'refreshComplete', success: true,
       details: { totalTabs: 3, processedTabs: 3, successfulTabs: 2, failedCount: 0, skippedCount: 1 }
     });
+    await jest.advanceTimersByTimeAsync(1500);
 
-    expect(document.getElementById('statusText').textContent).toBe(
-      '2 sekme yenilendi, 1 sekme atlandı.'
-    );
-    expect(document.getElementById('historyContent').textContent).toContain(
-      '4 sekmeden 2 tanesi yenilendi; 1 başarısız, 1 atlandı'
-    );
+    expect(document.getElementById('doneTitle').textContent).toBe('2 sekme yenilendi, 1 sekme atlandı.');
+    document.getElementById('openHistory').click();
+    expect(document.getElementById('historyList').textContent).toContain('4 sekmeden 2 tanesi yenilendi');
+    expect(document.getElementById('historyList').textContent).toContain('1 başarısız, 1 atlandı');
+    jest.useRealTimers();
   });
 
   test.each([
-    ['tr', 'Örnek: yenilendi', 'Sekmeleri yeniden yükleme ilerlemesi'],
-    ['en', 'Example: reloaded', 'Tab reload progress']
-  ])('renders localized accessibility labels in %s', (locale, tabLabel, progressLabel) => {
+    ['tr', 'Sekmeleri yeniden yükleme ilerlemesi', 'Geri'],
+    ['en', 'Tab reload progress', 'Back']
+  ])('renders localized accessibility labels in %s', (locale, progressLabel, backLabel) => {
     setTestLocale(locale);
-    const onMessage = executePopupJs();
+    executePopupJs();
 
-    onMessage({ action: 'refreshStarted', tabs: [{ id: 1, title: locale === 'tr' ? 'Örnek' : 'Example' }] });
-    onMessage({ action: 'tabSucceeded', tabId: 1 });
-
-    expect(document.getElementById('tab-1').getAttribute('aria-label')).toBe(tabLabel);
     expect(document.getElementById('progressBar').getAttribute('aria-label')).toBe(progressLabel);
+    expect(document.getElementById('back').getAttribute('aria-label')).toBe(backLabel);
   });
 
   test('falls back to the default catalog for an unsupported UI locale', () => {
@@ -233,7 +158,7 @@ describe('Localization contracts', () => {
     // Chrome renders the default catalog here, so the document language must say English:
     // labelling English text as French would mislead assistive technology.
     expect(document.documentElement.lang).toBe('en');
-    expect(document.getElementById('refreshAll').textContent).toBe('Refresh All Tabs');
+    expect(document.getElementById('refreshAll').textContent.trim()).toBe('Refresh All Tabs');
   });
 
   test('catalogs stay within the substitution syntax the renderers implement', () => {

@@ -2,586 +2,1528 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <title>Refresh Em All</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="alternate icon" href="favicon.png" type="image/png">
     <style>
         :root {
             color-scheme: light dark;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
 
-            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+            --t-sm: 12px;
+            --t-base: 13px;
+            --t-md: 15px;
+            --t-lg: 20px;
+            --t-hero: 28px;
+            --s1: 4px;
+            --s2: 8px;
+            --s3: 12px;
+            --s4: 16px;
+            --r-sm: 6px;
+            --r-md: 10px;
+            --r-lg: 14px;
+            --r-pill: 999px;
 
-            --space-1: 4px;
-            --space-2: 8px;
-            --space-3: 12px;
-            --space-4: 16px;
-            --space-5: 20px;
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-pill: 999px;
-            --dur: 150ms;
-            --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
-            --text-sm: 12px;
-            --text-base: 13px;
-            --text-md: 15px;
-            --text-hero: 22px;
+            /* Motion: five durations, one ease-out, two damped springs. Only transform
+               and opacity move; colors may fade. */
+            --d-instant: 90ms;
+            --d-fast: 140ms;
+            --d-base: 220ms;
+            --d-medium: 300ms;
+            --d-slow: 560ms;
+            --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+            --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+            /* Damping ratio 0.8, about 1.5 percent overshoot: slots and views. */
+            --spring-settle: linear(0, 0.05, 0.165, 0.307, 0.452, 0.585, 0.7, 0.793, 0.865, 0.919, 0.957, 0.983, 1, 1.009, 1.014, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.002, 1.001, 1.001, 1);
+            /* Damping ratio 0.6, about 9 percent overshoot: only the result badge and dots. */
+            --spring-pop: linear(0, 0.063, 0.212, 0.399, 0.587, 0.753, 0.887, 0.985, 1.048, 1.083, 1.094, 1.091, 1.078, 1.061, 1.043, 1.026, 1.013, 1.003, 0.996, 0.993, 0.991, 0.991, 0.992, 0.994, 0.996, 0.997, 1);
+            --shift: 6px;
+            --view-in: 24px;
+            --view-out: -16px;
 
             --bg: #ffffff;
-            --surface: #f7f8fa;
-            --surface-alt: #eceff4;
-            --border: #e2e5ea;
-            --border-subtle: #eef0f3;
-            --text: #16181d;
-            --text-muted: #666c78;
+            --surface: #f6f7f9;
+            --surface-2: #eceff3;
+            --line: #e3e6eb;
+            --line-soft: #eef0f3;
+            --text: #15171c;
+            --muted: #5b6270;
             --accent: #2563eb;
             --accent-hover: #1d4fd8;
-            --accent-active: #1a44bb;
-            --accent-soft: #eff4ff;
-            --accent-text: #ffffff;
-            --disabled-bg: #eceff4;
-            --disabled-text: #8b919c;
-            --success: #0f7a3d;
-            --success-soft: #e7f6ed;
-            --danger: #c62828;
-            --danger-bg: #fdecec;
-            --shadow-sm: 0 1px 2px rgba(16, 18, 22, 0.06), 0 1px 3px rgba(16, 18, 22, 0.05);
-            --shadow-md: 0 2px 6px rgba(16, 18, 22, 0.10), 0 4px 12px rgba(16, 18, 22, 0.06);
+            --accent-press: #1a44bb;
+            --accent-soft: #eef3ff;
+            --on-accent: #ffffff;
+            --ok: #0f7a3d;
+            --ok-fill: #15964a;
+            --on-ok: #ffffff;
+            --ok-soft: #e7f6ed;
+            --bad: #c62828;
+            --bad-soft: #fdecec;
+            --dot-pending: #dfe3e9;
+            --shadow-btn: 0 1px 2px rgba(16, 24, 40, 0.10), 0 1px 1px rgba(16, 24, 40, 0.06);
+            /* Confetti colors: the icon's blue, its badge green, and the accent. */
+            --confetti-1: #3b76f6;
+            --confetti-2: #15964a;
+            --confetti-3: #1d4fd8;
+            --confetti-4: #7aa7ff;
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
-                --bg: #1a1b1e;
-                --surface: #232529;
-                --surface-alt: #2c2f35;
-                --border: #34383f;
-                --border-subtle: #292c31;
-                --text: #e9ebef;
-                --text-muted: #9aa1ac;
-                --accent: #7ea6ff;
-                --accent-hover: #9cbcff;
-                --accent-active: #b8d0ff;
-                --accent-soft: #1e2635;
-                --accent-text: #14161a;
-                --disabled-bg: #2c2f35;
-                --disabled-text: #767c87;
-                --success: #6ed08f;
-                --success-soft: #16281d;
-                --danger: #f2837c;
-                --danger-bg: #331d1d;
-                --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-                --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
+                --bg: #17181b;
+                --surface: #1f2125;
+                --surface-2: #282b31;
+                --line: #33373e;
+                --line-soft: #26292e;
+                --text: #ebedf0;
+                --muted: #a3aab6;
+                --accent: #8fb8ff;
+                --accent-hover: #a8c8ff;
+                --accent-press: #c2d8ff;
+                --accent-soft: #1d2638;
+                --on-accent: #0d1b2a;
+                --ok: #5fd38d;
+                --ok-fill: #3ccf7a;
+                --on-ok: #0f1a12;
+                --ok-soft: #15291d;
+                --bad: #f2837c;
+                --bad-soft: #351e1e;
+                --dot-pending: #33373e;
+                --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.5);
+                --confetti-1: #6d9bff;
+                --confetti-2: #3ccf7a;
+                --confetti-3: #8fb8ff;
+                --confetti-4: #c2d8ff;
             }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
         }
 
         body {
             width: 360px;
-            height: auto;
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            justify-content: flex-start;
-            margin: 0;
-            padding: var(--space-3);
+            height: 480px;
+            overflow: hidden;
             background: var(--bg);
             color: var(--text);
-            font-family: var(--font-sans);
-            font-size: var(--text-base);
+            font-family: var(--font);
+            font-size: var(--t-base);
             line-height: 1.45;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .header {
+        /* Nothing animates while the popup opens. */
+        .preload *,
+        .preload *::before,
+        .preload *::after {
+            transition: none !important;
+            animation: none !important;
+        }
+
+        button {
+            font: inherit;
+            color: inherit;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+
+        .num {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .one {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .frame {
+            position: relative;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .bar {
+            position: relative;
+            height: 52px;
+            flex: none;
+            display: grid;
+            align-items: center;
+            padding: 0 var(--s4);
+            overflow: clip;
+        }
+
+        .bar > .hv {
+            grid-area: 1 / 1;
             display: flex;
             align-items: center;
-            margin-bottom: var(--space-2);
+            gap: 10px;
+            min-width: 0;
+            transition: opacity var(--d-fast) var(--ease-exit), transform var(--d-fast) var(--ease-exit), visibility 0s linear var(--d-fast);
         }
 
-        .header img {
-            width: 32px;
-            height: 32px;
-            margin-right: var(--space-3);
+        .bar > .hv:not(.on) {
+            opacity: 0;
+            visibility: hidden;
         }
 
-        h2 {
+        .bar > .hv.home:not(.on) {
+            transform: translateX(var(--view-out));
+        }
+
+        .bar > .hv.sub:not(.on) {
+            transform: translateX(var(--view-in));
+        }
+
+        .bar > .hv.on {
+            transition: opacity var(--d-base) var(--ease-out) 40ms, transform var(--d-medium) var(--spring-settle) 40ms, visibility 0s;
+        }
+
+        .app-icon {
+            width: 24px;
+            height: 24px;
+            flex: none;
+        }
+
+        .app-name,
+        .sub-title {
             margin: 0;
-            font-size: var(--text-md);
+            font-size: var(--t-md);
             font-weight: 600;
             letter-spacing: -0.01em;
         }
 
-        button {
-            position: relative;
-            overflow: hidden;
-            padding: var(--space-2) var(--space-4);
-            border: 1px solid transparent;
-            border-radius: var(--radius-sm);
-            background-color: var(--accent);
-            color: var(--accent-text);
-            font-family: inherit;
-            font-size: var(--text-base);
-            cursor: pointer;
-            transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
-        }
-
-        button:hover {
-            background-color: var(--accent-hover);
-        }
-
-        .action-buttons {
-            display: flex;
-            width: 100%;
-            justify-content: flex-start;
-            gap: var(--space-2);
-        }
-
-        #refreshAll {
-            flex: 1;
-            border-radius: var(--radius-sm);
-            font-weight: 600;
-            box-shadow: var(--shadow-sm);
-        }
-
-        #refreshAll:hover:not(:disabled) {
-            box-shadow: var(--shadow-md);
-        }
-
-        #refreshAll:active:not(:disabled) {
-            transform: translateY(1px);
-            background-color: var(--accent-active);
-        }
-
-        .refresh-explanation,
-        .privacy-info,
-        .history-entry {
-            color: var(--text-muted);
-            font-size: var(--text-sm);
-            line-height: 1.35;
-        }
-
-        .refresh-explanation {
-            margin: var(--space-2) 0 0;
-            text-align: left;
-        }
-
-        #cancelRefresh,
-        #grantAccess,
-        #resetStats {
-            background: var(--surface-alt);
-            color: var(--text);
-            border-color: var(--border);
-            box-shadow: none;
-        }
-
-        #cancelRefresh:hover,
-        #grantAccess:hover,
-        #resetStats:hover {
-            background: var(--border);
-        }
-
-        button:disabled {
-            background-color: var(--disabled-bg);
-            color: var(--disabled-text);
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        #cancelRefresh {
-            display: none;
-        }
-
-        #loadingContainer {
-            display: none;
-            width: 100%;
-            margin-top: var(--space-3);
-        }
-
-        #progressBar {
-            width: 100%;
-            height: 6px;
-            margin-bottom: var(--space-2);
-            overflow: hidden;
-            border-radius: var(--radius-pill);
-            background: var(--surface-alt);
-        }
-
-        #progressFill {
-            width: 0%;
-            height: 100%;
-            border-radius: var(--radius-pill);
-            background-color: var(--accent);
-            transition: width 75ms linear;
-        }
-
-        #tabsContainer {
-            display: flex;
-            width: 100%;
-            flex-wrap: wrap;
-            justify-content: flex-start;
-            gap: var(--space-2);
-            margin-top: var(--space-2);
-        }
-
-        .tab-item {
-            position: relative;
-            display: flex;
-            box-sizing: border-box;
-            width: 30px;
-            height: 30px;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            background: var(--surface);
-        }
-
-        .tab-item:has(.tab-success[style*="display: block"]) {
-            border-color: var(--success);
-            background: var(--success-soft);
-        }
-
-        .tab-item:has(.tab-error[style*="display: block"]) {
-            border-color: var(--danger);
-            background: var(--danger-bg);
-        }
-
-        .tab-item:has(.tab-skipped[style*="display: block"]) {
-            opacity: 0.6;
-        }
-
-        .tab-item img {
-            width: 16px;
-            height: 16px;
-        }
-
-        .tab-status {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .loading-circle {
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--surface-alt);
-            border-top-color: var(--accent);
-            border-radius: var(--radius-pill);
-            animation: spin 1s linear infinite;
-        }
-
-        .tab-success,
-        .tab-error,
-        .tab-skipped {
-            display: none;
-            animation: fadeIn var(--dur) var(--ease);
-        }
-
-        .tab-success {
-            color: var(--success);
-            font-size: 18px;
-        }
-
-        .tab-error {
-            color: var(--danger);
-            font-size: 18px;
-        }
-
-        .tab-skipped {
-            color: var(--text-muted);
-            font-size: 20px;
-        }
-
-        #errorContainer {
-            display: none;
-            box-sizing: border-box;
-            width: 100%;
-            margin-top: var(--space-2);
-            padding: var(--space-3);
-            border: 1px solid var(--danger);
-            border-radius: var(--radius-md);
-            background: var(--danger-bg);
-        }
-
-        #historyContainer,
-        #statsContainer,
-        #settingsContainer {
-            box-sizing: border-box;
-            width: 100%;
-            margin-top: var(--space-2);
-            overflow: hidden;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            background: var(--surface);
-        }
-
-        #historyContainer,
-        #statsContainer {
-            display: none;
-        }
-
-        #historyHeader,
-        #statsHeader,
-        #settingsHeader {
-            margin: 0;
-        }
-
-        #historyContent,
-        #statsContent,
-        #settingsContent {
-            display: none;
-            box-sizing: border-box;
-            width: 100%;
-            border-top: 1px solid var(--border);
-        }
-
-        #historyContent {
-            max-height: 150px;
-            overflow-y: auto;
-            padding: var(--space-1) var(--space-3);
-        }
-
-        #statsContent {
-            max-height: none;
-            overflow-y: visible;
-            padding: var(--space-1) var(--space-3);
-        }
-
-        #settingsContent {
-            padding: var(--space-1) var(--space-3);
-        }
-
-        .section-header {
+        .back {
             appearance: none;
-            display: flex;
-            width: 100%;
-            align-items: center;
-            justify-content: space-between;
-            gap: var(--space-2);
-            padding: 6px var(--space-3);
-            overflow: visible;
             border: 0;
-            border-radius: 0;
             background: none;
-            color: var(--text);
-            font-size: var(--text-base);
-            font-weight: 600;
-            text-align: left;
+            width: 32px;
+            height: 32px;
+            margin-left: -8px;
+            border-radius: var(--r-md);
+            display: grid;
+            place-items: center;
             cursor: pointer;
-        }
-
-        .section-header::after {
-            content: "";
-            width: 0;
-            height: 0;
-            flex: none;
-            border-right: 4px solid transparent;
-            border-left: 4px solid transparent;
-            border-top: 5px solid currentColor;
-            transition: transform var(--dur) var(--ease);
-        }
-
-        .section-header[aria-expanded="true"]::after {
-            transform: rotate(180deg);
-        }
-
-        .section-header:hover {
-            background: var(--surface-alt);
-        }
-
-        button:focus-visible,
-        .section-header:focus-visible {
-            outline: 3px solid var(--accent-active);
-            outline-offset: 2px;
-        }
-
-        #errorDetails {
-            white-space: pre-wrap;
-        }
-
-        .privacy-info {
-            margin: var(--space-1) 0 0;
-        }
-
-        .history-entry {
-            padding: var(--space-1) 0;
-        }
-
-        .stat-row {
-            display: flex;
-            align-items: baseline;
-            justify-content: flex-start;
-            gap: var(--space-2);
-            padding: var(--space-1) 0;
-        }
-
-        .stat-row:not(:last-of-type) {
-            border-bottom: 1px solid var(--border-subtle);
-        }
-
-        .stat-label {
-            color: var(--text-muted);
-            font-size: var(--text-sm);
-            margin-right: auto;
-        }
-
-        .stat-caveat {
-            color: var(--text-muted);
-            font-size: var(--text-sm);
-        }
-
-        .stat-value {
             color: var(--text);
-            font-size: var(--text-sm);
-            font-variant-numeric: tabular-nums;
-            font-weight: 600;
-            text-align: right;
+            transition: background-color var(--d-fast) var(--ease-out);
         }
 
-        .stat-hero {
-            display: block;
-            margin-bottom: var(--space-1);
-            padding: var(--space-1) var(--space-2);
-            border-radius: var(--radius-sm);
-            background: var(--accent-soft);
+        .back:hover {
+            background: var(--surface-2);
         }
 
-        .stat-hero .stat-label {
-            display: block;
-            font-size: var(--text-sm);
-            letter-spacing: 0.04em;
-            line-height: 1.2;
+        .run-pill {
+            position: absolute;
+            right: var(--s4);
+            top: 50%;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: var(--t-sm);
+            color: var(--muted);
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity var(--d-base) var(--ease-out);
         }
 
-        .stat-hero .stat-caveat {
-            margin-right: var(--space-1);
-            font-size: var(--text-sm);
+        .run-pill.on {
+            opacity: 1;
         }
 
-        .stat-hero .stat-value {
-            font-size: var(--text-hero);
-            font-weight: 650;
-            line-height: 1.1;
-            text-align: left;
+        .run-pill svg {
+            transform: rotate(-90deg);
         }
 
-        #statsNote {
-            margin-top: var(--space-1);
-            color: var(--text-muted);
-            font-size: var(--text-sm);
-            line-height: 1.35;
+        .ring-track {
+            stroke: var(--surface-2);
         }
 
-        #grantAccess,
-        #resetStats {
-            padding: 6px var(--space-3);
-            margin-bottom: var(--space-2);
-            font-size: var(--text-sm);
+        .ring-fill {
+            stroke: var(--accent);
         }
 
-        .history-success {
-            color: var(--success);
+        /* Views: home and one sub view share a cell, so the frame never resizes. */
+        /* Hidden views wait just off to the side; clip them so they never widen the page. */
+        .views {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            overflow: clip;
         }
 
-        .history-failure {
-            color: var(--danger);
+        .view {
+            grid-area: 1 / 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            transition: opacity var(--d-fast) var(--ease-exit), transform var(--d-fast) var(--ease-exit), visibility 0s linear var(--d-fast);
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes fadeIn {
-            0% { opacity: 0; }
-            100% { opacity: 1; }
-        }
-
-        #confetti {
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 1000;
-            display: none;
-            width: 100%;
-            height: 100%;
+        .view:not(.on) {
+            opacity: 0;
+            visibility: hidden;
             pointer-events: none;
         }
 
-        .confetti-piece {
-            position: absolute;
-            top: -20px;
-            width: 8px;
-            height: 12px;
-            animation: fall 3s linear forwards;
+        .view.home:not(.on) {
+            transform: translateX(var(--view-out));
         }
 
-        @keyframes fall {
-            to {
-                transform: translateY(calc(100vh + 20px)) rotate(720deg);
+        .view.sub:not(.on) {
+            transform: translateX(var(--view-in));
+        }
+
+        .view.on {
+            transition: opacity var(--d-base) var(--ease-out) 40ms, transform var(--d-medium) var(--spring-settle) 40ms, visibility 0s;
+        }
+
+        .home {
+            padding: 0 var(--s4) var(--s4);
+        }
+
+        /* Stage: three fixed slots. Variants of a slot share its grid cell. */
+        .stage {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-rows: 76px 44px minmax(0, 1fr);
+            gap: var(--s3);
+            padding-top: var(--s1);
+            padding-bottom: var(--s3);
+        }
+
+        .slot {
+            display: grid;
+            min-height: 0;
+        }
+
+        .slot > .v {
+            grid-area: 1 / 1;
+            min-width: 0;
+            min-height: 0;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(var(--shift));
+            pointer-events: none;
+            transition: opacity var(--d-fast) var(--ease-exit), transform var(--d-fast) var(--ease-exit), visibility 0s linear var(--d-fast);
+        }
+
+        .slot > .v.on {
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+            pointer-events: auto;
+            transition: opacity var(--d-base) var(--ease-out) var(--delay), transform var(--d-medium) var(--spring-settle) var(--delay), visibility 0s;
+        }
+
+        .slot-hero {
+            --delay: 60ms;
+        }
+
+        .slot-action {
+            --delay: 100ms;
+        }
+
+        /* Detail has two rows: most variants span both; "top" variants leave the
+           second row to the this-tab action. */
+        .slot-detail {
+            --delay: 140ms;
+            grid-template-rows: minmax(0, 1fr) auto;
+            row-gap: var(--s2);
+        }
+
+        .slot-detail > .v {
+            grid-area: 1 / 1 / 3 / 2;
+        }
+
+        .slot-detail > .v.top {
+            grid-area: 1 / 1 / 2 / 2;
+        }
+
+        .slot-detail > .v.ta-row {
+            grid-area: 2 / 1 / 3 / 2;
+            --delay: 180ms;
+        }
+
+        /* Hero */
+        .hero-ready,
+        .hero-done {
+            display: flex;
+            align-items: center;
+            gap: var(--s3);
+        }
+
+        .hero-ready > div:last-child,
+        .hero-done > div:last-child,
+        .tab-head {
+            min-width: 0;
+        }
+
+        .hero-mark {
+            width: 48px;
+            height: 48px;
+            flex: none;
+        }
+
+        .ask-mark {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            display: grid;
+            place-items: center;
+            flex: none;
+        }
+
+        .hero-title {
+            font-size: var(--t-md);
+            font-weight: 600;
+            line-height: 1.3;
+            letter-spacing: -0.01em;
+            text-wrap: balance;
+        }
+
+        .hero-sub {
+            color: var(--muted);
+            font-size: var(--t-sm);
+            margin-top: 2px;
+            text-wrap: pretty;
+        }
+
+        .hero-run {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: var(--s3);
+            padding-bottom: 6px;
+        }
+
+        .count {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .count .big {
+            font-size: var(--t-hero);
+            font-weight: 650;
+            line-height: 1;
+            letter-spacing: -0.02em;
+        }
+
+        .count .of {
+            color: var(--muted);
+            font-size: var(--t-base);
+        }
+
+        .tab-head {
+            flex: 1;
+        }
+
+        /* A single-tab result names a host, which can be long. */
+        body[data-state="tab-done"] #doneTitle,
+        body[data-state="tab-stopped"] #stopTitle {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .site-big {
+            font-size: var(--t-lg);
+            font-weight: 650;
+            line-height: 1.2;
+            letter-spacing: -0.015em;
+        }
+
+        .badge {
+            position: relative;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            flex: none;
+            display: grid;
+            place-items: center;
+        }
+
+        .badge.ok {
+            background: var(--ok-fill);
+            color: var(--on-ok);
+        }
+
+        .badge.warn {
+            background: var(--bad-soft);
+            color: var(--bad);
+        }
+
+        .badge.stop {
+            background: var(--surface-2);
+            color: var(--muted);
+        }
+
+        .badge::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            border: 2px solid var(--ok-fill);
+            opacity: 0;
+        }
+
+        .badge svg {
+            opacity: 0;
+            transform: scale(0.6);
+        }
+
+        .v.on .badge {
+            animation: badge-in var(--d-slow) var(--spring-pop) calc(var(--delay) + 40ms) both;
+        }
+
+        .v.on .badge svg {
+            animation: glyph-in var(--d-base) var(--ease-out) 260ms both;
+        }
+
+        .v.on .badge.ok::after {
+            animation: ring 700ms var(--ease-out) 260ms both;
+        }
+
+        @keyframes badge-in {
+            from {
+                transform: scale(0.55);
+                opacity: 0;
             }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes glyph-in {
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        @keyframes ring {
+            from {
+                transform: scale(1);
+                opacity: 0.45;
+            }
+
+            to {
+                transform: scale(1.7);
+                opacity: 0;
+            }
+        }
+
+        /* Buttons */
+        .btn {
+            appearance: none;
+            border: 1px solid transparent;
+            border-radius: var(--r-md);
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color var(--d-fast) var(--ease-out), transform var(--d-instant) var(--ease-out);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn:disabled {
+            cursor: default;
+        }
+
+        .btn:focus-visible,
+        .back:focus-visible,
+        .link:focus-visible,
+        .ta:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .btn-primary {
+            width: 100%;
+            height: 44px;
+            background: var(--accent);
+            color: var(--on-accent);
+            font-size: var(--t-md);
+            box-shadow: var(--shadow-btn);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            background: var(--accent-press);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+        }
+
+        .btn-primary svg {
+            transition: transform var(--d-medium) var(--ease-out);
+        }
+
+        .btn-primary:hover:not(:disabled) svg {
+            transform: rotate(-60deg);
+        }
+
+        .btn-quiet {
+            height: 32px;
+            padding: 0 12px;
+            background: var(--surface-2);
+            color: var(--text);
+            font-size: var(--t-base);
+            font-weight: 500;
+            border-color: var(--line);
+        }
+
+        .btn-quiet:hover:not(:disabled) {
+            background: var(--line);
+        }
+
+        .btn-danger {
+            height: 32px;
+            padding: 0 12px;
+            background: transparent;
+            color: var(--bad);
+            border-color: var(--line);
+            font-size: var(--t-base);
+            font-weight: 500;
+        }
+
+        .btn-danger:hover {
+            background: var(--bad-soft);
+        }
+
+        .link {
+            appearance: none;
+            border: 0;
+            background: none;
+            min-height: 24px;
+            padding: 0 4px;
+            color: var(--accent);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: var(--t-sm);
+            border-radius: 4px;
+        }
+
+        /* Progress track */
+        .track-wrap {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .track {
+            position: relative;
+            height: 8px;
+            border-radius: var(--r-pill);
+            background: var(--surface-2);
+            overflow: hidden;
+        }
+
+        .fill {
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: var(--accent);
+            transform: translateX(-100%);
+            will-change: transform;
+            overflow: hidden;
+        }
+
+        .sheen {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%);
+            transform: translateX(-100%);
+            animation: sheen 1.6s linear infinite;
+        }
+
+        body:not([data-state="running"]):not([data-state="tab-running"]) .sheen {
+            animation: none;
+            opacity: 0;
+        }
+
+        @keyframes sheen {
+            to {
+                transform: translateX(100%);
+            }
+        }
+
+        .track-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: var(--s2);
+            color: var(--muted);
+            font-size: var(--t-sm);
+        }
+
+        body[data-single] #progressPercent {
+            visibility: hidden;
+        }
+
+        /* Detail */
+        .detail-ready {
+            display: flex;
+            flex-direction: column;
+            gap: var(--s3);
+        }
+
+        .explain {
+            margin: 0;
+            color: var(--muted);
+            font-size: var(--t-sm);
+            line-height: 1.45;
+            text-wrap: pretty;
+        }
+
+        .explain b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: var(--r-md);
+            background: var(--surface);
+            font-size: var(--t-sm);
+            color: var(--muted);
+            min-width: 0;
+        }
+
+        .line i {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            flex: none;
+        }
+
+        .detail-run,
+        .detail-tab {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 24px;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 24px;
+            padding: 0 9px;
+            border-radius: var(--r-pill);
+            background: var(--surface);
+            border: 1px solid var(--line-soft);
+            font-size: var(--t-sm);
+            color: var(--muted);
+            animation: chip-in var(--d-base) var(--spring-settle) both;
+        }
+
+        .chip[hidden],
+        .chips[hidden] {
+            display: none;
+        }
+
+        .chip i {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .chip b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .chip.ok i {
+            background: var(--ok-fill);
+        }
+
+        .chip.bad i {
+            background: var(--bad);
+        }
+
+        .chip.skip i {
+            box-shadow: inset 0 0 0 1.5px var(--muted);
+        }
+
+        @keyframes chip-in {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .dots {
+            --dot: 10px;
+            --gap: 4px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, var(--dot));
+            gap: var(--gap);
+            align-content: start;
+            max-height: 58px;
+            overflow: hidden;
+        }
+
+        .dot {
+            width: var(--dot);
+            height: var(--dot);
+            border-radius: 3px;
+            background: var(--dot-pending);
+            transition: background-color var(--d-base) var(--ease-out), opacity var(--d-base) var(--ease-out);
+            animation: dot-in var(--d-base) var(--ease-out) both;
+            animation-delay: min(calc(var(--i) * 5ms), 260ms);
+        }
+
+        .dot[data-status] {
+            animation: dot-pop var(--d-medium) var(--spring-pop) both;
+        }
+
+        .dot[data-status="success"] {
+            background: var(--ok-fill);
+        }
+
+        .dot[data-status="error"] {
+            background: var(--bad);
+        }
+
+        .dot[data-status="skipped"] {
+            background: transparent;
+            box-shadow: inset 0 0 0 1.5px var(--dot-pending);
+        }
+
+        .dots.static .dot {
+            animation: none;
+        }
+
+        /* After a stop, tabs that never ran stay visibly unfinished but quiet. */
+        .dots.settled .dot:not([data-status]) {
+            opacity: 0.45;
+        }
+
+        @keyframes dot-in {
+            from {
+                opacity: 0;
+                transform: scale(0.4);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        @keyframes dot-pop {
+            from {
+                transform: scale(0.55);
+            }
+
+            to {
+                transform: none;
+            }
+        }
+
+        .foot {
+            display: grid;
+            font-size: var(--t-sm);
+            color: var(--muted);
+            line-height: 1.4;
+        }
+
+        .foot > span {
+            grid-area: 1 / 1;
+            transition: opacity var(--d-base) var(--ease-out);
+        }
+
+        .foot > span:not(.on) {
+            opacity: 0;
+        }
+
+        .foot b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .detail-failed {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+            height: 100%;
+        }
+
+        .fails {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            border: 1px solid var(--line);
+            border-radius: var(--r-md);
+            overflow: auto;
+            flex: 1 1 auto;
+            min-height: 0;
+            overscroll-behavior: contain;
+        }
+
+        .fails[hidden] {
+            display: none;
+        }
+
+        .fails li {
+            display: grid;
+            grid-template-columns: 8px minmax(0, 1fr);
+            column-gap: 10px;
+            padding: 7px 10px;
+        }
+
+        .fails li + li {
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .fails i {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--bad);
+            margin-top: 6px;
+        }
+
+        .fails b {
+            font-weight: 600;
+            font-size: var(--t-base);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .fails span {
+            grid-column: 2;
+            color: var(--muted);
+            font-size: var(--t-sm);
+            overflow-wrap: anywhere;
+        }
+
+        .detail-ask {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        /* Secondary action: a quiet text button at the bottom of the detail slot,
+           far from the primary button. */
+        .ta-row {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+        }
+
+        .ta {
+            appearance: none;
+            border: 0;
+            background: none;
+            height: 28px;
+            margin-left: -8px;
+            padding: 0 8px;
+            border-radius: var(--r-sm);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            max-width: calc(100% + 8px);
+            cursor: pointer;
+            color: var(--accent);
+            font-size: var(--t-base);
+            font-weight: 600;
+            transition: background-color var(--d-fast) var(--ease-out);
+        }
+
+        .ta:hover:not(:disabled) {
+            background: var(--accent-soft);
+        }
+
+        .ta:disabled {
+            color: var(--muted);
+            cursor: not-allowed;
+        }
+
+        .ta svg,
+        .ta .lbl {
+            flex: none;
+        }
+
+        .ta .site {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .ta .site::before {
+            content: "\00b7";
+            margin-right: 6px;
+        }
+
+        .ta .site:empty {
+            display: none;
+        }
+
+        .ta-note {
+            max-width: 100%;
+            color: var(--muted);
+            font-size: var(--t-sm);
+            line-height: 1.35;
+        }
+
+        /* Grouped list of secondary views */
+        .list {
+            flex: none;
+            border: 1px solid var(--line);
+            border-radius: var(--r-lg);
+            background: var(--surface);
+            overflow: hidden;
+        }
+
+        .row {
+            appearance: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            height: 40px;
+            padding: 0 12px;
+            border: 0;
+            background: transparent;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color var(--d-fast) var(--ease-out);
+        }
+
+        .row + .row {
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .row:hover {
+            background: var(--surface-2);
+        }
+
+        /* The list clips its children, so the ring is drawn inside the row. */
+        .row:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
+            border-radius: var(--r-lg);
+        }
+
+        .row .ic,
+        .row .chev {
+            color: var(--muted);
+            flex: none;
+        }
+
+        .row .lbl {
+            flex: none;
+        }
+
+        .row .meta {
+            margin-left: auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--muted);
+            font-size: var(--t-sm);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .row .chev {
+            transition: transform var(--d-fast) var(--ease-out);
+        }
+
+        .row:hover .chev {
+            transform: translateX(2px);
+        }
+
+        /* Sub views */
+        .sub {
+            padding: 0 var(--s4) var(--s4);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+        }
+
+        .panel[hidden] {
+            display: none;
+        }
+
+        .hist {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            border: 1px solid var(--line);
+            border-radius: var(--r-lg);
+            overflow: hidden;
+            background: var(--surface);
+        }
+
+        .hist li {
+            display: grid;
+            grid-template-columns: 8px minmax(0, 1fr) auto;
+            column-gap: 10px;
+            align-items: baseline;
+            padding: 9px 12px;
+        }
+
+        .hist li + li {
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .hist i {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--ok-fill);
+            align-self: center;
+        }
+
+        .hist i.bad {
+            background: var(--bad);
+        }
+
+        .hist i.stop {
+            background: transparent;
+            box-shadow: inset 0 0 0 1.5px var(--muted);
+        }
+
+        .hist b {
+            font-weight: 600;
+        }
+
+        .hist .when {
+            color: var(--muted);
+            font-size: var(--t-sm);
+            white-space: nowrap;
+        }
+
+        .hist .sub2 {
+            grid-column: 2 / 4;
+            color: var(--muted);
+            font-size: var(--t-sm);
+        }
+
+        .hist .empty {
+            display: block;
+            color: var(--muted);
+        }
+
+        .reveal > li {
+            animation: row-in var(--d-base) var(--ease-out) both;
+            animation-delay: calc(var(--i) * 30ms + 120ms);
+        }
+
+        @keyframes row-in {
+            from {
+                opacity: 0;
+                transform: translateY(var(--shift));
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: var(--r-lg);
+            background: var(--surface);
+            padding: 12px;
+        }
+
+        .card + .card {
+            margin-top: 10px;
+        }
+
+        .card h3 {
+            margin: 0;
+            font-size: var(--t-base);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .card p {
+            margin: 6px 0 10px;
+            color: var(--muted);
+            font-size: var(--t-sm);
+            line-height: 1.45;
+            text-wrap: pretty;
+        }
+
+        .pill {
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: var(--r-pill);
+            background: var(--surface-2);
+            color: var(--muted);
+        }
+
+        .pill.on {
+            background: var(--ok-soft);
+            color: var(--ok);
+        }
+
+        .fine {
+            margin: 12px 2px 0;
+            color: var(--muted);
+            font-size: var(--t-sm);
+            line-height: 1.45;
+            text-wrap: pretty;
+        }
+
+        .stat-hero {
+            border-radius: var(--r-lg);
+            background: var(--accent-soft);
+            padding: 12px 14px;
+        }
+
+        .stat-hero .lbl {
+            color: var(--muted);
+            font-size: var(--t-sm);
+        }
+
+        .stat-hero .val {
+            font-size: var(--t-hero);
+            font-weight: 650;
+            letter-spacing: -0.02em;
+            line-height: 1.15;
+        }
+
+        .stat-hero small {
+            font-size: var(--t-sm);
+            font-weight: 500;
+            color: var(--muted);
+            letter-spacing: 0;
+            margin-right: 6px;
+        }
+
+        .stats {
+            margin: 10px 0 0;
+            border: 1px solid var(--line);
+            border-radius: var(--r-lg);
+            background: var(--surface);
+        }
+
+        .stats div {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 12px;
+            font-size: var(--t-base);
+        }
+
+        .stats div + div {
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .stats dt {
+            color: var(--muted);
+        }
+
+        .stats dd {
+            margin: 0;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stats small {
+            font-weight: 500;
+            color: var(--muted);
+            margin-right: 4px;
+        }
+
+        .hint {
+            margin: 10px 0 0;
+            padding: 10px 12px;
+            border-radius: var(--r-md);
+            background: var(--surface);
+            border: 1px dashed var(--line);
+            font-size: var(--t-sm);
+            color: var(--muted);
+        }
+
+        .hint[hidden],
+        .undo[hidden],
+        .btn[hidden] {
+            display: none;
+        }
+
+        .undo {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            height: 32px;
+            font-size: var(--t-sm);
+            color: var(--text);
+        }
+
+        #confetti {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #confetti[hidden] {
+            display: none;
         }
     </style>
 </head>
 
-<body>
-    <div class="header">
-        <img src="assets/icon-refresh-em-colorful-32.png" alt="" aria-hidden="true" />
-        <h2>Refresh Em All</h2>
-    </div>
-    <div class="action-buttons">
-        <button id="refreshAll" disabled>Refresh All Tabs</button>
-        <button id="cancelRefresh">Cancel</button>
-    </div>
-    <p class="refresh-explanation">Reloads the tabs it can and fetches fresh files instead of reusing copies Chrome saved earlier. Your site data stays in place.</p>
-
-    <div id="loadingContainer">
-        <div id="progressBar" role="progressbar" aria-label="Tab reload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div id="progressFill"></div>
-        </div>
-        <div id="statusText" aria-live="polite">Reloading your tabs...</div>
-        <div id="statsRunLine" style="display: none; margin-top: var(--space-2); font-size: 12px; color: var(--text-muted);"></div>
-        <div id="tabsContainer"></div>
-    </div>
-
-    <div id="errorContainer">
-        <div id="errorSummary"></div>
-        <div id="errorDetails" style="margin-top: var(--space-1); font-size: 12px;"></div>
-    </div>
-
-    <div id="historyContainer">
-        <button id="historyHeader" class="section-header" type="button" aria-expanded="false" aria-controls="historyContent">Show Recent Reloads</button>
-        <div id="historyContent"></div>
-    </div>
-
-    <div id="statsContainer">
-        <button id="statsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="statsContent">Files Downloaded Again</button>
-        <div id="statsContent">
-            <div id="statsTotal" class="stat-hero"></div>
-            <div id="statsToday" class="stat-row"></div>
-            <div id="statsLastRun" class="stat-row"></div>
-            <div id="statsWeek" class="stat-row"></div>
-            <div id="statsMonth" class="stat-row"></div>
-            <p id="statsAccessHint" class="privacy-info" style="display: none"></p>
-            <p id="statsNote" class="privacy-info"></p>
-        </div>
-    </div>
-
-    <div id="settingsContainer">
-        <button id="settingsHeader" class="section-header" type="button" aria-expanded="false" aria-controls="settingsContent">Settings</button>
-        <div id="settingsContent">
-            <button id="grantAccess" type="button" style="display: none"></button>
-            <p id="grantAccessExplain" class="privacy-info" style="display: none"></p>
-            <button id="resetStats" type="button">Reset statistics</button>
-            <div class="privacy-info">
-                This extension sends no browsing data, measurements, or error reports anywhere. For best-effort playback restoration, it briefly keeps the page's own media settings in temporary storage that clears with the tab; the page can read them until they are cleared.
+<body data-state="ready" class="preload">
+    <div class="frame">
+        <header class="bar">
+            <div class="hv home on" id="homeHead">
+                <img class="app-icon" src="favicon.svg" alt="">
+                <h1 class="app-name" data-i18n="appName">Refresh Em All</h1>
             </div>
-        </div>
-    </div>
+            <div class="hv sub" id="subHead">
+                <button class="back" id="back" type="button" data-i18n-label="actionBack">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
+                </button>
+                <h1 class="sub-title" id="subTitle"></h1>
+            </div>
+            <div class="run-pill" id="runPill" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16"><circle class="ring-track" cx="8" cy="8" r="6" fill="none" stroke-width="2.5"/><circle class="ring-fill" id="ringFill" cx="8" cy="8" r="6" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="37.7" stroke-dashoffset="37.7"/></svg>
+                <span class="num" id="pillText">0%</span>
+            </div>
+        </header>
 
-    <div id="confetti"></div>
+        <div class="views">
+            <section class="view home on" id="homeView">
+                <div class="stage">
+                    <div class="slot slot-hero">
+                        <div class="v hero-ready on" data-states="ready">
+                            <img class="hero-mark" src="favicon.svg" alt="">
+                            <div>
+                                <div class="hero-title" data-i18n="heroReadyTitle">Every tab, fresh.</div>
+                                <div class="hero-sub" id="readySub"></div>
+                            </div>
+                        </div>
+                        <div class="v hero-ready" data-states="ask">
+                            <div class="ask-mark" aria-hidden="true">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>
+                            </div>
+                            <div>
+                                <div class="hero-title" data-i18n="askTitle"></div>
+                                <div class="hero-sub" data-i18n="askSub"></div>
+                            </div>
+                        </div>
+                        <div class="v hero-run" data-states="running">
+                            <div class="count"><span class="big num" id="runCount">0</span><span class="of" id="runTotal"></span></div>
+                            <button class="btn btn-quiet" id="cancelRefresh" type="button" data-i18n="actionCancel"></button>
+                        </div>
+                        <div class="v hero-done" data-states="done tab-done">
+                            <div class="badge ok" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11.5 9.2 15.5 17 7"/></svg></div>
+                            <div>
+                                <div class="hero-title" id="doneTitle"></div>
+                                <div class="hero-sub" id="doneSub"></div>
+                            </div>
+                        </div>
+                        <div class="v hero-done" data-states="failed">
+                            <div class="badge warn" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M11 6v6.5"/><circle cx="11" cy="16" r="0.6" fill="currentColor"/></svg></div>
+                            <div>
+                                <div class="hero-title" id="failTitle"></div>
+                                <div class="hero-sub" id="failSub"></div>
+                            </div>
+                        </div>
+                        <div class="v hero-done" data-states="stopped tab-stopped">
+                            <div class="badge stop" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><rect x="4" y="4" width="10" height="10" rx="2" fill="currentColor"/></svg></div>
+                            <div>
+                                <div class="hero-title" id="stopTitle"></div>
+                                <div class="hero-sub" id="stopSub"></div>
+                            </div>
+                        </div>
+                        <div class="v hero-run" data-states="tab-running">
+                            <div class="tab-head">
+                                <div class="hero-sub" data-i18n="thisTabLabel"></div>
+                                <div class="site-big one" id="tabSiteBig"></div>
+                            </div>
+                            <button class="btn btn-quiet" id="cancelTab" type="button" data-i18n="actionCancel"></button>
+                        </div>
+                    </div>
+
+                    <div class="slot slot-action">
+                        <button class="v btn btn-primary on" id="refreshAll" type="button" disabled data-states="ready done failed stopped tab-done tab-stopped">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4"/><path d="M13.5 2.5v3h-3"/></svg>
+                            <span data-i18n="actionRefreshAll">Refresh All Tabs</span>
+                        </button>
+                        <button class="v btn btn-primary" id="allowAndRefresh" type="button" data-states="ask" data-i18n="askAllow"></button>
+                        <div class="v track-wrap" data-states="running tab-running">
+                            <div class="track" id="progressBar" role="progressbar" data-i18n-label="progressLabel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                <div class="fill" id="progressFill"><div class="sheen"></div></div>
+                            </div>
+                            <div class="track-meta"><span class="one" id="trackText"></span><span class="num" id="progressPercent">0%</span></div>
+                        </div>
+                    </div>
+
+                    <div class="slot slot-detail">
+                        <div class="v detail-ready top on" data-states="ready">
+                            <p class="explain" data-i18n="refreshExplanation"></p>
+                        </div>
+                        <div class="v detail-ask" data-states="ask">
+                            <p class="explain" data-i18n="permissionGrantExplain"></p>
+                            <button class="btn btn-quiet" id="justRefresh" type="button" data-i18n="askSkip"></button>
+                        </div>
+                        <div class="v detail-run" data-states="running done stopped">
+                            <div class="chips" aria-hidden="true">
+                                <span class="chip ok"><i></i><b class="num" id="countReloaded">0</b><span data-i18n="chipReloaded"></span></span>
+                                <span class="chip bad" id="chipFailed" hidden><i></i><b class="num" id="countFailed">0</b><span data-i18n="chipFailed"></span></span>
+                                <span class="chip skip" id="chipSkipped" hidden><i></i><b class="num" id="countSkipped">0</b><span data-i18n="chipSkipped"></span></span>
+                            </div>
+                            <div class="dots" id="tabDots" aria-hidden="true"></div>
+                            <div class="foot">
+                                <span id="footRunning" class="on" data-i18n="footRunning"></span>
+                                <span id="footDone"></span>
+                            </div>
+                        </div>
+                        <div class="v detail-failed" data-states="failed">
+                            <div class="chips" aria-hidden="true">
+                                <span class="chip ok"><i></i><b class="num" id="failedReloaded">0</b><span data-i18n="chipReloaded"></span></span>
+                                <span class="chip bad"><i></i><b class="num" id="failedFailed">0</b><span data-i18n="chipFailed"></span></span>
+                                <span class="chip skip"><i></i><b class="num" id="failedSkipped">0</b><span data-i18n="chipSkipped"></span></span>
+                            </div>
+                            <ul class="fails" id="failedList"></ul>
+                        </div>
+                        <div class="v detail-tab" data-states="tab-running">
+                            <div class="line"><i></i><span class="one" id="tabPageTitle"></span></div>
+                            <div class="foot"><span class="on" data-i18n="footRunning"></span></div>
+                        </div>
+                        <div class="v detail-tab top" data-states="tab-done">
+                            <p class="explain" id="tabBytes"></p>
+                        </div>
+                        <div class="v ta-row on" data-states="ready tab-done tab-stopped">
+                            <button class="ta" id="refreshThisTab" type="button" disabled aria-describedby="thisTabNote">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10.6 8.2a2.6 2.6 0 1 1-.8-1.9"/><path d="M10.6 5.6v1.6H9"/></svg>
+                                <span class="lbl" data-i18n="refreshThisTab"></span><span class="site" id="thisTabSite"></span>
+                            </button>
+                            <span class="ta-note" id="thisTabNote"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <nav class="list" data-i18n-label="moreNavLabel">
+                    <button class="row" id="openHistory" type="button" data-open="history">
+                        <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.2l2 1.3"/></svg>
+                        <span class="lbl" data-i18n="historyTitle"></span><span class="meta" id="metaHistory"></span>
+                        <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 3 4 4-4 4"/></svg>
+                    </button>
+                    <button class="row" id="openFiles" type="button" data-open="files">
+                        <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>
+                        <span class="lbl" data-i18n="statsToggle"></span><span class="meta" id="metaFiles"></span>
+                        <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 3 4 4-4 4"/></svg>
+                    </button>
+                    <button class="row" id="openSettings" type="button" data-open="settings">
+                        <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3 5h10M3 11h10"/><circle cx="6" cy="5" r="1.6" fill="var(--surface)"/><circle cx="10.5" cy="11" r="1.6" fill="var(--surface)"/></svg>
+                        <span class="lbl" data-i18n="settingsToggle"></span><span class="meta" id="metaSettings"></span>
+                        <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 3 4 4-4 4"/></svg>
+                    </button>
+                </nav>
+            </section>
+
+            <section class="view sub" id="subView" aria-labelledby="subTitle">
+                <div class="panel" data-panel="history" hidden>
+                    <ul class="hist" id="historyList"></ul>
+                </div>
+                <div class="panel" data-panel="files" hidden>
+                    <div class="stat-hero">
+                        <div class="lbl" data-i18n="statsTotalLabel"></div>
+                        <div class="val"><small data-i18n="statsApproxPrefix"></small><span class="num" id="statsTotal"></span></div>
+                    </div>
+                    <dl class="stats">
+                        <div><dt data-i18n="statsTodayLabel"></dt><dd id="statsToday"></dd></div>
+                        <div><dt data-i18n="statsLastRunLabel"></dt><dd id="statsLastRun"></dd></div>
+                        <div><dt data-i18n="statsWeekLabel"></dt><dd id="statsWeek"></dd></div>
+                        <div><dt data-i18n="statsMonthLabel"></dt><dd id="statsMonth"></dd></div>
+                    </dl>
+                    <p class="hint" id="statsAccessHint" data-i18n="statsAccessHint" hidden></p>
+                    <p class="fine" data-i18n="statsNote"></p>
+                </div>
+                <div class="panel" data-panel="settings" hidden>
+                    <div class="card">
+                        <h3><span data-i18n="settingsAccessTitle"></span><span class="pill" id="accessPill"></span></h3>
+                        <p data-i18n="permissionGrantExplain"></p>
+                        <button class="btn btn-quiet" id="grantAccess" type="button" data-i18n="permissionGrantAction" hidden></button>
+                    </div>
+                    <div class="card">
+                        <h3 data-i18n="settingsStatsTitle"></h3>
+                        <p data-i18n="settingsStatsExplain"></p>
+                        <button class="btn btn-danger" id="resetStats" type="button" data-i18n="statsResetAction"></button>
+                        <div class="undo" id="undoReset" hidden><span data-i18n="statsResetDone"></span><button class="link" id="undoResetButton" type="button" data-i18n="actionUndo"></button></div>
+                    </div>
+                    <p class="fine" id="privacyNotice" data-i18n="privacyNotice"></p>
+                </div>
+            </section>
+        </div>
+
+        <canvas id="confetti" aria-hidden="true" hidden></canvas>
+        <div class="sr-only" id="statusText" role="status" aria-live="polite"></div>
+    </div>
     <script src="popup.js"></script>
 </body>
 

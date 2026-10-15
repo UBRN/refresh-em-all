@@ -1,153 +1,128 @@
 const fs = require('fs');
 const path = require('path');
-const { createInstrumenter } = require('istanbul-lib-instrument');
+const { executePopupJs, popupHtml, popupSource, repositoryRoot } = require('./popup-harness');
 
-const popupPath = path.join(__dirname, '..', 'popup.js');
-const popupJs = createInstrumenter().instrumentSync(
-  fs.readFileSync(popupPath, 'utf8'),
-  popupPath
-);
+const $ = id => document.getElementById(id);
+const state = () => document.body.dataset.state;
+const visible = element => element.closest('.slot > .v')?.classList.contains('on') ?? true;
+const settle = (ms = 0) => jest.advanceTimersByTimeAsync(ms);
+const fillPercent = () => {
+  const match = $('progressFill').style.transform.match(/translateX\((-?[\d.]+)%\)/);
+  return match ? 100 + Number(match[1]) : 0;
+};
+const tabs = count => Array.from({ length: count }, (_, index) => ({ id: index + 1, title: `Tab ${index + 1}` }));
 
-function renderPopupDom() {
-  document.body.innerHTML = `
-    <h2></h2>
-    <p class="refresh-explanation"></p>
-    <button id="refreshAll">Refresh All Tabs</button>
-    <button id="cancelRefresh" style="display:none">Cancel</button>
-    <div id="loadingContainer" style="display:none">
-      <div id="progressBar" aria-valuenow="0"><div id="progressFill"></div></div>
-      <div id="statusText"></div>
-      <div id="statsRunLine" style="display:none"></div>
-      <div id="tabsContainer"></div>
-    </div>
-    <div id="errorContainer" style="display:none">
-      <div id="errorSummary"></div><div id="errorDetails"></div>
-    </div>
-    <div id="historyContainer" style="display:none">
-      <button id="historyHeader" aria-expanded="false"></button>
-      <div id="historyContent" style="display:none"></div>
-    </div>
-    <div id="statsContainer" style="display:none">
-      <button id="statsHeader" aria-expanded="false"></button>
-      <div id="statsContent" style="display:none">
-        <div id="statsTotal" class="stat-hero"></div>
-        <div id="statsToday" class="stat-row"></div>
-        <div id="statsLastRun" class="stat-row"></div>
-        <div id="statsWeek" class="stat-row"></div>
-        <div id="statsMonth" class="stat-row"></div>
-        <p id="statsAccessHint" class="privacy-info" style="display:none"></p>
-        <p id="statsNote" class="privacy-info"></p>
-      </div>
-    </div>
-    <button id="settingsHeader" aria-expanded="false"></button>
-    <div id="settingsContent" style="display:none">
-      <button id="grantAccess" style="display:none"></button>
-      <p id="grantAccessExplain" class="privacy-info" style="display:none"></p>
-      <button id="resetStats"></button>
-      <p class="privacy-info"></p>
-    </div>
-    <div id="confetti" style="display:none"></div>
-  `;
+function setVisibility(value) {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => value });
+  document.dispatchEvent(new Event('visibilitychange'));
 }
 
-async function flushPromises() {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-}
+describe('Popup markup contract', () => {
+  test('every element id popup.js looks up exists in popup.html', () => {
+    const ids = new Set([
+      ...[...popupSource.matchAll(/\$\('([^']+)'\)/g)].map(match => match[1]),
+      ...[...popupSource.matchAll(/getElementById\('([^']+)'\)/g)].map(match => match[1])
+    ]);
+    const document = new DOMParser().parseFromString(popupHtml, 'text/html');
 
-function executePopupJs({
-  operationState = { active: false },
-  history = [],
-  cacheStats,
-  siteAccess = true,
-  mediaAccessAsked = false,
-  requestAccessResult = false,
-  incognito = false
-} = {}) {
-  renderPopupDom();
-  chrome.runtime.onMessage.callbackQueue = [];
-  chrome.runtime.onMessage.addListener.mockImplementation(callback => {
-    chrome.runtime.onMessage.callbackQueue.push(callback);
+    expect(ids.size).toBeGreaterThan(30);
+    for (const id of ids) expect(`#${id}: ${Boolean(document.getElementById(id))}`).toBe(`#${id}: true`);
   });
-  chrome.runtime.sendMessage.mockImplementation((message, callback) => {
-    if (message.action === 'getOperationStatus') callback?.(operationState);
-    else if (message.action === 'startRefresh') callback?.({ success: true });
-    else if (message.action === 'cancelOperation') callback?.({ success: true });
-    return Promise.resolve({});
-  });
-  chrome.storage.local.get.mockImplementation((keys, callback) => {
-    if (keys.includes('cacheStats')) callback({ cacheStats });
-    else if (keys.includes('mediaAccessAsked')) callback({ mediaAccessAsked });
-    else callback({ refreshHistory: history });
-  });
-  chrome.permissions = {
-    contains: jest.fn().mockResolvedValue(siteAccess),
-    request: jest.fn().mockResolvedValue(requestAccessResult)
-  };
-  chrome.windows = {
-    getCurrent: jest.fn().mockResolvedValue({ id: 1, incognito })
-  };
 
-  new Function('document', 'window', 'chrome', popupJs)(document, window, chrome);
-  return chrome.runtime.onMessage.callbackQueue[0];
-}
+  test('every catalog key named in popup.html exists', () => {
+    const catalog = JSON.parse(fs.readFileSync(path.join(repositoryRoot, '_locales/en/messages.json'), 'utf8'));
+    const keys = [...popupHtml.matchAll(/data-i18n(?:-label)?="([^"]+)"/g)].map(match => match[1]);
+
+    expect(keys.length).toBeGreaterThan(30);
+    for (const key of keys) expect(catalog).toHaveProperty(key);
+  });
+
+  test('the popup and the worker skip the same restricted URL schemes', () => {
+    const background = fs.readFileSync(path.join(repositoryRoot, 'background.js'), 'utf8');
+    const list = source => [...source.match(/isRestrictedTabUrl[\s\S]*?\]/)[0].matchAll(/'([a-z-]+:)'/g)]
+      .map(match => match[1]);
+    const popupList = [...popupSource.match(/RESTRICTED_URL_PREFIXES = \[[\s\S]*?\]/)[0].matchAll(/'([a-z-]+:)'/g)]
+      .map(match => match[1]);
+
+    expect(popupList.length).toBeGreaterThan(5);
+    expect(popupList).toEqual(list(background));
+  });
+});
 
 describe('Popup controller', () => {
+  let getContext;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
+    getContext = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   });
 
   afterEach(() => {
+    getContext.mockRestore();
+    delete document.visibilityState;
+    jest.useRealTimers();
     resetTestEnvironment();
   });
 
   test('starts a refresh through the background worker and disables duplicate starts', async () => {
-    executePopupJs();
-    await flushPromises();
+    const onMessage = executePopupJs();
+    await settle();
+    expect($('refreshAll').disabled).toBe(false);
 
-    document.getElementById('refreshAll').click();
+    $('refreshAll').click();
+    $('refreshAll').click();
 
-    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh', incognito: false },
-      expect.any(Function)
-    );
-    expect(document.getElementById('refreshAll').disabled).toBe(true);
-    expect(document.getElementById('cancelRefresh').style.display).toBe('inline-block');
+    const starts = chrome.runtime.sendMessage.mock.calls.filter(([message]) => message.action === 'startRefresh');
+    expect(starts).toEqual([[{ action: 'startRefresh', incognito: false }, expect.any(Function)]]);
+    expect($('refreshAll').disabled).toBe(true);
+
+    onMessage({ action: 'refreshStarted', generation: 2, tabs: tabs(4) });
+    expect(state()).toBe('running');
+    expect(visible($('cancelRefresh'))).toBe(true);
+    expect($('runTotal').textContent).toBe('of 4 tabs');
+    expect($('tabDots').children).toHaveLength(4);
   });
 
   test('starts a refresh limited to incognito tabs from an incognito window', async () => {
     executePopupJs({ incognito: true });
-    await flushPromises();
+    await settle();
 
-    document.getElementById('refreshAll').click();
+    $('refreshAll').click();
 
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
       { action: 'startRefresh', incognito: true },
       expect.any(Function)
     );
+    expect($('readySub').textContent).toBe('Across your incognito windows');
   });
 
-  test('requests optional page-reading permission from the settings button', async () => {
+  test('requests optional page-reading permission from the settings view', async () => {
     executePopupJs({ siteAccess: false, requestAccessResult: true });
-    await flushPromises();
+    await settle();
+    expect($('accessPill').textContent).toBe('Off');
 
-    document.getElementById('grantAccess').click();
-    await flushPromises();
+    $('openSettings').click();
+    $('grantAccess').click();
+    await settle();
 
     expect(chrome.permissions.request).toHaveBeenCalledWith({ origins: ['<all_urls>'] });
+    expect($('accessPill').textContent).toBe('On');
+    expect($('grantAccess').hidden).toBe(true);
+    expect($('metaSettings').textContent).toBe('Page reading on');
   });
 
-  test('first refresh requests access once and still starts when refused', async () => {
+  test('first refresh asks in the popup before Chrome does, and still starts when refused', async () => {
     executePopupJs({ siteAccess: false, mediaAccessAsked: false, requestAccessResult: false });
-    await flushPromises();
+    await settle();
 
-    document.getElementById('refreshAll').click();
-    await flushPromises();
+    $('refreshAll').click();
+    expect(state()).toBe('ask');
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'startRefresh' }), expect.anything());
+
+    $('allowAndRefresh').click();
+    await settle();
 
     expect(chrome.permissions.request).toHaveBeenCalledTimes(1);
     expect(chrome.storage.local.set).toHaveBeenCalledWith({ mediaAccessAsked: true });
@@ -157,7 +132,22 @@ describe('Popup controller', () => {
     );
   });
 
-  test('keeps refresh disabled during initialization and a refused permission request', async () => {
+  test('"Just refresh" starts without the permission and does not ask again', async () => {
+    executePopupJs({ siteAccess: false, mediaAccessAsked: false });
+    await settle();
+
+    $('refreshAll').click();
+    $('justRefresh').click();
+
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+    expect(chrome.storage.local.set).toHaveBeenCalledWith({ mediaAccessAsked: true });
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'startRefresh', incognito: false },
+      expect.any(Function)
+    );
+  });
+
+  test('keeps refresh disabled during initialization and a pending permission request', async () => {
     let finishInitialization;
     let refusePermission;
     executePopupJs({
@@ -165,24 +155,25 @@ describe('Popup controller', () => {
       requestAccessResult: new Promise(resolve => { refusePermission = resolve; })
     });
 
-    expect(document.getElementById('refreshAll').disabled).toBe(true);
+    expect($('refreshAll').disabled).toBe(true);
     finishInitialization(false);
-    await flushPromises();
-    expect(document.getElementById('refreshAll').disabled).toBe(false);
+    await settle();
+    expect($('refreshAll').disabled).toBe(false);
 
-    document.getElementById('grantAccess').click();
-    expect(document.getElementById('refreshAll').disabled).toBe(true);
+    $('grantAccess').click();
+    expect($('refreshAll').disabled).toBe(true);
     refusePermission(false);
-    await flushPromises();
-    expect(document.getElementById('refreshAll').disabled).toBe(false);
+    await settle();
+    expect($('refreshAll').disabled).toBe(false);
   });
 
-  test('later refresh does not request access automatically', async () => {
+  test('a later refresh does not ask for access', async () => {
     executePopupJs({ siteAccess: false, mediaAccessAsked: true });
-    await flushPromises();
+    await settle();
 
-    document.getElementById('refreshAll').click();
+    $('refreshAll').click();
 
+    expect(state()).toBe('ready');
     expect(chrome.permissions.request).not.toHaveBeenCalled();
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
       { action: 'startRefresh', incognito: false },
@@ -191,101 +182,143 @@ describe('Popup controller', () => {
   });
 
   test.each([
-    [true, 'none'],
-    [false, 'block']
-  ])('renders optional-access controls for granted=%s', async (siteAccess, display) => {
+    [true, true, 'On'],
+    [false, false, 'Off']
+  ])('renders optional-access controls for granted=%s', async (siteAccess, hidden, pill) => {
     executePopupJs({ siteAccess });
-    await flushPromises();
+    await settle();
 
-    expect(document.getElementById('grantAccess').style.display).toBe(display);
-    expect(document.getElementById('statsAccessHint').style.display).toBe(display);
+    expect($('grantAccess').hidden).toBe(hidden);
+    expect($('statsAccessHint').hidden).toBe(hidden);
+    expect($('accessPill').textContent).toBe(pill);
   });
 
-  test('renders per-tab success, failure, skipped state, and processed progress', () => {
+  test('renders per-tab results and keeps aria-valuenow on the real value', async () => {
     const onMessage = executePopupJs();
-    const tabs = [
-      { id: 1, title: 'One' },
-      { id: 2, title: 'Two' },
-      { id: 3, title: 'Restricted' }
-    ];
+    await settle();
 
-    onMessage({ action: 'refreshStarted', tabs });
+    onMessage({ action: 'refreshStarted', tabs: tabs(4) });
     onMessage({ action: 'tabSucceeded', tabId: 1 });
     onMessage({ action: 'tabFailed', tabId: 2, error: 'Reload failed' });
     onMessage({ action: 'tabSkipped', tabId: 3 });
-    onMessage({
-      action: 'refreshProgress', current: 9, total: 12, percent: 75,
-      successful: 5, failed: 2, skipped: 3
-    });
-    // Every count differs, so any swapped argument order in the statusProgress call fails here.
-    expect(document.getElementById('statusText').textContent)
-      .toBe('9 of 12: 5 reloaded, 2 failed, 3 skipped');
+    onMessage({ action: 'refreshProgress', current: 3, total: 4, percent: 75, successful: 1, failed: 1, skipped: 1 });
+    await settle(5000);
 
-    onMessage({
-      action: 'refreshProgress', current: 3, total: 3, percent: 100,
-      successful: 1, failed: 1, skipped: 1
-    });
+    const dots = [...$('tabDots').children].map(dot => dot.dataset.status);
+    expect(dots).toEqual(['success', 'error', 'skipped', undefined]);
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('75');
+    expect($('countReloaded').textContent).toBe('1');
+    expect($('chipFailed').hidden).toBe(false);
+    expect($('chipSkipped').hidden).toBe(false);
+
     onMessage({
       action: 'refreshComplete', success: false,
-      details: { totalTabs: 3, processedTabs: 3, successfulTabs: 1, failedCount: 1, skippedCount: 1 },
+      details: { totalTabs: 4, processedTabs: 4, successfulTabs: 2, failedCount: 1, skippedCount: 1 },
       failedTabs: [{ id: 2, title: 'Two', error: 'Reload failed' }]
     });
+    await settle(1000);
 
-    expect(document.querySelector('#tab-1 .tab-success').style.display).toBe('block');
-    expect(document.querySelector('#tab-2 .tab-error').style.display).toBe('block');
-    expect(document.querySelector('#tab-3 .tab-skipped').style.display).toBe('block');
-    expect(document.getElementById('progressFill').style.width).toBe('100%');
-    expect(document.getElementById('statusText').textContent).toContain('1 failed');
-    expect(document.getElementById('errorDetails').textContent).toContain('Reload failed');
+    expect(state()).toBe('failed');
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('100');
+    expect($('failTitle').textContent).toBe('Failed to refresh 1 tab.');
+    expect($('failedList').textContent).toBe('TwoReload failed');
+    expect($('statusText').textContent).toBe('Failed to refresh 1 tab.');
   });
 
-  test('ignores a failed cancel callback after the operation completes', () => {
+  test('the bar creeps while a tab is in flight but never passes the next step or goes back', async () => {
     const onMessage = executePopupJs();
+    await settle();
+
+    onMessage({ action: 'refreshStarted', tabs: tabs(4) });
+    onMessage({ action: 'refreshProgress', current: 1, total: 4, percent: 25, successful: 1, failed: 0, skipped: 0 });
+    await settle(300);
+    const early = fillPercent();
+    await settle(20000);
+    const late = fillPercent();
+
+    expect(early).toBeGreaterThanOrEqual(24);
+    expect(late).toBeGreaterThan(early);
+    expect(late).toBeLessThanOrEqual(25 + 0.9 * 25 + 0.01);
+    // The visible numbers never claim the tab still in flight.
+    expect($('progressPercent').textContent).toBe('25%');
+    expect($('runCount').textContent).toBe('1');
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('25');
+  });
+
+  test('stops the animation loop while the popup is hidden', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(4) });
+    onMessage({ action: 'refreshProgress', current: 1, total: 4, percent: 25, successful: 1, failed: 0, skipped: 0 });
+    await settle(200);
+
+    setVisibility('hidden');
+    const frozen = $('progressFill').style.transform;
+    await settle(5000);
+
+    expect($('progressFill').style.transform).toBe(frozen);
+  });
+
+  test('announces milestones at quarters, not on every tab', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(8) });
+    const announcements = [];
+    const observer = { record: () => announcements.push($('statusText').textContent) };
+
+    expect($('statusText').textContent).toBe('0 of 8 tabs done…');
+    for (let current = 1; current <= 7; current++) {
+      onMessage({ action: 'refreshProgress', current, total: 8, percent: Math.floor(current / 8 * 100), successful: current, failed: 0, skipped: 0 });
+      observer.record();
+    }
+
+    expect([...new Set(announcements)]).toEqual(['0 of 8 tabs done…', '2 of 8 tabs done', '4 of 8 tabs done', '6 of 8 tabs done']);
+  });
+
+  test('ignores a failed cancel callback after the operation completes', async () => {
+    const onMessage = executePopupJs();
+    await settle();
     let cancelCallback;
-    onMessage({ action: 'refreshStarted', tabs: [{ id: 1, title: 'One' }] });
+    onMessage({ action: 'refreshStarted', tabs: tabs(1) });
     chrome.runtime.sendMessage.mockImplementation((message, callback) => {
       if (message.action === 'cancelOperation') cancelCallback = callback;
     });
 
-    document.getElementById('cancelRefresh').click();
+    $('cancelRefresh').click();
+    expect($('trackText').textContent).toBe('Stopping…');
     onMessage({
       action: 'refreshComplete', success: true,
-      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1 }
+      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1, cancelled: true }
     });
-    const completedStatus = document.getElementById('statusText').textContent;
+    await settle(1000);
     cancelCallback({ success: false });
 
-    expect(document.getElementById('statusText').textContent).toBe(completedStatus);
+    expect(state()).toBe('stopped');
+    expect($('stopTitle').textContent).toBe('Stopped after 1 of 1 tabs.');
   });
 
-  test('ignores a completion message from an older operation generation', () => {
+  test('ignores a completion message from an older operation generation', async () => {
     const onMessage = executePopupJs();
-    onMessage({
-      action: 'refreshStarted',
-      generation: 5,
-      tabs: [{ id: 20, title: 'Current' }]
-    });
-    const currentStatus = document.getElementById('statusText').textContent;
+    await settle();
+    onMessage({ action: 'refreshStarted', generation: 5, tabs: tabs(1) });
 
     onMessage({
-      action: 'refreshComplete',
-      generation: 4,
-      success: true,
+      action: 'refreshComplete', generation: 4, success: true,
       details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1 }
     });
+    await settle(1000);
 
-    expect(document.getElementById('statusText').textContent).toBe(currentStatus);
-    expect(document.getElementById('refreshAll').disabled).toBe(true);
-    expect(document.getElementById('cancelRefresh').style.display).toBe('inline-block');
+    expect(state()).toBe('running');
+    expect($('refreshAll').disabled).toBe(true);
   });
 
-  test('ignores old progress after restoring a newer operation generation', () => {
+  test('ignores old progress after restoring a newer operation generation', async () => {
     const onMessage = executePopupJs({
       operationState: {
         active: true,
         generation: 8,
-        currentTabs: [{ id: 21, title: 'Restored' }],
-        tabStatuses: { 21: 'pending' },
+        currentTabs: [{ id: 21, title: 'Restored' }, { id: 22, title: 'Next' }],
+        tabStatuses: { 21: 'success', 22: 'pending' },
         processedTabs: 1,
         totalTabs: 2,
         progress: 50,
@@ -294,64 +327,56 @@ describe('Popup controller', () => {
         skippedTabs: 0
       }
     });
-    const restoredStatus = document.getElementById('statusText').textContent;
+    await settle();
 
-    onMessage({
-      action: 'refreshProgress',
-      generation: 7,
-      current: 2,
-      total: 2,
-      percent: 100,
-      successful: 2,
-      failed: 0,
-      skipped: 0
-    });
+    onMessage({ action: 'refreshProgress', generation: 7, current: 2, total: 2, percent: 100, successful: 2, failed: 0, skipped: 0 });
 
-    expect(document.getElementById('statusText').textContent).toBe(restoredStatus);
-    expect(document.getElementById('progressFill').style.width).toBe('50%');
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('50');
+    expect($('countReloaded').textContent).toBe('1');
   });
 
-  test('accepts a completion message without a generation field', () => {
+  test('accepts a completion message without a generation field', async () => {
     const onMessage = executePopupJs();
-    onMessage({
-      action: 'refreshStarted',
-      generation: 9,
-      tabs: [{ id: 22, title: 'Current' }]
-    });
+    await settle();
+    onMessage({ action: 'refreshStarted', generation: 9, tabs: tabs(2) });
 
     onMessage({
-      action: 'refreshComplete',
-      success: true,
-      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1 }
+      action: 'refreshComplete', success: true,
+      details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2 }
     });
+    await settle(1000);
 
-    expect(document.getElementById('refreshAll').disabled).toBe(false);
-    expect(document.getElementById('statusText').textContent).toBe(
-      chrome.i18n.getMessage('statusCompleteAll', ['1'])
-    );
+    expect(state()).toBe('done');
+    expect($('refreshAll').disabled).toBe(false);
+    expect($('doneTitle').textContent).toBe(chrome.i18n.getMessage('statusCompleteAll', ['2']));
   });
 
-  test('renders errors collected before cancellation', () => {
+  test('a stopped run keeps failures in the counts and quiets the tabs that never ran', async () => {
     const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(3) });
+    onMessage({ action: 'tabSucceeded', tabId: 1 });
+    onMessage({ action: 'tabFailed', tabId: 2 });
 
     onMessage({
       action: 'refreshComplete', success: false,
       details: { totalTabs: 3, processedTabs: 2, successfulTabs: 1, failedCount: 1, cancelled: true },
       failedTabs: [{ id: 2, title: 'Two', error: 'Reload failed before cancellation' }]
     });
+    await settle(500);
 
-    expect(document.getElementById('statusText').textContent).toBe(
-      chrome.i18n.getMessage('statusCancelled', ['2', '3'])
-    );
-    expect(document.getElementById('errorDetails').textContent)
-      .toContain('Reload failed before cancellation');
+    expect(state()).toBe('stopped');
+    expect($('stopTitle').textContent).toBe(chrome.i18n.getMessage('statusCancelled', ['2', '3']));
+    expect($('countFailed').textContent).toBe('1');
+    expect($('tabDots').classList.contains('settled')).toBe(true);
+    expect(document.querySelector('.sheen')).not.toBeNull();
   });
 
-  test('restores an active operation when the popup is reopened', () => {
+  test('restores an active operation when the popup is reopened', async () => {
     executePopupJs({
       operationState: {
         active: true,
-        currentTabs: [{ id: 9, title: 'Restored' }],
+        currentTabs: [{ id: 9, title: 'Restored' }, { id: 10, title: 'Next' }],
         tabStatuses: { 9: 'success' },
         processedTabs: 1,
         totalTabs: 2,
@@ -361,87 +386,113 @@ describe('Popup controller', () => {
         skippedTabs: 0
       }
     });
+    await settle();
 
-    expect(document.getElementById('progressFill').style.width).toBe('50%');
-    expect(document.querySelector('#tab-9 .tab-success').style.display).toBe('block');
-    expect(document.getElementById('refreshAll').disabled).toBe(true);
+    expect(state()).toBe('running');
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('50');
+    expect($('tabDots').children[0].dataset.status).toBe('success');
+    expect($('refreshAll').disabled).toBe(true);
   });
 
-  test('restores interrupted progress consistently for assistive technology', () => {
+  test('reports an interrupted run once, as stopped, with its progress', async () => {
     executePopupJs({
-      operationState: { active: false, interrupted: true, progress: 40 }
+      operationState: { active: false, interrupted: true, progress: 40, processedTabs: 2, totalTabs: 5, refreshedTabs: 2 }
+    });
+    await settle();
+
+    expect(state()).toBe('stopped');
+    expect($('stopTitle').textContent).toBe('The last reload stopped before it finished.');
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('40');
+    expect($('countReloaded').textContent).toBe('2');
+  });
+
+  test('keeps the start reason when the worker also reports a zero-tab run', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+      if (message.action === 'startRefresh') callback({ success: false, message: 'There are no tabs to reload' });
     });
 
-    expect(document.getElementById('progressFill').style.width).toBe('40%');
-    expect(document.getElementById('progressBar').getAttribute('aria-valuenow')).toBe('40');
-  });
+    $('refreshAll').click();
+    onMessage({
+      action: 'refreshComplete', success: false,
+      details: { totalTabs: 0, processedTabs: 0, successfulTabs: 0, failedCount: 1 },
+      failedTabs: [{ title: 'Could not start', error: 'There are no tabs to reload' }]
+    });
 
-  test('does not activate stress mode after five settings clicks', () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => false);
-    executePopupJs();
-
-    const settings = document.getElementById('settingsHeader');
-    for (let index = 0; index < 5; index++) settings.click();
-
-    expect(document.getElementById('refreshAll').textContent).toBe(
-      chrome.i18n.getMessage('actionRefreshAll')
-    );
-    expect(confirmSpy).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
+    expect(state()).toBe('failed');
+    expect($('failTitle').textContent).toBe('Could not start');
+    expect($('failSub').textContent).toBe('There are no tabs to reload');
+    expect($('failedList').hidden).toBe(true);
+    expect($('refreshAll').disabled).toBe(false);
   });
 
   test.each([
-    [
-      'skipped tabs',
-      { totalTabs: 3, processedTabs: 3, successfulTabs: 2, failedCount: 0, skippedCount: 1 },
-      true
-    ],
-    [
-      'cancellation',
-      { totalTabs: 3, processedTabs: 2, successfulTabs: 2, failedCount: 0, skippedCount: 0, cancelled: true },
-      false
-    ],
-    [
-      'failures',
-      { totalTabs: 3, processedTabs: 3, successfulTabs: 2, failedCount: 1, skippedCount: 0 },
-      false
-    ]
-  ])('shows confetti only after a failure-free completion with %s', (_case, details, expected) => {
-    jest.useFakeTimers();
+    ['a clean run', { totalTabs: 3, processedTabs: 3, successfulTabs: 3 }, true],
+    ['skipped browser pages', { totalTabs: 3, processedTabs: 3, successfulTabs: 2, skippedCount: 1 }, true],
+    ['nothing reloaded', { totalTabs: 2, processedTabs: 2, successfulTabs: 0, skippedCount: 2 }, false],
+    ['cancellation', { totalTabs: 3, processedTabs: 2, successfulTabs: 2, cancelled: true }, false],
+    ['failures', { totalTabs: 3, processedTabs: 3, successfulTabs: 2, failedCount: 1 }, false],
+    ['a single tab', { totalTabs: 1, processedTabs: 1, successfulTabs: 1, singleTab: true }, false]
+  ])('confetti after %s: %s', async (_case, details, expected) => {
     const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', singleTab: details.singleTab === true, tabs: tabs(details.totalTabs) });
 
-    onMessage({ action: 'refreshComplete', success: expected, details });
+    onMessage({ action: 'refreshComplete', details, failedTabs: details.failedCount ? [{ title: 'x', error: 'y' }] : [] });
+    await settle(1500);
 
-    expect(document.querySelectorAll('#confetti .confetti-piece').length > 0).toBe(expected);
-    if (details.skippedCount > 0) {
-      expect(document.getElementById('statusText').textContent).toBe(
-        chrome.i18n.getMessage('statusCompleteSkipped', ['2', '1'])
-      );
-    }
-    jest.useRealTimers();
+    expect(getContext.mock.calls.length > 0).toBe(expected);
   });
 
-  test('one click expands a section hidden by the stylesheet, not two', () => {
-    // Production hides these sections through popup.html's stylesheet, not an inline
-    // style. The DOM stub above hides them inline, which masks the real starting state,
-    // so reproduce the stylesheet case explicitly.
+  test('no confetti when the popup is hidden or only reopened over a finished run', async () => {
+    let onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(2) });
+    setVisibility('hidden');
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2 } });
+    await settle(1500);
+    expect(state()).toBe('done');
+    expect(getContext).not.toHaveBeenCalled();
+
+    setVisibility('visible');
+    onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2 } });
+    await settle(1500);
+    expect(getContext).not.toHaveBeenCalled();
+  });
+
+  test('moves keyboard focus to Cancel when a run starts and back to Refresh when it ends', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    $('refreshAll').focus();
+
+    $('refreshAll').click();
+    onMessage({ action: 'refreshStarted', tabs: tabs(1) });
+    expect(document.activeElement).toBe($('cancelRefresh'));
+
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1 } });
+    await settle(1500);
+    expect(document.activeElement).toBe($('refreshAll'));
+  });
+
+  test('opens a sub view from the list and returns focus to its row', async () => {
     executePopupJs();
-    const content = document.getElementById('historyContent');
-    const header = document.getElementById('historyHeader');
-    content.removeAttribute('style');
-    const sheet = document.createElement('style');
-    sheet.textContent = '#historyContent { display: none; }';
-    document.head.appendChild(sheet);
+    await settle();
 
-    expect(window.getComputedStyle(content).display).toBe('none');
+    $('openHistory').click();
+    expect($('subView').classList.contains('on')).toBe(true);
+    expect($('subTitle').textContent).toBe('Recent reloads');
+    expect(document.activeElement).toBe($('back'));
 
-    header.click();
-
-    expect(content.style.display).toBe('block');
-    expect(header.getAttribute('aria-expanded')).toBe('true');
+    $('back').click();
+    expect($('homeView').classList.contains('on')).toBe(true);
+    expect(document.activeElement).toBe($('openHistory'));
   });
 
-  test('renders sanitized local history without using stored tab markup', () => {
+  test('renders sanitized local history with relative times', async () => {
+    jest.setSystemTime(new Date('2026-01-01T02:00:00.000Z'));
     executePopupJs({
       history: [{
         timestamp: '2026-01-01T00:00:00.000Z',
@@ -450,106 +501,163 @@ describe('Popup controller', () => {
         failedCount: 1,
         skippedCount: 1,
         cancelled: false
-      }]
-    });
-
-    expect(chrome.storage.local.get).toHaveBeenCalledWith(['refreshHistory'], expect.any(Function));
-    expect(document.getElementById('historyContent').textContent)
-      .toContain('2 of 4 reloaded; 1 failed, 1 skipped');
-    expect(document.getElementById('historyContent').querySelector('script')).toBeNull();
-  });
-
-  test('labels an interrupted run in history', () => {
-    executePopupJs({
-      history: [{
-        timestamp: '2026-01-01T00:00:00.000Z',
+      }, {
+        timestamp: '2025-12-31T02:00:00.000Z',
+        totalTabs: 1,
+        successfulTabs: 1,
+        singleTab: true
+      }, {
+        timestamp: '<img src=x onerror=alert(1)>',
         totalTabs: 5,
         successfulTabs: 2,
-        failedCount: 0,
-        skippedCount: 0,
-        cancelled: false,
         interrupted: true
       }]
     });
+    await settle();
+    $('openHistory').click();
 
-    expect(document.getElementById('historyContent').textContent)
-      .toContain('Interrupted: 2 of 5 reloaded');
+    const rows = [...$('historyList').children].map(row => row.textContent);
+    expect(rows).toEqual([
+      '2 of 4 reloaded2 hours ago1 failed, 1 skipped',
+      '1 of 1 reloadedyesterdayThis tab',
+      'Interrupted: 2 of 5 reloadedUnknown dateInterrupted before the end'
+    ]);
+    expect($('historyList').querySelector('img')).toBeNull();
+    expect($('metaHistory').textContent).toBe('2 hours ago');
+    expect($('readySub').textContent).toBe('Last reload 2 hours ago: 2 of 4 reloaded');
   });
 
-  test('shows the statistics section without page access so the hint is visible', async () => {
-    executePopupJs({ siteAccess: false });
-    await flushPromises();
-    expect(document.getElementById('statsContainer').style.display).toBe('block');
-    expect(document.getElementById('statsAccessHint').style.display).toBe('block');
-  });
-
-  test('hides absent statistics and renders five localized totals when seeded', async () => {
-    jest.useFakeTimers();
+  test('shows estimates for the measured totals', async () => {
     jest.setSystemTime(new Date(2026, 7, 24, 12));
-    executePopupJs();
-    await flushPromises();
-    expect(document.getElementById('statsContainer').style.display).toBe('none');
-
     executePopupJs({
       cacheStats: {
         lastRun: 1536,
         total: 10 * 1024 * 1024,
-        days: {
-          '2026-08-24': 2048,
-          '2026-08-23': 3072,
-          '2026-08-22': 4096,
-          '2026-08-01': 1024
-        }
+        days: { '2026-08-24': 2048, '2026-08-23': 3072, '2026-08-22': 4096, '2026-08-01': 1024 }
       }
     });
+    await settle();
 
-    expect(document.getElementById('statsContainer').style.display).toBe('block');
-    expect(document.querySelector('#statsToday .stat-label').textContent).toBe('Today');
-    expect(document.querySelector('#statsToday .stat-caveat').textContent).toBe('at least');
-    expect(document.querySelector('#statsToday .stat-value').textContent).toBe('2.0 KB');
-    expect(document.querySelector('#statsLastRun .stat-label').textContent).toBe('Last reload');
-    expect(document.querySelector('#statsLastRun .stat-caveat').textContent).toBe('at least');
-    expect(document.querySelector('#statsLastRun .stat-value').textContent).toBe('1.5 KB');
-    expect(document.querySelector('#statsWeek .stat-label').textContent).toBe('Last 7 days');
-    expect(document.querySelector('#statsWeek .stat-caveat').textContent).toBe('at least');
-    expect(document.querySelector('#statsWeek .stat-value').textContent).toBe('9.0 KB');
-    expect(document.querySelector('#statsMonth .stat-label').textContent).toBe('Last 30 days');
-    expect(document.querySelector('#statsMonth .stat-caveat').textContent).toBe('at least');
-    expect(document.querySelector('#statsMonth .stat-value').textContent).toBe('10.0 KB');
-    expect(document.querySelector('#statsTotal .stat-label').textContent).toBe('All time');
-    expect(document.querySelector('#statsTotal .stat-caveat').textContent).toBe('at least');
-    expect(document.querySelector('#statsTotal .stat-value').textContent).toBe('10.0 MB');
-    jest.useRealTimers();
+    expect($('statsToday').textContent).toBe('about2.0 KB');
+    expect($('statsLastRun').textContent).toBe('about1.5 KB');
+    expect($('statsWeek').textContent).toBe('about9.0 KB');
+    expect($('statsMonth').textContent).toBe('about10.0 KB');
+    expect($('statsTotal').textContent).toBe('10.0 MB');
+    expect($('metaFiles').textContent).toBe('≈ 10.0 MB');
   });
 
-  test('resets locally measured saved-file figures with one click', () => {
-    executePopupJs();
+  test('resets statistics and Undo brings them back, keeping bytes measured since', async () => {
+    const onMessage = executePopupJs({ cacheStats: { lastRun: 10, total: 100, days: { '2026-08-24': 100 } } });
+    await settle();
+    $('openSettings').click();
 
-    document.getElementById('resetStats').click();
+    $('resetStats').click();
+    expect(onMessage.storage.cacheStats).toBeUndefined();
+    expect($('undoReset').hidden).toBe(false);
 
-    expect(chrome.storage.local.remove).toHaveBeenCalledWith(
-      ['cacheStats'],
+    onMessage.storage.cacheStats = { lastRun: 5, total: 5, days: { '2026-08-24': 5 } };
+    $('undoResetButton').click();
+
+    expect(onMessage.storage.cacheStats).toEqual({ lastRun: 5, total: 105, days: { '2026-08-24': 105 } });
+    expect($('undoReset').hidden).toBe(true);
+  });
+
+  test('the Undo offer ends after six seconds', async () => {
+    executePopupJs({ cacheStats: { lastRun: 10, total: 100, days: {} } });
+    await settle();
+
+    $('resetStats').click();
+    await settle(6000);
+
+    expect($('undoReset').hidden).toBe(true);
+    expect($('resetStats').hidden).toBe(false);
+  });
+
+  test('shows measured stale bytes on completion and clears them on the next run', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(1) });
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1, staleBytes: 2048 } });
+    await settle(2000);
+
+    expect($('footDone').textContent)
+      .toBe('About 2.0 KB came from copies Chrome saved earlier and will be downloaded again.');
+
+    onMessage({ action: 'refreshStarted', tabs: tabs(1) });
+    expect($('footDone').textContent).toBe('');
+  });
+
+  test('offers this tab by its site and reloads only that tab', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+
+    expect($('refreshThisTab').disabled).toBe(false);
+    expect($('thisTabSite').textContent).toBe('youtube.com');
+    expect($('thisTabNote').textContent).toBe('Skips the cache. Videos pick up where they left off.');
+
+    $('refreshThisTab').click();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'startRefresh', incognito: false, tabId: 7 },
       expect.any(Function)
     );
+
+    onMessage({ action: 'refreshStarted', singleTab: true, tabs: [{ id: 7, title: 'Lofi', url: 'https://www.youtube.com/watch?v=abc' }] });
+    expect(state()).toBe('tab-running');
+    expect($('tabSiteBig').textContent).toBe('youtube.com');
+    expect($('trackText').textContent).toBe('Reloading this tab…');
+
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1, singleTab: true, staleBytes: 0 } });
+    await settle(3000);
+    expect(state()).toBe('tab-done');
+    expect($('doneTitle').textContent).toBe('Reloaded youtube.com');
+    expect(getContext).not.toHaveBeenCalled();
   });
 
-  test('shows measured stale bytes on completion and hides zero on the next run', () => {
+  test('a cancelled single-tab reload names the site it stopped waiting for', async () => {
     const onMessage = executePopupJs();
+    await settle();
+    $('refreshThisTab').click();
+    onMessage({ action: 'refreshStarted', singleTab: true, tabs: [{ id: 7, url: 'https://www.youtube.com/watch?v=abc' }] });
 
-    onMessage({
-      action: 'refreshComplete', success: true,
-      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1, staleBytes: 2048 }
-    });
-    expect(document.getElementById('statsRunLine').style.display).toBe('block');
-    expect(document.getElementById('statsRunLine').textContent)
-      .toBe('At least 2.0 KB came from copies Chrome saved earlier and will now be downloaded again.');
+    $('cancelTab').click();
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 1, processedTabs: 0, successfulTabs: 0, cancelled: true, singleTab: true } });
 
-    onMessage({ action: 'refreshStarted', tabs: [{ id: 1, title: 'Next' }] });
-    onMessage({
-      action: 'refreshComplete', success: true,
-      details: { totalTabs: 1, processedTabs: 1, successfulTabs: 1, staleBytes: 0 }
-    });
-    expect(document.getElementById('statsRunLine').style.display).toBe('none');
-    expect(document.getElementById('statsRunLine').textContent).toBe('');
+    expect(state()).toBe('tab-stopped');
+    expect($('stopTitle').textContent).toBe('Stopped waiting for youtube.com.');
+  });
+
+  test.each([
+    'chrome://extensions/',
+    'about:blank',
+    'chrome-extension://abc/popup.html'
+  ])('this-tab action is disabled with a reason on %s', async url => {
+    executePopupJs({ activeTab: { id: 3, title: 'Browser page', url } });
+    await settle();
+
+    expect($('refreshThisTab').disabled).toBe(true);
+    expect($('thisTabSite').textContent).toBe('');
+    expect($('thisTabNote').textContent).toBe('Chrome protects this page, so it cannot be reloaded from here.');
+  });
+
+  test('this-tab action stays enabled on the Web Store, which the worker reloads too', async () => {
+    executePopupJs({ activeTab: { id: 4, title: 'Store', url: 'https://chromewebstore.google.com/detail/x' } });
+    await settle();
+
+    expect($('refreshThisTab').disabled).toBe(false);
+    expect($('thisTabSite').textContent).toBe('chromewebstore.google.com');
+  });
+
+  test('does not activate stress mode after five settings clicks', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => false);
+    executePopupJs();
+    await settle();
+
+    for (let index = 0; index < 5; index++) {
+      $('openSettings').click();
+      $('back').click();
+    }
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

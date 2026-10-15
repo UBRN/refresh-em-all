@@ -47,59 +47,84 @@
     "message": "Could not start: $ERROR$",
     "description": "Status shown when the refresh could not be started.",
     "placeholders": {
-      "error": { "content": "$1", "example": "No tabs available to refresh" }
+      "error": {
+        "content": "$1",
+        "example": "No tabs available to refresh"
+      }
     }
   },
   "statusProcessedInitial": {
     "message": "0 of $TOTAL$ tabs done…",
     "description": "Status shown right after the tab list is known and before any tab is processed.",
     "placeholders": {
-      "total": { "content": "$1", "example": "8" }
-    }
-  },
-  "statusProgress": {
-    "message": "$PROCESSED$ of $TOTAL$: $REFRESHED$ reloaded, $FAILED$ failed, $SKIPPED$ skipped",
-    "description": "Live progress status during a refresh.",
-    "placeholders": {
-      "processed": { "content": "$1", "example": "4" },
-      "total": { "content": "$2", "example": "8" },
-      "refreshed": { "content": "$3", "example": "3" },
-      "failed": { "content": "$4", "example": "0" },
-      "skipped": { "content": "$5", "example": "1" }
+      "total": {
+        "content": "$1",
+        "example": "8"
+      }
     }
   },
   "statusCancelled": {
     "message": "Stopped after $PROCESSED$ of $TOTAL$ tabs.",
     "description": "Final status after the user cancelled the refresh.",
     "placeholders": {
-      "processed": { "content": "$1", "example": "4" },
-      "total": { "content": "$2", "example": "8" }
+      "processed": {
+        "content": "$1",
+        "example": "4"
+      },
+      "total": {
+        "content": "$2",
+        "example": "8"
+      }
     }
   },
   "statusCompleteMixed": {
     "message": "$PROCESSED$ of $TOTAL$ done: $REFRESHED$ reloaded, $FAILED$ failed, $SKIPPED$ skipped.",
     "description": "Final status when at least one tab failed.",
     "placeholders": {
-      "processed": { "content": "$1", "example": "8" },
-      "total": { "content": "$2", "example": "8" },
-      "refreshed": { "content": "$3", "example": "6" },
-      "failed": { "content": "$4", "example": "1" },
-      "skipped": { "content": "$5", "example": "1" }
+      "processed": {
+        "content": "$1",
+        "example": "8"
+      },
+      "total": {
+        "content": "$2",
+        "example": "8"
+      },
+      "refreshed": {
+        "content": "$3",
+        "example": "6"
+      },
+      "failed": {
+        "content": "$4",
+        "example": "1"
+      },
+      "skipped": {
+        "content": "$5",
+        "example": "1"
+      }
     }
   },
   "statusCompleteSkipped": {
     "message": "Reloaded $REFRESHED$ tabs. Skipped $SKIPPED$.",
     "description": "Final status when nothing failed but some tabs were skipped.",
     "placeholders": {
-      "refreshed": { "content": "$1", "example": "6" },
-      "skipped": { "content": "$2", "example": "2" }
+      "refreshed": {
+        "content": "$1",
+        "example": "6"
+      },
+      "skipped": {
+        "content": "$2",
+        "example": "2"
+      }
     }
   },
   "statusCompleteAll": {
     "message": "All $REFRESHED$ tabs reloaded.",
     "description": "Final status when Chrome accepted a reload for every tab.",
     "placeholders": {
-      "refreshed": { "content": "$1", "example": "8" }
+      "refreshed": {
+        "content": "$1",
+        "example": "8"
+      }
     }
   },
   "statusInterrupted": {
@@ -122,23 +147,20 @@
     "message": "Failed to refresh $COUNT$ tab.",
     "description": "Error box heading when exactly one tab failed.",
     "placeholders": {
-      "count": { "content": "$1", "example": "1" }
+      "count": {
+        "content": "$1",
+        "example": "1"
+      }
     }
   },
   "errorFailedSummaryOther": {
     "message": "Failed to refresh $COUNT$ tabs.",
     "description": "Error box heading when two or more tabs failed.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
-    }
-  },
-  "errorTabLine": {
-    "message": "$INDEX$. $TITLE$: $ERROR$",
-    "description": "One line of the per-tab failure list.",
-    "placeholders": {
-      "index": { "content": "$1", "example": "1" },
-      "title": { "content": "$2", "example": "Example page" },
-      "error": { "content": "$3", "example": "Failed to reload tab" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "errorNoTabDetails": {
@@ -149,34 +171,6 @@
     "message": "Tab",
     "description": "Placeholder name for a tab with no title."
   },
-  "tabAriaLabel": {
-    "message": "$TITLE$: $STATUS$",
-    "description": "Accessible name of one tab indicator square.",
-    "placeholders": {
-      "title": { "content": "$1", "example": "Example page" },
-      "status": { "content": "$2", "example": "refreshed" }
-    }
-  },
-  "tabStatusPending": {
-    "message": "pending",
-    "description": "Tab indicator state: not processed yet."
-  },
-  "tabStatusSuccess": {
-    "message": "reloaded",
-    "description": "Tab indicator state: Chrome accepted the reload."
-  },
-  "tabStatusError": {
-    "message": "reload failed",
-    "description": "Tab indicator state: refresh failed."
-  },
-  "tabStatusSkipped": {
-    "message": "skipped",
-    "description": "Tab indicator state: the tab was skipped."
-  },
-  "historyToggle": {
-    "message": "Show Recent Reloads",
-    "description": "Button that expands the local refresh history."
-  },
   "historyUnknownDate": {
     "message": "Unknown date",
     "description": "Shown when a history entry has an unreadable timestamp."
@@ -185,26 +179,50 @@
     "message": "Stopped: $REFRESHED$ of $TOTAL$ reloaded",
     "description": "History line for a cancelled refresh.",
     "placeholders": {
-      "refreshed": { "content": "$1", "example": "3" },
-      "total": { "content": "$2", "example": "8" }
+      "refreshed": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "8"
+      }
     }
   },
   "historyEntryInterrupted": {
     "message": "Interrupted: $REFRESHED$ of $TOTAL$ reloaded",
     "description": "History line for a refresh that stopped because the extension's background worker stopped before it finished.",
     "placeholders": {
-      "refreshed": { "content": "$1", "example": "3" },
-      "total": { "content": "$2", "example": "8" }
+      "refreshed": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "8"
+      }
     }
   },
   "historyEntrySummary": {
     "message": "$REFRESHED$ of $TOTAL$ reloaded; $FAILED$ failed, $SKIPPED$ skipped",
     "description": "History line for a completed refresh.",
     "placeholders": {
-      "refreshed": { "content": "$1", "example": "6" },
-      "total": { "content": "$2", "example": "8" },
-      "failed": { "content": "$3", "example": "0" },
-      "skipped": { "content": "$4", "example": "2" }
+      "refreshed": {
+        "content": "$1",
+        "example": "6"
+      },
+      "total": {
+        "content": "$2",
+        "example": "8"
+      },
+      "failed": {
+        "content": "$3",
+        "example": "0"
+      },
+      "skipped": {
+        "content": "$4",
+        "example": "2"
+      }
     }
   },
   "statsToggle": {
@@ -231,15 +249,14 @@
     "message": "All time",
     "description": "Label for the all-time measured byte total."
   },
-  "statsAtLeastPrefix": {
-    "message": "at least",
-    "description": "Small qualifier shown before a lower-bound cache statistic value."
-  },
   "statsRunLine": {
-    "message": "At least $SIZE$ came from copies Chrome saved earlier and will now be downloaded again.",
+    "message": "About $SIZE$ came from copies Chrome saved earlier and will be downloaded again.",
     "description": "Completion line showing files measured from copies Chrome saved earlier during the latest reload.",
     "placeholders": {
-      "size": { "content": "$1", "example": "12.4 MB" }
+      "size": {
+        "content": "$1",
+        "example": "12.4 MB"
+      }
     }
   },
   "statsResetAction": {
@@ -247,7 +264,7 @@
     "description": "Button that clears locally stored cache statistics."
   },
   "statsNote": {
-    "message": "Every figure is at least the amount shown. The real number is higher because some files do not tell the page their size, and Chrome keeps only a limited number of the page's load records. Refresh Em All measures these figures in your browser and sends them nowhere.",
+    "message": "Every figure is an estimate, and the real amount is usually higher: some files do not tell the page their size, and Chrome keeps only a limited number of the page's load records. Refresh Em All measures these figures in your browser and sends them nowhere.",
     "description": "Privacy and measurement-limit note below the cache statistics."
   },
   "permissionGrantAction": {
@@ -302,11 +319,262 @@
     "message": "Timed out refreshing tab after $SECONDS$ seconds",
     "description": "Reason recorded when a single tab refresh exceeded its time budget.",
     "placeholders": {
-      "seconds": { "content": "$1", "example": "30" }
+      "seconds": {
+        "content": "$1",
+        "example": "30"
+      }
     }
   },
   "errorTabRefreshFailed": {
     "message": "Unable to refresh this tab",
     "description": "Fallback per-tab failure reason sent to the popup."
+  },
+  "heroReadyTitle": {
+    "message": "Every tab, fresh.",
+    "description": "Headline of the ready state."
+  },
+  "heroReadySub": {
+    "message": "Across all your windows",
+    "description": "Line under the ready headline when there is no earlier reload."
+  },
+  "heroReadySubIncognito": {
+    "message": "Across your incognito windows",
+    "description": "Line under the ready headline in an incognito window, where a run covers only incognito tabs."
+  },
+  "heroLastRun": {
+    "message": "Last reload $WHEN$: $REFRESHED$ of $TOTAL$ reloaded",
+    "description": "Line under the ready headline summarizing the latest reload. WHEN is a relative time from the browser, such as '2 hours ago'.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "2 hours ago"
+      },
+      "refreshed": {
+        "content": "$2",
+        "example": "6"
+      },
+      "total": {
+        "content": "$3",
+        "example": "8"
+      }
+    }
+  },
+  "askTitle": {
+    "message": "Keep videos where you left them?",
+    "description": "Question shown on the first refresh before Chrome's permission dialog."
+  },
+  "askSub": {
+    "message": "Optional. You can change this later.",
+    "description": "Line under the first-run question."
+  },
+  "askAllow": {
+    "message": "Allow and refresh",
+    "description": "First-run button: opens Chrome's permission dialog, then reloads."
+  },
+  "askSkip": {
+    "message": "Just refresh",
+    "description": "First-run button: reloads without asking for the permission."
+  },
+  "runCountOf": {
+    "message": "of $TOTAL$ tabs",
+    "description": "Text after the large count of finished tabs while a reload runs.",
+    "placeholders": {
+      "total": {
+        "content": "$1",
+        "example": "40"
+      }
+    }
+  },
+  "footRunning": {
+    "message": "You can close this window. Reloading continues.",
+    "description": "Note shown while a reload runs."
+  },
+  "chipReloaded": {
+    "message": "reloaded",
+    "description": "Label after the number of reloaded tabs."
+  },
+  "chipFailed": {
+    "message": "failed",
+    "description": "Label after the number of failed tabs."
+  },
+  "chipSkipped": {
+    "message": "skipped",
+    "description": "Label after the number of skipped tabs."
+  },
+  "statusCompleteAllOne": {
+    "message": "1 tab reloaded.",
+    "description": "Final status when the only tab in the run reloaded."
+  },
+  "statusMilestone": {
+    "message": "$PROCESSED$ of $TOTAL$ tabs done",
+    "description": "Screen reader announcement at each quarter of a reload.",
+    "placeholders": {
+      "processed": {
+        "content": "$1",
+        "example": "10"
+      },
+      "total": {
+        "content": "$2",
+        "example": "40"
+      }
+    }
+  },
+  "doneSubFresh": {
+    "message": "Fresh files, same site data.",
+    "description": "Line under the completion title."
+  },
+  "doneSubSkipped": {
+    "message": "Browser pages cannot be reloaded by extensions.",
+    "description": "Line under the completion title when browser pages were skipped."
+  },
+  "stoppedSub": {
+    "message": "Tabs already reloaded stay reloaded.",
+    "description": "Line under the stopped title."
+  },
+  "actionBack": {
+    "message": "Back",
+    "description": "Accessible name of the back button in a sub view."
+  },
+  "moreNavLabel": {
+    "message": "More",
+    "description": "Accessible name of the list of secondary views."
+  },
+  "historyTitle": {
+    "message": "Recent reloads",
+    "description": "Row and view title for the reload history."
+  },
+  "historyEmpty": {
+    "message": "No reloads yet",
+    "description": "Shown when there is no reload history."
+  },
+  "historyEntryReloaded": {
+    "message": "$REFRESHED$ of $TOTAL$ reloaded",
+    "description": "History row title for a finished reload.",
+    "placeholders": {
+      "refreshed": {
+        "content": "$1",
+        "example": "6"
+      },
+      "total": {
+        "content": "$2",
+        "example": "8"
+      }
+    }
+  },
+  "historyEntryDetail": {
+    "message": "$FAILED$ failed, $SKIPPED$ skipped",
+    "description": "History row detail for a finished reload.",
+    "placeholders": {
+      "failed": {
+        "content": "$1",
+        "example": "0"
+      },
+      "skipped": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "historyEntryStoppedDetail": {
+    "message": "Stopped before the end",
+    "description": "History row detail for a cancelled reload."
+  },
+  "historyEntryInterruptedDetail": {
+    "message": "Interrupted before the end",
+    "description": "History row detail for an interrupted reload."
+  },
+  "settingsAccessTitle": {
+    "message": "Page reading",
+    "description": "Settings card title for the optional permission."
+  },
+  "settingsAccessOn": {
+    "message": "Page reading on",
+    "description": "Settings row summary when the permission is granted."
+  },
+  "settingsAccessOff": {
+    "message": "Page reading off",
+    "description": "Settings row summary when the permission is not granted."
+  },
+  "pillOn": {
+    "message": "On",
+    "description": "Small status label: permission granted."
+  },
+  "pillOff": {
+    "message": "Off",
+    "description": "Small status label: permission not granted."
+  },
+  "settingsStatsTitle": {
+    "message": "Statistics",
+    "description": "Settings card title for the statistics reset."
+  },
+  "settingsStatsExplain": {
+    "message": "Clears the figures under Files Downloaded Again. History stays.",
+    "description": "Explains what Reset statistics clears."
+  },
+  "statsResetDone": {
+    "message": "Statistics reset.",
+    "description": "Confirmation after Reset statistics, next to Undo."
+  },
+  "actionUndo": {
+    "message": "Undo",
+    "description": "Button that restores the statistics just reset."
+  },
+  "statsApproxPrefix": {
+    "message": "about",
+    "description": "Small qualifier shown before an estimated cache statistic value."
+  },
+  "refreshThisTab": {
+    "message": "Refresh only this tab",
+    "description": "Secondary button that reloads only the active tab."
+  },
+  "refreshThisTabHint": {
+    "message": "Skips the cache. Videos pick up where they left off.",
+    "description": "Short line under Refresh only this tab."
+  },
+  "thisTabUnavailable": {
+    "message": "Chrome protects this page, so it cannot be reloaded from here.",
+    "description": "Reason shown when the active tab is a browser page an extension cannot reload."
+  },
+  "thisTabLabel": {
+    "message": "This tab",
+    "description": "Label above the site name while only the active tab reloads, and in history."
+  },
+  "statusThisTab": {
+    "message": "Reloading this tab…",
+    "description": "Progress text while only the active tab reloads."
+  },
+  "statusThisTabDone": {
+    "message": "Reloaded $SITE$",
+    "description": "Final status after only the active tab reloaded. SITE is a host name.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "youtube.com"
+      }
+    }
+  },
+  "statusThisTabStopped": {
+    "message": "Stopped waiting for $SITE$.",
+    "description": "Final status after the user cancelled a single-tab reload. SITE is a host name.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "youtube.com"
+      }
+    }
+  },
+  "statusThisTabStoppedSub": {
+    "message": "The page may still finish loading.",
+    "description": "Line under the stopped single-tab status."
+  },
+  "statusThisTabSkipped": {
+    "message": "$SITE$ could not be reloaded.",
+    "description": "Final status when the active tab closed or became a browser page before it reloaded. SITE is a host name.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "youtube.com"
+      }
+    }
   }
 }
