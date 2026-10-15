@@ -30,6 +30,8 @@ let currentGeneration = Date.now();
 let finalizeQueue = Promise.resolve();
 let batchTimeoutId = null;
 let staleBytesThisRun = 0;
+// True when the run covers only the tab the popup was opened over.
+let singleTabRun = false;
 let hasSiteAccess = false;
 
 // Tabs the extension just reloaded that are still waiting for media restoration.
@@ -44,6 +46,8 @@ const MAX_RETRIES = 2; // Number of retries for failed tab refreshes
 const BATCH_INTERVAL = 250; // ms between batches
 const MAX_LOADING_WAIT_MS = 10000;
 const MAX_TAB_REFRESH_MS = 30000;
+// A page that never answers the media capture still gets reloaded, just without it.
+const MEDIA_CAPTURE_TIMEOUT_MS = 3000;
 
 function isStaleGeneration(generation) {
     return generation !== currentGeneration || operationFinalized;
@@ -151,9 +155,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Normal and incognito tabs stay apart: a run covers only the tabs of the
         // same kind as the window the popup was opened from.
         const incognito = message.incognito === true;
+        // With a tab id the run covers that one tab and takes the same lock,
+        // cancel, history and statistics path as a run over every tab.
+        const tabId = Number.isInteger(message.tabId) ? message.tabId : null;
+        singleTabRun = tabId !== null;
 
         chrome.tabs.query({}, (tabs) => {
-            initializeAndStartRefresh(tabs, sendResponse, generation, incognito).catch(error => {
+            const scope = tabId === null || !Array.isArray(tabs)
+                ? tabs
+                : tabs.filter(tab => tab.id === tabId);
+            initializeAndStartRefresh(scope, sendResponse, generation, incognito).catch(error => {
                 console.error('[Refresh Em All] Refresh start failed:', error);
                 endRefreshOperation(false, generation);
             });
@@ -214,6 +225,7 @@ function getOperationSnapshot() {
         skippedTabIds: skippedTabs,
         currentTabs: tabsToRefresh,
         tabStatuses,
+        singleTab: singleTabRun,
         cancelled: operationCancelled,
         startTime: startTime ? startTime.toISOString() : null,
         staleBytes: staleBytesThisRun,
@@ -278,6 +290,7 @@ function recordInterruptedOperation() {
             ? stored.skippedTabIds.filter(Number.isInteger)
             : [];
         staleBytesThisRun = Number.isFinite(stored.staleBytes) ? stored.staleBytes : 0;
+        singleTabRun = stored.singleTab === true;
         const restoredStartTime = new Date(stored.startTime);
         if (stored.startTime && !Number.isNaN(restoredStartTime.getTime())) startTime = restoredStartTime;
         // A cancel that was accepted before the worker stopped is a cancellation, not an interruption.
@@ -301,6 +314,7 @@ function recordInterruptedOperation() {
                 refreshedTabs,
                 failedTabs: failedTabs.length,
                 skippedTabs: skippedTabs.length,
+                singleTab: singleTabRun,
                 lastUpdated: new Date().toISOString()
             }
         }, () => {
@@ -357,6 +371,7 @@ async function initializeAndStartRefresh(tabs, sendResponse, generation, incogni
     chrome.runtime.sendMessage({
         action: 'refreshStarted',
         generation,
+        singleTab: singleTabRun,
         tabs: tabsToRefresh
     }).catch(() => {
         // Popup might be closed
@@ -403,11 +418,10 @@ function startRefreshOperation() {
     skippedTabs = [];
     tabStatuses = {};
     staleBytesThisRun = 0;
+    singleTabRun = false;
     startTime = new Date();
 
-    // No icon swap here: these are the same colorful icons the manifest already
-    // declares as action.default_icon, so setting them changed nothing. The badge
-    // below is what actually signals that a refresh is running.
+    // No icon swap here: the badge below is what signals that a refresh is running.
 
     // Update badge to show progress
     chrome.action.setBadgeBackgroundColor({ color: "#4285f4" });
@@ -434,6 +448,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
         failedCount: failedTabs.length,
         skippedCount: skippedTabs.length,
         cancelled: operationCancelled,
+        singleTab: singleTabRun,
         staleBytes: staleBytesThisRun
     };
 
@@ -446,6 +461,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
         cancelled: operationCancelled
     };
     if (interrupted) historyEntry.interrupted = true;
+    if (singleTabRun) historyEntry.singleTab = true;
 
     // Everything below runs inside storage callbacks, by which point a refresh
     // started right after this one may already have reset the shared state.
@@ -741,11 +757,25 @@ function isRestrictedTabUrl(url) {
 // Helper function to preserve state and refresh a normal tab
 function preserveStateAndRefreshTab(tab, retryCount, resolve, attempt) {
     // Try to save media state before refreshing, but handle errors gracefully.
+    // A busy or hung page can hold the capture callback for the whole per-tab
+    // timeout; after MEDIA_CAPTURE_TIMEOUT_MS the tab reloads without it, and a
+    // late answer is ignored.
+    let captureSettled = false;
+    const captureTimeoutId = setTimeout(() => {
+        captureSettled = true;
+        basicReload(tab, retryCount, resolve, attempt);
+    }, MEDIA_CAPTURE_TIMEOUT_MS);
     try {
         chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: preserveMediaState
         }, (injectionResults) => {
+            if (captureSettled) {
+                void chrome.runtime.lastError;
+                return;
+            }
+            captureSettled = true;
+            clearTimeout(captureTimeoutId);
             if (isStaleAttempt(attempt)) {
                 resolve('skipped');
                 return;
@@ -794,6 +824,8 @@ function preserveStateAndRefreshTab(tab, retryCount, resolve, attempt) {
             });
         });
     } catch (error) {
+        captureSettled = true;
+        clearTimeout(captureTimeoutId);
         basicReload(tab, retryCount, resolve, attempt);
     }
 }

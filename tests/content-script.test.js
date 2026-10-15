@@ -77,6 +77,18 @@ describe('Content-script media restoration', () => {
     expect(sessionStorage.removeItem).toHaveBeenCalledWith('refreshEmAllMediaState');
   });
 
+  test('leaves autoplay alone for media that was paused before it ever started', () => {
+    const { video } = prepareMedia();
+    executeContentScript(JSON.stringify({
+      video_0: { paused: true, currentTime: 0, src: 'https://example.com/video.mp4', volume: 0.5 }
+    }));
+
+    expect(video.volume).toBe(0.5);
+    expect(video.pause).not.toHaveBeenCalled();
+    video.dispatchEvent(new Event('play'));
+    expect(video.pause).not.toHaveBeenCalled();
+  });
+
   test('waits for metadata before restoring current time', () => {
     document.body.innerHTML = '<audio></audio>';
     const audio = document.querySelector('audio');

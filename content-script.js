@@ -36,6 +36,9 @@
 
     function restorePlayback(media, savedState) {
         if (savedState.paused) {
+            // Paused at the very start means the user never played it: leave the
+            // page's own autoplay alone instead of holding it paused.
+            if (!(Number(savedState.currentTime) > 0)) return;
             media.pause();
 
             const keepPaused = () => media.pause();
