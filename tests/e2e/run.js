@@ -4,6 +4,7 @@ const {
   captureFailureDiagnostics,
   createHarness,
   createPhaseTimer,
+  runPool,
   ensureOutputDirectory,
   writeJson
 } = require('./harness');
@@ -30,18 +31,21 @@ const TEST_CASES = [
         await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
         await popup.click('#refreshAll');
         await popup.waitForFunction(async () => {
-          const status = document.querySelector('#statusText')?.textContent || '';
+          if (!['done', 'failed'].includes(document.body.dataset.state)) return false;
+          const status = document.body.dataset.state === 'done'
+            ? document.querySelector('#doneTitle')?.textContent
+            : document.querySelector('#failTitle')?.textContent;
           const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
           const latest = refreshHistory[0];
           if (!latest || latest.cancelled) return false;
 
           const key = latest.failedCount > 0
-            ? 'statusCompleteMixed'
+            ? (latest.failedCount === 1 ? 'errorFailedSummaryOne' : 'errorFailedSummaryOther')
             : latest.skippedCount > 0
               ? 'statusCompleteSkipped'
               : 'statusCompleteAll';
-          const substitutions = key === 'statusCompleteMixed'
-            ? [latest.totalTabs, latest.totalTabs, latest.successfulTabs, latest.failedCount, latest.skippedCount]
+          const substitutions = latest.failedCount > 0
+            ? [latest.failedCount]
             : key === 'statusCompleteSkipped'
               ? [latest.successfulTabs, latest.skippedCount]
               : [latest.successfulTabs];
@@ -64,21 +68,21 @@ const TEST_CASES = [
             const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
             const latestHistory = refreshHistory[0];
             return {
-              status: document.querySelector('#statusText')?.textContent || '',
+              status: document.querySelector('#doneTitle')?.textContent || '',
               expectedStatus: chrome.i18n.getMessage('statusCompleteSkipped', [
                 String(latestHistory?.successfulTabs || 0),
                 String(latestHistory?.skippedCount || 0)
               ]),
-              progress: document.querySelector('#progressFill')?.style.width || '',
-              successIndicators: document.querySelectorAll('.tab-success[style*="display: block"]').length,
-              skippedIndicators: document.querySelectorAll('.tab-skipped[style*="display: block"]').length,
+              progress: document.querySelector('#progressBar')?.getAttribute('aria-valuenow') || '',
+              successIndicators: document.querySelectorAll('#tabDots .dot[data-status="success"]').length,
+              skippedIndicators: document.querySelectorAll('#tabDots .dot[data-status="skipped"]').length,
               latestHistory
             };
           })
         ]);
 
         if (loadsA !== 2 || loadsB !== 2) throw new Error('One or more real pages did not reload exactly once');
-        if (popupState.progress !== '100%') throw new Error(`Expected 100% progress, got ${popupState.progress}`);
+        if (popupState.progress !== '100') throw new Error(`Expected 100% progress, got ${popupState.progress}`);
         if (popupState.status !== popupState.expectedStatus) throw new Error(`Skipped pages were not reported: ${popupState.status}`);
         if (popupState.successIndicators !== 2) throw new Error(`Expected 2 success indicators, got ${popupState.successIndicators}`);
         if (popupState.skippedIndicators < 1) throw new Error('Expected at least one skipped indicator');
@@ -145,15 +149,97 @@ const TEST_CASES = [
     }
   },
   {
+    name: 'reloads only the active tab from the toolbar popup',
+    run: async (harness, testName) => {
+      const pageA = harness.attachPage(await harness.browser.newPage(), 'single-tab-page-a');
+      const pageB = harness.attachPage(await harness.browser.newPage(), 'single-tab-page-b');
+      let popup;
+
+      try {
+        await Promise.all([
+          pageA.goto(`${harness.baseUrl}/a`),
+          pageB.goto(`${harness.baseUrl}/b`)
+        ]);
+        await pageB.bringToFront();
+        // The real popup, not popup.html in a tab: only there is the page the user
+        // looks at the active tab of the current window.
+        popup = await openToolbarPopup(harness);
+        await popup.waitForSelector('#refreshThisTab:not([disabled])', { timeout: 15000 });
+        const site = await popup.$eval('#thisTabSite', element => element.textContent);
+        if (site !== new URL(harness.baseUrl).hostname) throw new Error(`This-tab action names ${site}`);
+
+        // Chrome closes the popup as soon as the tab under it reloads; the toolbar
+        // badge carries the result instead.
+        await popup.click('#refreshThisTab');
+        await pageB.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) >= 2, { timeout: 15000 });
+        const badge = await waitForBadge(harness, text => text === '\u2713');
+
+        const [loadsA, loadsB, latest] = await Promise.all([
+          pageA.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
+          pageB.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
+          harness.controlPage.evaluate(async () => (await chrome.storage.local.get(['refreshHistory'])).refreshHistory?.[0])
+        ]);
+        if (badge !== '\u2713') throw new Error(`Unexpected toolbar badge: ${badge}`);
+        if (loadsB !== 2) throw new Error(`The active tab loaded ${loadsB} times`);
+        if (loadsA !== 1) throw new Error(`A background tab reloaded: ${loadsA} loads`);
+        if (!latest?.singleTab || latest.totalTabs !== 1 || latest.successfulTabs !== 1) {
+          throw new Error(`Unexpected history entry: ${JSON.stringify(latest)}`);
+        }
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, harness.controlPage, [pageA, pageB]);
+        throw error;
+      } finally {
+        await popup?.close().catch(() => {});
+        await Promise.all([pageA.close(), pageB.close()]);
+      }
+    }
+  },
+  {
+    name: 'reloads the tab under the toolbar popup last and shows the result on the badge',
+    run: async (harness, testName) => {
+      const pages = await Promise.all(['/a', '/b', '/c'].map(async (pathname, index) => {
+        const page = harness.attachPage(await harness.browser.newPage(), `active-last-${index}`);
+        await page.goto(`${harness.baseUrl}${pathname}`);
+        return page;
+      }));
+      let popup;
+
+      try {
+        await pages[0].bringToFront();
+        popup = await openToolbarPopup(harness);
+        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
+        await popup.click('#refreshAll');
+        await runPool(pages, 3, page => page.waitForFunction(
+          () => Number(sessionStorage.refreshAuditLoads) >= 2,
+          { timeout: 15000 }
+        ));
+        const badge = await waitForBadge(harness, text => text === '\u2713');
+        const loadedAt = await Promise.all(pages.map(page => page.evaluate(() => performance.timeOrigin)));
+
+        if (badge !== '\u2713') throw new Error(`Unexpected toolbar badge: ${badge}`);
+        if (!(loadedAt[0] > loadedAt[1] && loadedAt[0] > loadedAt[2])) {
+          throw new Error(`The active tab did not reload last: ${JSON.stringify(loadedAt)}`);
+        }
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, harness.controlPage, pages);
+        throw error;
+      } finally {
+        await popup?.close().catch(() => {});
+        await Promise.all(pages.map(page => page.close()));
+      }
+    }
+  },
+  {
     name: 'shows an accurate local-only privacy statement',
     run: async (harness, testName) => {
       const popup = harness.attachPage(await harness.browser.newPage(), 'essential-privacy-popup');
       try {
         await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
-        await popup.click('#settingsHeader');
+        await popup.waitForSelector('#openSettings');
+        await popup.click('#openSettings');
         const state = await popup.evaluate(async () => {
           const { pendingErrorReports } = await chrome.storage.local.get(['pendingErrorReports']);
-          const notice = document.querySelector('#settingsContent > .privacy-info:last-child')?.textContent || '';
+          const notice = document.querySelector('#privacyNotice')?.textContent || '';
           return {
             privacyMatches: notice === chrome.i18n.getMessage('privacyNotice'),
             hasTelemetryToggle: Boolean(document.querySelector('#errorReportingToggle')),
@@ -188,18 +274,21 @@ const TEST_CASES = [
       const popup = harness.attachPage(await harness.browser.newPage(), 'essential-history-popup');
       try {
         await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
-        const historyVisible = await popup.$eval('#historyContainer', element => element.style.display === 'block');
-        if (!historyVisible) throw new Error('Seeded history did not appear');
+        const seeded = await popup.waitForFunction(() => {
+          const meta = document.querySelector('#metaHistory')?.textContent || '';
+          return meta !== '' && meta !== chrome.i18n.getMessage('historyEmpty');
+        }, { timeout: 5000 }).then(() => true, () => false);
+        if (!seeded) throw new Error('Seeded history did not appear');
 
-        await popup.click('#historyHeader');
+        await popup.click('#openHistory');
         const historyState = await popup.evaluate(() => {
-          const summary = document.querySelector('#historyContent .history-entry > div:last-child')?.textContent || '';
+          const row = document.querySelector('#historyList li');
           return {
-            summaryMatches: summary === chrome.i18n.getMessage(
-              'historyEntrySummary',
-              ['2', '2', '0', '1']
-            ),
-            hasMarkupInjection: Boolean(document.querySelector('#historyContent script'))
+            summaryMatches: row?.querySelector('b')?.textContent
+              === chrome.i18n.getMessage('historyEntryReloaded', ['2', '2'])
+              && row?.querySelector('.sub2')?.textContent
+              === chrome.i18n.getMessage('historyEntryDetail', ['0', '1']),
+            hasMarkupInjection: Boolean(document.querySelector('#historyList script'))
           };
         });
         if (!historyState.summaryMatches) throw new Error('History summary is missing');
@@ -239,17 +328,105 @@ async function captureEssentialFailure(harness, name, error, popup, pages = []) 
   error.essentialDiagnosticsCaptured = true;
 }
 
+async function extensionWorker(harness) {
+  const workerTarget = await harness.browser.waitForTarget(
+    target => target.type() === 'service_worker' && target.url().startsWith(`chrome-extension://${harness.extensionId}/`),
+    { timeout: 15000 }
+  );
+  return workerTarget.worker();
+}
+
+async function waitForBadge(harness, accept) {
+  const worker = await extensionWorker(harness);
+  const deadline = Date.now() + 10000;
+  let text = '';
+  while (Date.now() < deadline) {
+    text = await worker.evaluate('chrome.action.getBadgeText({})');
+    if (accept(text)) return text;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  return text;
+}
+
+async function openToolbarPopup(harness) {
+  const worker = await extensionWorker(harness);
+  const controlTarget = harness.controlPage.target();
+  await worker.evaluate('chrome.action.openPopup()');
+  const popupTarget = await harness.browser.waitForTarget(
+    target => target !== controlTarget && target.url().endsWith('/popup.html'),
+    { timeout: 15000 }
+  );
+  return harness.attachPage(await popupTarget.asPage(), 'toolbar-popup');
+}
+
+// A fresh profile without page access: the first refresh explains the permission in
+// the popup and starts nothing until the user answers. "Just refresh" reloads without
+// opening Chrome's dialog, which automation could not dismiss, and is remembered.
+async function runFirstRunScenario(harness) {
+  const page = harness.attachPage(await harness.browser.newPage(), 'first-run-page');
+  const popup = harness.attachPage(await harness.browser.newPage(), 'first-run-popup');
+  try {
+    await harness.resetState();
+    await page.goto(`${harness.baseUrl}/a`);
+    await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
+    await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
+
+    await popup.click('#refreshAll');
+    await popup.waitForFunction(() => document.body.dataset.state === 'ask', { timeout: 5000 });
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const beforeAnswer = await Promise.all([
+      page.evaluate(() => Number(sessionStorage.refreshAuditLoads)),
+      popup.evaluate(async () => ({
+        history: (await chrome.storage.local.get(['refreshHistory'])).refreshHistory || [],
+        origins: (await chrome.permissions.getAll()).origins || []
+      }))
+    ]);
+    if (beforeAnswer[0] !== 1) throw new Error('The page reloaded before the first-run question was answered');
+    if (beforeAnswer[1].history.length > 0) throw new Error('A run started before the question was answered');
+    if (beforeAnswer[1].origins.includes('<all_urls>')) throw new Error('Page access was granted without asking');
+
+    await popup.click('#justRefresh');
+    await page.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) === 2, { timeout: 15000 });
+    await popup.waitForFunction(() => document.body.dataset.state === 'done', { timeout: 15000 });
+    const asked = await popup.evaluate(async () => (await chrome.storage.local.get(['mediaAccessAsked'])).mediaAccessAsked);
+    if (asked !== true) throw new Error('The first-run answer was not remembered');
+
+    await popup.reload({ waitUntil: 'load' });
+    await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
+    await popup.click('#refreshAll');
+    await page.waitForFunction(() => Number(sessionStorage.refreshAuditLoads) === 3, { timeout: 15000 });
+    const askedAgain = await popup.evaluate(() => document.body.dataset.state === 'ask');
+    if (askedAgain) throw new Error('The popup asked again after the first answer');
+    await popup.waitForFunction(() => document.body.dataset.state === 'done', { timeout: 15000 });
+  } catch (error) {
+    await captureEssentialFailure(harness, 'first run asks in the popup', error, popup, [page]);
+    throw error;
+  } finally {
+    await Promise.all([page.close(), popup.close()]);
+  }
+}
+
 async function runTests() {
   console.log('Starting fast end-to-end suite...');
   let failed = 0;
 
+  const deniedHarness = await createHarness({
+    profile: 'denied',
+    trace: false,
+    seedSiteAccess: false
+  });
+  process.stdout.write('Running test: first refresh asks in the popup before Chrome does... ');
+  try {
+    await runFirstRunScenario(deniedHarness);
+    console.log('PASS');
+  } catch (error) {
+    failed++;
+    console.log('FAIL');
+    console.error(`  ${error.message}`);
+  }
+
   process.stdout.write('Running test: reloads without optional page-reading permission and does not restore media... ');
   try {
-    const deniedHarness = await createHarness({
-      profile: 'denied',
-      trace: false,
-      seedSiteAccess: false
-    });
     await runDeniedPathScenario(deniedHarness, { closeHarness: true });
     console.log('PASS');
   } catch (error) {
@@ -309,7 +486,7 @@ async function runTests() {
     ));
   }
 
-  console.log(`Fast suite summary: ${TEST_CASES.length + 2 - failed} passed, ${failed} failed`);
+  console.log(`Fast suite summary: ${TEST_CASES.length + 3 - failed} passed, ${failed} failed`);
   return failed === 0;
 }
 

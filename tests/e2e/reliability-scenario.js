@@ -207,7 +207,7 @@ async function waitForRefreshCompletion(popup, config) {
         const latest = refreshHistory[0];
         return latest?.successfulTabs === expectedSuccesses
           && latest?.failedCount === 0
-          && document.querySelector('#progressFill')?.style.width === '100%';
+          && document.querySelector('#progressBar')?.getAttribute('aria-valuenow') === '100';
       }, { timeout: 5000 }, config.tabCount);
       return { action: 'refreshComplete', diagnosticFallback: true };
     } catch (fallbackError) {
@@ -251,6 +251,11 @@ async function waitForMediaRestoration(pausedPage, playingPage) {
 }
 
 async function collectResult(popup, pages, baseUrl) {
+  // The bar finishes its fill before the result replaces it, so the completion
+  // message arrives a moment before the popup shows the result.
+  await popup.waitForFunction(() => !['running', 'tab-running'].includes(document.body.dataset.state), {
+    timeout: 5000
+  }).catch(() => {});
   const pageStates = await collectPageStates(pages);
   const popupState = await popup.evaluate(async expectedBaseUrl => {
     const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
@@ -263,8 +268,8 @@ async function collectResult(popup, pages, baseUrl) {
 
     return {
       history: refreshHistory[0],
-      progress: document.querySelector('#progressFill')?.style.width || '',
-      status: document.querySelector('#statusText')?.textContent || '',
+      progress: document.querySelector('#progressBar')?.getAttribute('aria-valuenow') || '',
+      state: document.body.dataset.state || '',
       tabsByWindow: Object.values(tabsByWindow).sort((left, right) => left - right)
     };
   }, baseUrl);
@@ -307,8 +312,11 @@ function verifyResult(result, config) {
   if (JSON.stringify(result.popupState.tabsByWindow) !== JSON.stringify(expectedWindows)) {
     throw new Error(`Expected two windows with ${config.tabsPerWindow} tabs, got ${result.popupState.tabsByWindow.join(', ')}`);
   }
-  if (result.popupState.progress !== '100%') {
+  if (result.popupState.progress !== '100') {
     throw new Error(`Expected 100% progress, got ${result.popupState.progress}`);
+  }
+  if (result.popupState.state !== 'done') {
+    throw new Error(`Expected the popup to show the done state, got ${result.popupState.state}`);
   }
   if (result.popupState.history?.successfulTabs !== config.tabCount) {
     throw new Error(`Expected ${config.tabCount} successful tabs, got ${result.popupState.history?.successfulTabs}`);
@@ -384,7 +392,7 @@ async function runDeniedPathScenario(harness, { closeHarness = false } = {}) {
         || result.popupState.history?.failedCount !== 0) {
       throw new Error(`Denied-path refresh reported errors: ${JSON.stringify(result.popupState.history)}`);
     }
-    if (result.popupState.progress !== '100%') {
+    if (result.popupState.progress !== '100') {
       throw new Error(`Denied-path progress did not complete: ${result.popupState.progress}`);
     }
 
@@ -478,7 +486,7 @@ async function runReliabilityScenario(harness, profile, {
 
     console.log(`PASS: ${config.tabCount} tabs reloaded exactly once in two windows.`);
     console.log('PASS: paused and playing media state was restored.');
-    console.log(`PASS: ${result.popupState.status}`);
+    console.log(`PASS: the popup shows the ${result.popupState.state} state.`);
   } catch (error) {
     failure = error;
     await timer.measure('traceFinalization', () => harness.stopTrace({ keep: true }));

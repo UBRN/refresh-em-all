@@ -3,7 +3,6 @@ const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
-const puppeteer = require('puppeteer');
 const { RUNTIME_FILES } = require('../../scripts/package-extension');
 
 const extensionPath = path.join(__dirname, '../..');
@@ -211,6 +210,9 @@ function createRuntimeCopy() {
 }
 
 function launchExtension(runtimePath, userDataDir) {
+  // Puppeteer is an ES module; loading it here keeps harness helpers usable from Jest,
+  // whose CommonJS loader cannot require it.
+  const puppeteer = require('puppeteer');
   return puppeteer.launch({
     headless: false,
     defaultViewport: null,

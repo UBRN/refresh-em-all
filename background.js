@@ -48,6 +48,10 @@ const MAX_LOADING_WAIT_MS = 10000;
 const MAX_TAB_REFRESH_MS = 30000;
 // A page that never answers the media capture still gets reloaded, just without it.
 const MEDIA_CAPTURE_TIMEOUT_MS = 3000;
+// Chrome closes the popup when the tab under it reloads, so the toolbar badge
+// carries the result for a few seconds after a run.
+const RESULT_BADGE_MS = 4000;
+let resultBadgeTimeoutId = null;
 
 function isStaleGeneration(generation) {
     return generation !== currentGeneration || operationFinalized;
@@ -159,11 +163,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // cancel, history and statistics path as a run over every tab.
         const tabId = Number.isInteger(message.tabId) ? message.tabId : null;
         singleTabRun = tabId !== null;
+        // The tab under the popup reloads last: its reload closes the popup, and
+        // everything before it stays visible until then.
+        const activeTabId = Number.isInteger(message.activeTabId) ? message.activeTabId : null;
 
         chrome.tabs.query({}, (tabs) => {
-            const scope = tabId === null || !Array.isArray(tabs)
+            const scope = !Array.isArray(tabs)
                 ? tabs
-                : tabs.filter(tab => tab.id === tabId);
+                : tabId !== null
+                ? tabs.filter(tab => tab.id === tabId)
+                : [
+                    ...tabs.filter(tab => tab.id !== activeTabId),
+                    ...tabs.filter(tab => tab.id === activeTabId)
+                ];
             initializeAndStartRefresh(scope, sendResponse, generation, incognito).catch(error => {
                 console.error('[Refresh Em All] Refresh start failed:', error);
                 endRefreshOperation(false, generation);
@@ -424,8 +436,26 @@ function startRefreshOperation() {
     // No icon swap here: the badge below is what signals that a refresh is running.
 
     // Update badge to show progress
-    chrome.action.setBadgeBackgroundColor({ color: "#4285f4" });
+    clearTimeout(resultBadgeTimeoutId);
+    chrome.action.setBadgeBackgroundColor({ color: "#2563eb" });
+    chrome.action.setBadgeTextColor({ color: "#ffffff" });
     chrome.action.setBadgeText({ text: "0%" });
+}
+
+// A tick after a run that reloaded something and failed nothing, a mark after any
+// failure, and nothing after a cancel or an interruption.
+function showResultBadge(interrupted) {
+    clearTimeout(resultBadgeTimeoutId);
+    const failed = failedTabs.length > 0;
+    if (interrupted || operationCancelled || (!failed && refreshedTabs === 0)) {
+        chrome.action.setBadgeText({ text: "" });
+        return;
+    }
+    chrome.action.setBadgeBackgroundColor({ color: failed ? "#c62828" : "#15964a" });
+    chrome.action.setBadgeText({ text: failed ? "!" : "\u2713" });
+    resultBadgeTimeoutId = setTimeout(() => {
+        if (!activeRefreshOperation) chrome.action.setBadgeText({ text: "" });
+    }, RESULT_BADGE_MS);
 }
 
 // Function to end refresh operation
@@ -435,8 +465,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
     activeRefreshOperation = false;
     const finalSuccess = success && !operationCancelled && failedTabs.length === 0;
 
-    // Clear badge
-    chrome.action.setBadgeText({ text: "" });
+    showResultBadge(interrupted);
 
     // Log operation details including any errors
     const operationDetails = {

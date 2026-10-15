@@ -474,6 +474,8 @@ function requestRefresh(tabId) {
 
     const message = { action: 'startRefresh', incognito: windowIncognito };
     if (tabId !== undefined) message.tabId = tabId;
+    // Chrome closes this popup when the tab under it reloads, so that tab goes last.
+    else if (activeTab) message.activeTabId = activeTab.id;
     chrome.runtime.sendMessage(message, (response) => {
         const errorMessage = chrome.runtime.lastError?.message || response?.message;
         if (!errorMessage && response?.success) return;

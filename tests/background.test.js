@@ -1405,6 +1405,57 @@ describe('Background refresh worker', () => {
     expect(completion.details).toEqual(expect.objectContaining({ failedCount: 1, successfulTabs: 1 }));
   });
 
+  test('reloads the tab under the popup last', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 150, title: 'Active', url: 'https://example.com/active', discarded: true },
+      { id: 151, title: 'Two', url: 'https://example.com/two', discarded: true },
+      { id: 152, title: 'Three', url: 'https://example.com/three', discarded: true }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh', incognito: false, activeTabId: 150 }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([151, 152, 150]);
+  });
+
+  test.each([
+    ['a clean run', [], '\u2713', '#15964a'],
+    ['a run with a failure', ['fail'], '!', '#c62828']
+  ])('shows the result of %s on the toolbar badge for a few seconds', async (_case, failures, text, color) => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 160, title: 'One', url: 'https://example.com/one', discarded: true }
+    ]));
+    chrome.tabs.reload.mockImplementation((tabId, options, callback) => {
+      if (failures.length) setRuntimeLastError({ message: 'Reload failed' });
+      callback();
+      setRuntimeLastError(undefined);
+    });
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text });
+    expect(chrome.action.setBadgeBackgroundColor).toHaveBeenLastCalledWith({ color });
+    await jest.advanceTimersByTimeAsync(4000);
+    expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: '' });
+  });
+
+  test('clears the badge after a cancelled run', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 170, title: 'One', url: 'https://example.com/one', discarded: true },
+      { id: 171, title: 'Two', url: 'https://example.com/two', discarded: true }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh' }, {}, jest.fn());
+    onMessage({ action: 'cancelOperation' }, {}, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: '' });
+  });
+
   test('refreshes only the requested tab through the shared run path', async () => {
     chrome.tabs.query.mockImplementation((query, callback) => callback([
       { id: 140, title: 'Other', url: 'https://example.com/other', discarded: false },

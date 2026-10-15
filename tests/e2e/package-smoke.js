@@ -227,11 +227,11 @@ async function main() {
       const { refreshHistory = [] } = await chrome.storage.local.get(['refreshHistory']);
       return {
         history: refreshHistory[0],
-        progress: document.querySelector('#progressFill')?.style.width || '',
-        status: document.querySelector('#statusText')?.textContent || ''
+        progress: document.querySelector('#progressBar')?.getAttribute('aria-valuenow') || '',
+        state: document.body.dataset.state || ''
       };
     });
-    if (result.progress !== '100%') throw new Error(`Expected 100% progress, got ${result.progress}`);
+    if (result.progress !== '100') throw new Error(`Expected 100% progress, got ${result.progress}`);
     if (server.cacheProbeRequestCount() !== 2) {
       throw new Error(`Packaged cache-bypass probe expected two server requests, got ${server.cacheProbeRequestCount()}`);
     }

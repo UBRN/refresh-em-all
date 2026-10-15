@@ -121,6 +121,7 @@ chrome.action = {
   setIcon: jest.fn(),
   setBadgeText: jest.fn(),
   setBadgeBackgroundColor: jest.fn(),
+  setBadgeTextColor: jest.fn(),
   onClicked: {
     addListener: onClickedAddListener,
     callbackQueue: [],

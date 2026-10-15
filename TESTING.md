@@ -2,8 +2,8 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **104 tests across 6 suites**
-- Fast browser suite: **6 scenarios** (the denied-access path, 4 essential scenarios, and the 8-tab smoke profile)
+- Jest unit/integration/contract suite: **129 tests across 6 suites**
+- Fast browser suite: **9 scenarios** (the first-run question, the denied-access path, 6 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
 The unit tests instrument the extension scripts before executing them, so Jest now reports coverage for dynamically loaded extension code instead of 0%.
@@ -11,12 +11,14 @@ Static coverage percentages are not kept here because an undated snapshot quickl
 
 ## Requirements
 
-- Node.js 18 through 25
+- Node.js 22.12 through 25
 - npm
-- Chrome or the Chromium build bundled with Puppeteer
+- Chrome for Testing, which Puppeteer 25.12.0 downloads (Chrome 154)
 
 Node 24 LTS is the CI and local-development default recorded in `.nvmrc`.
-Node 26 is not currently supported by the installed Puppeteer dependency chain.
+Puppeteer 25 requires Node 22.12 or later and is published as an ES module, so the
+E2E harness loads it inside the launch function, where Node's `require` handles it and
+Jest never does. Node 26 is not currently supported by the dependency chain.
 Install the locked dependencies with `npm ci`.
 
 ## Commands
@@ -67,23 +69,35 @@ npm run e2e:reliability:large
 - Carries the operation generation in worker state and in every progress broadcast
 - Filters malformed tab records out of a stored snapshot and normalizes it for the popup
 - Drops tab records when reconciling an interrupted operation
+- Refreshes only the requested tab when `startRefresh` carries a `tabId`, through the same lock, history and statistics path
+- Reloads the tab under the popup last when `startRefresh` carries an `activeTabId`
+- Shows the run's result on the toolbar badge for four seconds (a tick, or a mark after any failure) and clears it after a cancel
+- Reloads a tab without media capture when the page does not answer within three seconds, and ignores the late answer
+- Records a tab whose reload never answers as timed out and moves on
 
 ### Popup
 
-- Prevents duplicate refresh starts
-- Tells the worker whether its window is incognito when starting a refresh
-- Labels interrupted runs in history
-- Requests optional host access from the first refresh only once and still starts after refusal
+The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails them.
+
+- Every element id `popup.js` looks up and every catalog key `popup.html` names exists
+- The popup and the worker skip the same restricted URL schemes
+- Prevents duplicate refresh starts and tells the worker the window's incognito mode and active tab
+- Asks in the popup before Chrome's permission dialog on the first refresh; "Allow and refresh" requests access once and still starts after refusal, "Just refresh" starts without it, and neither asks again
 - Provides the permanent Settings request path and renders both granted and denied states
-- Displays per-tab success, failure, and skipped states
-- Restores progress when the popup is reopened
-- Renders sanitized local history through DOM text nodes
-- Renders last-run, daily, rolling, and all-time cache statistics and resets them locally
-- Keeps the refresh control disabled until initialization settles and re-enables it after a refused permission request
-- Ignores a late cancel callback that arrives after the run has already finished
-- Renders errors that were collected before a run was cancelled
-- Sets `aria-valuenow` to match the progress bar width when a restored run was interrupted
-- Ignores progress and completion messages from an older operation generation
+- Keeps the refresh controls disabled until initialization settles and while a permission request is pending
+- Renders per-tab results as dots and keeps `aria-valuenow` on the real value
+- Lets the bar creep while a tab is in flight without passing the next step or going back, and never counts an unfinished tab
+- Stops the animation loop while the popup is hidden
+- Announces start, quarter milestones and the result to screen readers, not every tab
+- Ignores progress and completion messages from an older operation generation, and a late cancel callback
+- Quiets the tabs that never ran after a cancel and keeps failures in the counts
+- Restores a running operation when the popup is reopened and reports an interrupted run once
+- Keeps the start-failure reason when the worker also reports a zero-tab run
+- Plays confetti only after a clean run over every tab that reloaded at least one tab, while the popup is visible, and never on reopen or for a single tab
+- Moves keyboard focus between Refresh and Cancel as runs start and end, and between the list and its sub views
+- Renders sanitized local history with relative times, single-tab and interrupted labels
+- Renders the measured totals as estimates; Reset statistics offers Undo for six seconds and Undo keeps bytes measured since
+- Offers "Refresh only this tab" by site name, disables it with a reason on browser pages, keeps it on the Web Store, runs the single-tab path, and names the site when a single-tab run stops
 
 ### Localization
 
@@ -91,7 +105,7 @@ npm run e2e:reliability:large
 - Manifest `default_locale` and every `__MSG_*__` reference resolve
 - Both locale catalogs are inside the packaged runtime allowlist
 - `chrome.i18n` substitutes dynamic placeholders in catalog order
-- Turkish popup text, history, and accessibility labels render from the catalog
+- Turkish popup text, the this-tab action, history, and accessibility labels render from the catalog
 - The production popup contains no hidden stress-test hooks
 
 ### Content script
@@ -103,6 +117,7 @@ npm run e2e:reliability:large
 - Recovers from corrupted session state
 - Skips restoring audio state when reordered sources no longer match the saved source
 - Restores a source-less audio element from saved state
+- Leaves autoplay alone for media that was paused before it ever started
 
 ### E2E harness and release workflow contracts
 
@@ -124,17 +139,27 @@ the normal harness, setup temporarily replaces the copied shipped manifest with 
 requires `<all_urls>` instead of declaring it optional, launches Chrome to seed the grant, restores the shipped
 manifest, and relaunches Chrome on the same profile. The normal harness then runs the
 essential scenarios sequentially, resets extension storage between scenarios, and finishes
-with the 8-tab, two-window smoke profile. Together the harnesses verify:
+with the 8-tab, two-window smoke profile. Most scenarios open `popup.html` in a tab and wait on
+`body[data-state]` and the progress bar's `aria-valuenow`. The two toolbar scenarios open the
+real popup with `chrome.action.openPopup()`, because only there is the page under the popup the
+active tab. Together the harnesses verify:
 
-1. Without optional host access, real pages still reload and media restoration is not injected.
-2. Two real pages reload exactly once while Chrome and extension pages are reported as skipped,
-   progress reaches 100%, and local history contains sanitized counts.
-3. A JavaScript resource served with a one-day immutable cache lifetime remains
+1. On a fresh profile without host access, the first refresh shows the in-popup question and
+   starts nothing; "Just refresh" reloads, the answer is remembered, and the next refresh does
+   not ask. Chrome's own permission dialog is not exercised: automation cannot dismiss it.
+2. Without optional host access, real pages still reload and media restoration is not injected.
+3. Two real pages reload exactly once while Chrome and extension pages are reported as skipped,
+   the popup reaches the done state at 100%, and local history contains sanitized counts.
+4. A JavaScript resource served with a one-day immutable cache lifetime remains
    cached across a normal reload, then is requested from the server again after
    the extension reloads its page.
-4. The settings UI accurately states that telemetry is disabled.
-5. Refresh history renders safely.
-6. Eight tabs across two windows reload once while paused and playing media state is preserved.
+5. "Refresh only this tab" in the toolbar popup reloads only the active tab, records a
+   single-tab history entry and shows a tick on the toolbar badge.
+6. "Refresh All Tabs" in the toolbar popup reloads the tab under the popup last and shows a
+   tick on the toolbar badge. Chrome closes the popup when that tab reloads.
+7. The settings view accurately states that telemetry is disabled.
+8. Refresh history renders safely.
+9. Eight tabs across two windows reload once while paused and playing media state is preserved.
 
 The browser suites launch Chrome with `--lang=en-US` because the popup is now
 localized and these scenarios assert English status text.

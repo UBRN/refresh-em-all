@@ -74,7 +74,7 @@ describe('Popup controller', () => {
     $('refreshAll').click();
 
     const starts = chrome.runtime.sendMessage.mock.calls.filter(([message]) => message.action === 'startRefresh');
-    expect(starts).toEqual([[{ action: 'startRefresh', incognito: false }, expect.any(Function)]]);
+    expect(starts).toEqual([[{ action: 'startRefresh', incognito: false, activeTabId: 7 }, expect.any(Function)]]);
     expect($('refreshAll').disabled).toBe(true);
 
     onMessage({ action: 'refreshStarted', generation: 2, tabs: tabs(4) });
@@ -91,7 +91,7 @@ describe('Popup controller', () => {
     $('refreshAll').click();
 
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh', incognito: true },
+      { action: 'startRefresh', incognito: true, activeTabId: 7 },
       expect.any(Function)
     );
     expect($('readySub').textContent).toBe('Across your incognito windows');
@@ -127,7 +127,7 @@ describe('Popup controller', () => {
     expect(chrome.permissions.request).toHaveBeenCalledTimes(1);
     expect(chrome.storage.local.set).toHaveBeenCalledWith({ mediaAccessAsked: true });
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh', incognito: false },
+      { action: 'startRefresh', incognito: false, activeTabId: 7 },
       expect.any(Function)
     );
   });
@@ -142,7 +142,7 @@ describe('Popup controller', () => {
     expect(chrome.permissions.request).not.toHaveBeenCalled();
     expect(chrome.storage.local.set).toHaveBeenCalledWith({ mediaAccessAsked: true });
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh', incognito: false },
+      { action: 'startRefresh', incognito: false, activeTabId: 7 },
       expect.any(Function)
     );
   });
@@ -176,7 +176,7 @@ describe('Popup controller', () => {
     expect(state()).toBe('ready');
     expect(chrome.permissions.request).not.toHaveBeenCalled();
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-      { action: 'startRefresh', incognito: false },
+      { action: 'startRefresh', incognito: false, activeTabId: 7 },
       expect.any(Function)
     );
   });
