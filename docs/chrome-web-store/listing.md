@@ -551,9 +551,9 @@ recorded below, so their provenance matches the package being submitted. The
 submission artifact was rebuilt from this working tree and recorded as follows:
 
 - **ZIP filename:** `refresh-em-all-v2.7.0.zip`
-- **Byte size:** 199959 bytes
+- **Byte size:** 196636 bytes
 - **SHA-256:**
-  `c3df16ae9ded34eb1ebf112336c2b69096f4ed733f2def436c4d027f53654f92`
+  `1505924f9ff7c98be732a70b79836e410c2e76e198508b65ca945510453d5ad8`
 - All ten 1280×800 screenshots were captured from the v2.7.0 package described
   above, after the capture script verified its hash and reported version.
   - English: `assets/screenshots/*.png` (5 files)
