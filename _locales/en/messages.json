@@ -55,6 +55,20 @@
       }
     }
   },
+  "retryFailedOne": {
+    "message": "Retry the failed tab",
+    "description": "Ready-screen button that reloads the one tab the last run could not reload."
+  },
+  "retryFailedOther": {
+    "message": "Retry $COUNT$ failed tabs",
+    "description": "Ready-screen button that reloads only the tabs the last run could not reload.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
   "offlineWarning": {
     "message": "You are offline. Reloading now would turn your tabs into error pages, so reloading waits until you are back online.",
     "description": "Ready screen while the computer has no network connection; the refresh buttons are disabled."
@@ -462,6 +476,10 @@
   "doneSubSkipped": {
     "message": "Browser pages cannot be reloaded by extensions.",
     "description": "Line under the completion title when browser pages were skipped."
+  },
+  "doneSubUnsaved": {
+    "message": "Tabs with unsaved text were left as they were.",
+    "description": "Completion line when tabs with text the user typed were skipped so it was not lost."
   },
   "stoppedSub": {
     "message": "Tabs already reloaded stay reloaded.",

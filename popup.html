@@ -707,6 +707,10 @@
             text-wrap: pretty;
         }
 
+        #retryFailed {
+            align-self: flex-start;
+        }
+
         .explain b {
             color: var(--text);
             font-weight: 600;
@@ -1445,6 +1449,7 @@
                     <div class="slot slot-detail">
                         <div class="v detail-ready top on" data-states="ready">
                             <p class="explain" id="readyExplain" data-i18n="refreshExplanation"></p>
+                            <button class="btn btn-quiet" id="retryFailed" type="button" hidden></button>
                         </div>
                         <div class="v detail-ask" data-states="ask">
                             <p class="explain" data-i18n="askExplain"></p>

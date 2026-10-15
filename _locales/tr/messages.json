@@ -55,6 +55,20 @@
       }
     }
   },
+  "retryFailedOne": {
+    "message": "Yenilenemeyen sekmeyi yeniden dene",
+    "description": "Ready-screen button that reloads the one tab the last run could not reload."
+  },
+  "retryFailedOther": {
+    "message": "Yenilenemeyen $COUNT$ sekmeyi yeniden dene",
+    "description": "Ready-screen button that reloads only the tabs the last run could not reload.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
   "offlineWarning": {
     "message": "İnternet bağlantınız yok. Şimdi yenilemek sekmeleri hata sayfasına çevirirdi; bağlantı gelince yenileyebilirsiniz.",
     "description": "Ready screen while the computer has no network connection; the refresh buttons are disabled."
@@ -462,6 +476,10 @@
   "doneSubSkipped": {
     "message": "Tarayıcı sayfalarını uzantılar yenileyemez.",
     "description": "Line under the completion title when browser pages were skipped."
+  },
+  "doneSubUnsaved": {
+    "message": "Kaydedilmemiş yazı olan sekmelere dokunulmadı.",
+    "description": "Completion line when tabs with text the user typed were skipped so it was not lost."
   },
   "stoppedSub": {
     "message": "Yenilenen sekmeler yenilenmiş kalır.",

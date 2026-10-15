@@ -230,6 +230,54 @@ const TEST_CASES = [
     }
   },
   {
+    name: 'leaves a tab with unsaved text alone and puts a sleeping tab back to sleep',
+    run: async (harness, testName) => {
+      const draft = harness.attachPage(await harness.browser.newPage(), 'unsaved-draft');
+      const sleeper = harness.attachPage(await harness.browser.newPage(), 'sleeping-tab');
+      const popup = harness.attachPage(await harness.browser.newPage(), 'unsaved-popup');
+
+      try {
+        await Promise.all([
+          draft.goto(`${harness.baseUrl}/a`),
+          sleeper.goto(`${harness.baseUrl}/b`)
+        ]);
+        await draft.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<textarea id="draft"></textarea>'));
+        await draft.type('#draft', 'half typed');
+        await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
+        const sleeperId = await popup.evaluate(async url => {
+          const [tab] = await chrome.tabs.query({ url });
+          await chrome.tabs.discard(tab.id);
+          return tab.id;
+        }, `${harness.baseUrl}/b`);
+
+        await popup.waitForSelector('#refreshAll:not([disabled])', { timeout: 15000 });
+        await popup.click('#refreshAll');
+        await popup.waitForFunction(() => document.body.dataset.state === 'done', { timeout: 15000 });
+        const doneSub = await popup.$eval('#doneSub', element => element.textContent);
+        const expected = await popup.evaluate(() => chrome.i18n.getMessage('doneSubUnsaved'));
+        if (doneSub !== expected) throw new Error(`Unexpected result line: ${doneSub}`);
+
+        const [loads, text] = await draft.evaluate(() => [Number(sessionStorage.refreshAuditLoads), document.querySelector('#draft').value]);
+        if (loads !== 1 || text !== 'half typed') throw new Error(`The draft tab reloaded: ${loads} loads, text "${text}"`);
+
+        // Woken to reload, then asleep again once its fresh files are in.
+        await popup.waitForFunction(async id => {
+          const tab = await chrome.tabs.get(id);
+          return tab.discarded === true;
+        }, { timeout: 15000 }, sleeperId);
+        const latest = await popup.evaluate(async () => (await chrome.storage.local.get(['refreshHistory'])).refreshHistory?.[0]);
+        if (!latest || latest.skippedCount < 1 || latest.successfulTabs < 1) {
+          throw new Error(`Unexpected history entry: ${JSON.stringify(latest)}`);
+        }
+      } catch (error) {
+        await captureEssentialFailure(harness, testName, error, popup, [draft]);
+        throw error;
+      } finally {
+        await Promise.all([draft.close(), sleeper.close(), popup.close()].map(closing => closing.catch(() => {})));
+      }
+    }
+  },
+  {
     name: 'shows an accurate local-only privacy statement',
     run: async (harness, testName) => {
       const popup = harness.attachPage(await harness.browser.newPage(), 'essential-privacy-popup');

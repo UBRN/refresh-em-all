@@ -2,8 +2,8 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **150 tests across 6 suites**
-- Fast browser suite: **9 scenarios** (the first-run question, the denied-access path, 6 essential scenarios, and the 8-tab smoke profile)
+- Jest unit/integration/contract suite: **168 tests across 6 suites**
+- Fast browser suite: **10 scenarios** (the first-run question, the denied-access path, 7 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
 The unit tests instrument the extension scripts before executing them, so Jest now reports coverage for dynamically loaded extension code instead of 0%.

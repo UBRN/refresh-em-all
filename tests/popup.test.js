@@ -788,6 +788,51 @@ describe('Popup controller', () => {
     expect($('readyExplain').textContent).toBe(`${count} Reloads the tabs it can and fetches fresh files instead of reusing copies Chrome saved earlier. Your site data stays in place.`);
   });
 
+  test('offers to retry the last run\'s failed tabs that are still open, and only those', async () => {
+    executePopupJs({
+      history: [{ timestamp: new Date().toISOString(), totalTabs: 4, successfulTabs: 1, failedCount: 3, skippedCount: 0, failedTabIds: [11, 12, 13] }],
+      openTabs: [{ id: 7, windowId: 1 }, { id: 11, windowId: 1 }, { id: 12, windowId: 2 }]
+    });
+    await settle();
+
+    expect($('retryFailed').hidden).toBe(false);
+    expect($('retryFailed').textContent).toBe('Retry 2 failed tabs');
+    expect($('readyExplain').textContent).toBe('3 tabs open in 2 windows. ');
+    $('retryFailed').click();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      { action: 'startRefresh', incognito: false, tabIds: [11, 12], activeTabId: 7 },
+      expect.any(Function)
+    );
+  });
+
+  test.each([
+    ['no failures', { failedCount: 0 }],
+    ['failed tabs that were closed', { failedCount: 1, failedTabIds: [99] }]
+  ])('hides the retry offer after a run with %s', async (_case, entry) => {
+    executePopupJs({
+      history: [{ timestamp: new Date().toISOString(), totalTabs: 2, successfulTabs: 1, skippedCount: 0, ...entry }],
+      openTabs: [{ id: 7, windowId: 1 }]
+    });
+    await settle();
+
+    expect($('retryFailed').hidden).toBe(true);
+  });
+
+  test('says when tabs with unsaved text were left alone', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    $('refreshAll').click();
+    onMessage({ action: 'refreshStarted', tabs: [{ id: 1 }, { id: 2 }] });
+    onMessage({
+      action: 'refreshComplete',
+      details: { totalTabs: 2, processedTabs: 2, successfulTabs: 1, skippedCount: 1, unsavedCount: 1 }
+    });
+    await settle(3000);
+
+    expect(state()).toBe('done');
+    expect($('doneSub').textContent).toBe('Tabs with unsaved text were left as they were.');
+  });
+
   test('offline, the refresh buttons wait and say why until the network is back', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
     try {

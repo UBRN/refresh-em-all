@@ -84,6 +84,7 @@ const undoReset = $('undoReset');
 const undoResetButton = $('undoResetButton');
 const confettiCanvas = $('confetti');
 const readyExplain = $('readyExplain');
+const retryButton = $('retryFailed');
 
 document.documentElement.lang = t('htmlLang');
 document.title = t('productName');
@@ -115,6 +116,7 @@ let activeTab = null;
 // wait. Only false is reliable: true means a network, not the internet.
 let online = navigator.onLine !== false;
 let openTabs = null;
+let openTabIds = new Set();
 let latestHistory = [];
 let historyRevealed = false;
 let savedStats = null;
@@ -195,6 +197,7 @@ function updateControls() {
     refreshButton.disabled = initializing || activeRefreshOperation || accessRequestPending || !online;
     // Unavailable stays focusable, so the reason under it is still read out.
     thisTabButton.disabled = refreshButton.disabled;
+    retryButton.disabled = refreshButton.disabled;
     allowButton.disabled = refreshButton.disabled;
     justRefreshButton.disabled = refreshButton.disabled;
     thisTabButton.setAttribute('aria-disabled', String(!thisTabAvailable()));
@@ -447,7 +450,11 @@ function renderThisTab() {
 }
 
 // The ready screen says how many tabs a run covers: every tab of this window's kind.
+// An offer to retry failed tabs takes the place of the general explanation.
 function renderReadyDetail() {
+    const retryIds = online ? retryableTabIds() : [];
+    retryButton.hidden = retryIds.length === 0;
+    retryButton.textContent = retryIds.length === 1 ? t('retryFailedOne') : t('retryFailedOther', retryIds.length);
     if (!online) {
         readyExplain.textContent = t('offlineWarning');
         return;
@@ -460,8 +467,15 @@ function renderReadyDetail() {
             : t(openTabs.tabs === 1 ? 'readyTabCountOne' : 'readyTabCountOneWindow', openTabs.tabs);
         readyExplain.append(count, ' ');
     }
-    readyExplain.append(t('refreshExplanation'));
+    if (retryIds.length === 0) readyExplain.append(t('refreshExplanation'));
 }
+
+// The last run's failed tabs that are still open, offered for one more try.
+function retryableTabIds() {
+    const failed = latestHistory[0]?.failedTabIds;
+    return Array.isArray(failed) ? failed.filter(id => openTabIds.has(id)) : [];
+}
+
 
 function setOnline(next) {
     online = next;
@@ -494,6 +508,12 @@ justRefreshButton.addEventListener('click', () => {
     requestRefresh();
 });
 
+retryButton.addEventListener('click', () => {
+    const ids = retryableTabIds();
+    if (activeRefreshOperation || retryButton.disabled || ids.length === 0) return;
+    requestRefresh(undefined, ids);
+});
+
 thisTabButton.addEventListener('click', () => {
     if (!thisTabAvailable()) return;
     rememberFocus();
@@ -517,7 +537,7 @@ function rememberAccessAsked() {
     chrome.storage.local.set({ mediaAccessAsked: true });
 }
 
-function requestRefresh(tabId) {
+function requestRefresh(tabId, retryIds) {
     if (activeRefreshOperation || !online) return;
     rememberFocus();
     activeRefreshOperation = true;
@@ -526,8 +546,9 @@ function requestRefresh(tabId) {
 
     const message = { action: 'startRefresh', incognito: windowIncognito };
     if (tabId !== undefined) message.tabId = tabId;
+    if (retryIds) message.tabIds = retryIds;
     // Chrome closes this popup when the tab under it reloads, so that tab goes last.
-    else if (activeTab) message.activeTabId = activeTab.id;
+    if (tabId === undefined && activeTab) message.activeTabId = activeTab.id;
     chrome.runtime.sendMessage(message, (response) => {
         const errorMessage = chrome.runtime.lastError?.message || response?.message;
         if (!errorMessage && response?.success) return;
@@ -660,6 +681,7 @@ function handleRefreshComplete(data) {
         reloaded: Number(details.successfulTabs) || 0,
         failed: Number(details.failedCount) || 0,
         skipped: Number(details.skippedCount) || 0,
+        unsaved: Number(details.unsavedCount) || 0,
         cancelled: details.cancelled === true,
         single: details.singleTab === true || singleTabRun,
         staleBytes: Number.isFinite(details.staleBytes) ? details.staleBytes : 0,
@@ -729,7 +751,9 @@ function showResult(result, { live }) {
             ? t('statusCompleteSkipped', result.reloaded, result.skipped)
             : result.reloaded === 1 ? t('statusCompleteAllOne') : t('statusCompleteAll', result.reloaded);
         $('doneTitle').textContent = title;
-        $('doneSub').textContent = t(result.skipped > 0 ? 'doneSubSkipped' : 'doneSubFresh');
+        $('doneSub').textContent = t(result.unsaved > 0
+            ? 'doneSubUnsaved'
+            : result.skipped > 0 ? 'doneSubSkipped' : 'doneSubFresh');
         renderBytes(footDone, result.staleBytes, live);
         next = 'done';
     }
@@ -933,6 +957,7 @@ function initializeHistory() {
             ? (date ? relativeTime(date) : t('historyUnknownDate'))
             : t('historyEmpty');
         renderReadySub();
+        renderReadyDetail();
         if (view === 'history') renderHistory(false);
     });
 }
@@ -1218,6 +1243,7 @@ const windowKind = chrome.windows.getCurrent().then(currentWindow => {
 const windowInitialization = windowKind.then(() => chrome.tabs.query({})).then(tabs => {
     const covered = (Array.isArray(tabs) ? tabs : []).filter(tab => (tab.incognito === true) === windowIncognito);
     if (covered.length > 0) openTabs = { tabs: covered.length, windows: new Set(covered.map(tab => tab.windowId)).size };
+    openTabIds = new Set(covered.map(tab => tab.id));
     renderReadyDetail();
 });
 if (!online) setOnline(false);

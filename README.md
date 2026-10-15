@@ -17,7 +17,9 @@ With one click, you can:
 
 - Reload your tabs without opening each one
 - Keep videos and audio where you left them, on a best-effort basis
-- Reload sleeping tabs without bringing them to the front
+- Reload sleeping tabs without bringing them to the front, then let them sleep again
+- Leave tabs where you have typed unsent text alone
+- Retry only the tabs that failed last time
 - See which reloads Chrome accepted, which failed, and which were skipped
 - Cancel while a reload is running
 - Reload only the tab you are looking at

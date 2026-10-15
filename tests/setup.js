@@ -73,6 +73,7 @@ chrome.tabs = {
   get: jest.fn(),
   update: jest.fn(),
   reload: jest.fn(),
+  discard: jest.fn(),
   create: jest.fn(),
   remove: jest.fn(),
   onUpdated: {

@@ -12,6 +12,8 @@ let refreshedTabs = 0;
 let processedTabs = 0;
 let failedTabs = [];
 let skippedTabs = [];
+// Tabs left alone because the user had typed text there that a reload would lose.
+let unsavedTabs = [];
 let tabStatuses = {};
 let operationCancelled = false;
 let operationFinalized = false;
@@ -174,6 +176,8 @@ chrome.runtime.onMessage.addListener(function onMessage(message, sender, sendRes
         // cancel, history and statistics path as a run over every tab.
         const tabId = Number.isInteger(message.tabId) ? message.tabId : null;
         singleTabRun = tabId !== null;
+        // A list of ids retries the tabs a previous run could not reload.
+        const retryIds = Array.isArray(message.tabIds) ? message.tabIds.filter(Number.isInteger) : null;
         // The tab under the popup reloads last: its reload closes the popup, and
         // everything before it stays visible until then.
         const activeTabId = Number.isInteger(message.activeTabId) ? message.activeTabId : null;
@@ -186,7 +190,7 @@ chrome.runtime.onMessage.addListener(function onMessage(message, sender, sendRes
                 : [
                     ...tabs.filter(tab => tab.id !== activeTabId),
                     ...tabs.filter(tab => tab.id === activeTabId)
-                ];
+                ].filter(tab => !retryIds || retryIds.includes(tab.id));
             initializeAndStartRefresh(scope, sendResponse, generation, incognito).catch(error => {
                 console.error('[Refresh Em All] Refresh start failed:', error);
                 endRefreshOperation(false, generation);
@@ -442,6 +446,7 @@ function startRefreshOperation() {
     processedTabs = 0;
     failedTabs = [];
     skippedTabs = [];
+    unsavedTabs = [];
     tabStatuses = {};
     staleBytesThisRun = 0;
     singleTabRun = false;
@@ -490,6 +495,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
         cancelled: operationCancelled,
         interrupted,
         singleTab: singleTabRun,
+        unsavedCount: unsavedTabs.length,
         staleBytes: staleBytesThisRun
     };
 
@@ -503,6 +509,8 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
     };
     if (interrupted) historyEntry.interrupted = true;
     if (singleTabRun) historyEntry.singleTab = true;
+    // The ready screen offers to retry these tabs while they are still open.
+    if (failedTabs.length > 0) historyEntry.failedTabIds = failedTabs.map(tab => tab.id);
 
     // Everything below runs inside storage callbacks, by which point a refresh
     // started right after this one may already have reset the shared state.
@@ -575,9 +583,11 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
 function refreshTabsInBatches(tabs, generation) {
     console.log(`Starting refresh operation ${generation} with ${tabs.length} tabs`);
 
-    // Reduce batch size for extremely large tab counts to prevent memory issues
-    const dynamicBatchSize = tabs.length > 50 ? 3 : (tabs.length > 20 ? 4 : MAX_TABS_PER_BATCH);
-    const dynamicBatchInterval = tabs.length > 50 ? 1000 : BATCH_INTERVAL; // Longer interval for more tabs
+    // Smaller batches above 20 tabs. There is no slower tier above 50: it made the
+    // 51st tab triple the run time, and sleeping tabs, the bulk of a large session,
+    // go back to sleep once reloaded.
+    const dynamicBatchSize = tabs.length > 20 ? 4 : MAX_TABS_PER_BATCH;
+    const dynamicBatchInterval = BATCH_INTERVAL;
 
     let currentBatchIndex = 0;
 
@@ -662,8 +672,9 @@ function refreshTabsBatch(batch, tabIndex, onComplete, generation) {
                     action: 'tabSucceeded',
                     tabId: tab.id
                 }).catch(() => { });
-            } else if (result === 'skipped') {
+            } else if (result === 'skipped' || result === 'unsaved') {
                 skippedTabs.push(tab.id);
+                if (result === 'unsaved') unsavedTabs.push(tab.id);
                 tabStatuses[tab.id] = 'skipped';
                 chrome.runtime.sendMessage({
                     action: 'tabSkipped',
@@ -777,16 +788,41 @@ async function refreshTab(tab, retryCount = 0, loadingWaitStartedAt = Date.now()
                 return;
             }
 
-            if (tabInfo.discarded || !hasSiteAccess) {
+            if (tabInfo.discarded) {
                 // Discarded tabs reload without changing the user's active tab, and
-                // have no live media to capture. Without site access the capture
-                // injection would be rejected for every tab, so skip straight past it.
+                // have no live media to capture. Once reloaded they sleep again.
+                basicReload(tab, retryCount, result => {
+                    if (result === true) discardWhenLoaded(tab.id);
+                    resolve(result);
+                }, attempt);
+            } else if (!hasSiteAccess) {
+                // Without site access the capture injection would be rejected for
+                // every tab, so skip straight past it.
                 basicReload(tab, retryCount, resolve, attempt);
             } else {
                 preserveStateAndRefreshTab(tab, retryCount, resolve, attempt);
             }
         });
     });
+}
+
+// A sleeping tab wakes to reload. Once its fresh files are in Chrome's cache it goes
+// back to sleep, so a run over many sleeping tabs does not leave them all in memory;
+// opening it later loads those fresh files. A tab the user switched to stays awake.
+function discardWhenLoaded(tabId) {
+    const discard = () => {
+        clearTimeout(timeoutId);
+        chrome.tabs.onUpdated.removeListener(onUpdated);
+        chrome.tabs.get(tabId, (tab) => {
+            if (chrome.runtime.lastError || !tab || tab.active || tab.discarded) return;
+            chrome.tabs.discard(tabId, () => void chrome.runtime.lastError);
+        });
+    };
+    const onUpdated = (updatedTabId, changeInfo) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete') discard();
+    };
+    const timeoutId = setTimeout(discard, MAX_TAB_REFRESH_MS);
+    chrome.tabs.onUpdated.addListener(onUpdated);
 }
 
 function isRestrictedTabUrl(url) {
@@ -832,6 +868,13 @@ function preserveStateAndRefreshTab(tab, retryCount, resolve, attempt) {
         const error = chrome.runtime.lastError;
         if (error) {
             basicReload(tab, retryCount, resolve, attempt);
+            return;
+        }
+
+        // A reload would lose text the user typed. A run over every tab leaves that
+        // tab alone; reloading only this tab is the user's explicit choice.
+        if (injectionResults?.[0]?.result?.unsavedText === true && !singleTabRun) {
+            resolve('unsaved');
             return;
         }
 
@@ -946,6 +989,16 @@ function dayKey(date = new Date()) {
 // Function to preserve media state before refresh
 function preserveMediaState() {
     try {
+        // Text typed into a field and not yet sent. Fields a script filled in
+        // without the user also count; contenteditable editors and iframes are
+        // not checked.
+        const textTypes = ['', 'text', 'search', 'email', 'url', 'tel', 'number', 'password'];
+        const unsavedText = [...document.querySelectorAll('textarea, input')].some(field =>
+            (field.tagName === 'TEXTAREA' || textTypes.includes(field.getAttribute('type')?.toLowerCase() ?? ''))
+            && !field.disabled
+            && field.value.trim() !== ''
+            && field.value !== field.defaultValue);
+
         let staleBytes = 0;
         try {
             for (const entry of performance.getEntriesByType('resource')) {
@@ -1009,10 +1062,10 @@ function preserveMediaState() {
         // Save to sessionStorage if we have media elements
         if (Object.keys(mediaStates).length > 0) {
             sessionStorage.setItem('refreshEmAllMediaState', JSON.stringify(mediaStates));
-            return { count: Object.keys(mediaStates).length, staleBytes };
+            return { count: Object.keys(mediaStates).length, staleBytes, unsavedText };
         }
 
-        return { count: 0, staleBytes };
+        return { count: 0, staleBytes, unsavedText };
     } catch (error) {
         // No count comes back, so the worker still restores whatever was saved.
         console.error("Error preserving media state:", error);
