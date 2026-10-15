@@ -1504,6 +1504,57 @@ describe('Background refresh worker', () => {
     }));
   });
 
+  test('keeps an incognito run out of history and statistics', async () => {
+    chrome.tabs.query.mockImplementation((query, callback) => callback([
+      { id: 136, incognito: false, title: 'Normal', url: 'https://example.com/normal', discarded: false },
+      { id: 137, incognito: true, title: 'Private', url: 'https://example.com/private', discarded: false }
+    ]));
+    chrome.scripting.executeScript.mockImplementation((details, callback) => callback?.([
+      { result: { count: 0, staleBytes: 500 } }
+    ]));
+    const { onMessage } = executeBackgroundJs();
+
+    onMessage({ action: 'startRefresh', incognito: true }, popupPage, jest.fn());
+    await jest.runAllTimersAsync();
+
+    expect(chrome.tabs.reload.mock.calls.map(([tabId]) => tabId)).toEqual([137]);
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshComplete',
+      incognito: true,
+      details: expect.objectContaining({ successfulTabs: 1, staleBytes: 500 })
+    }));
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '\u2713' });
+
+    onMessage({ action: 'startRefresh', incognito: false }, popupPage, jest.fn());
+    await jest.runAllTimersAsync();
+    expect(chrome.storage.local.set).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshHistory: [expect.objectContaining({ totalTabs: 1 })] }),
+      expect.any(Function)
+    );
+  });
+
+  test('keeps an interrupted incognito run out of history and statistics', async () => {
+    sessionStore.refreshOperationState = {
+      active: true,
+      incognito: true,
+      currentTabs: [{ id: 138, incognito: true, title: 'Private', url: 'https://example.com/private' }],
+      processedTabs: 1,
+      refreshedTabs: 1,
+      staleBytes: 50,
+      cancelled: false
+    };
+
+    executeBackgroundJs();
+    await jest.runAllTimersAsync();
+
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+    expect(sessionStore.refreshOperationState).toEqual(expect.objectContaining({ interrupted: true, incognito: true }));
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'refreshComplete', incognito: true, details: expect.objectContaining({ interrupted: true })
+    }));
+  });
+
   test('reloads a tab without media capture when the page does not answer in three seconds', async () => {
     let lateCaptureCallback;
     chrome.tabs.query.mockImplementation((query, callback) => callback([

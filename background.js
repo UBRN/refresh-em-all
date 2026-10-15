@@ -511,7 +511,26 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
     const finalFailedTabs = failedTabs;
     const finalIncognito = runIncognito;
 
+    const broadcastComplete = () => {
+        chrome.runtime.sendMessage({
+            action: 'refreshComplete',
+            generation,
+            incognito: finalIncognito,
+            success: finalSuccess,
+            details: operationDetails,
+            failedTabs: finalFailedTabs
+        }).catch(() => {
+            // Popup might be closed, ignore error
+        });
+    };
+
     clearPersistedOperationState();
+    // An incognito run leaves nothing in history or statistics; it still queues so
+    // its completion reaches the popup in order.
+    if (finalIncognito) {
+        finalizeQueue = finalizeQueue.then(broadcastComplete);
+        return;
+    }
     // Queued rather than fired straight away: cacheStats and refreshHistory are
     // read-modify-write, and a cancel followed by a new refresh can otherwise have
     // two finalizations interleave and lose one run's bytes or history entry.
@@ -544,16 +563,7 @@ function endRefreshOperation(success = true, generation, interrupted = false) {
         chrome.storage.local.set({ cacheStats: next }, () => {
             saveToHistory(historyEntry, () => {
                 // Broadcast completion after history is durable so an open popup can reload it.
-                chrome.runtime.sendMessage({
-                    action: 'refreshComplete',
-                    generation,
-                    incognito: finalIncognito,
-                    success: finalSuccess,
-                    details: operationDetails,
-                    failedTabs: finalFailedTabs
-                }).catch(() => {
-                    // Popup might be closed, ignore error
-                });
+                broadcastComplete();
                 resolveFinalize();
             });
         });

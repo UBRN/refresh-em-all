@@ -25,6 +25,8 @@ to identify refreshable tabs, avoid restricted browser pages, refresh tabs, and
 show progress in the popup. A refresh started from a normal window covers only
 normal tabs, and one started from an incognito window covers only incognito
 tabs, so incognito tab information never appears in a normal window's popup.
+A run started from an incognito window is not kept: it adds no history summary
+and changes no cache statistics in `chrome.storage.local`.
 When the popup opens, it reads the active tab of its window to name that tab's
 site on "Refresh only this tab", to decide whether that action is available,
 and to reload that tab last in a full run. It does not store that information.
@@ -53,7 +55,8 @@ Refresh Em All uses the following browser-managed storage:
   failure details. The snapshot exists so an open popup can redraw a run in
   progress. The extension removes the full snapshot when an operation finishes.
   If Chrome shuts down the service worker before a run finishes, the run is not
-  continued: the extension records it in history as interrupted and replaces
+  continued: the extension records it in history as interrupted (unless it was
+  an incognito run, which is never recorded) and replaces
   the full snapshot with an interrupted marker holding only progress and
   counts, with no tab records, URLs, titles, favicons, or per-tab statuses. The
   marker is removed once the popup has reported the interruption, or when the

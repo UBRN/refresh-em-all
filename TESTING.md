@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **148 tests across 6 suites**
+- Jest unit/integration/contract suite: **150 tests across 6 suites**
 - Fast browser suite: **9 scenarios** (the first-run question, the denied-access path, 6 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
@@ -59,6 +59,7 @@ npm run e2e:reliability:large
 - Ignores inactive snapshots and safely reconciles malformed session state
 - Starts each worker lifetime above the generations a previous worker used
 - Refreshes only tabs whose incognito mode matches the window that started the run
+- Keeps an incognito run, finished or interrupted, out of history and cache statistics
 - Answers status and cancel requests, and stamps run broadcasts, so that a popup in a window of the other kind neither sees nor cancels the run
 - Answers only this extension's own pages, including the popup opened in a tab, and ignores scripts injected into web pages and other extensions
 - Stops a timed-out tab attempt from reloading the tab or adding bytes, and counts stale bytes once per tab across retries

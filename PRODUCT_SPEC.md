@@ -27,7 +27,7 @@ would not use.
 ## 3. detailed Feature Specifications
 
 ### 3.1 Core Functionality
-- **Accessible-Tab Scope**: queries `chrome.tabs` across *all* windows, not just the current one, and processes every tab with a valid tab ID. Known browser-internal and extension pages are skipped. Normal and incognito tabs stay apart: a refresh started from a normal window covers only normal tabs, and one started from an incognito window (when the user allows the extension in incognito) covers only incognito tabs.
+- **Accessible-Tab Scope**: queries `chrome.tabs` across *all* windows, not just the current one, and processes every tab with a valid tab ID. Known browser-internal and extension pages are skipped. Normal and incognito tabs stay apart: a refresh started from a normal window covers only normal tabs, and one started from an incognito window (when the user allows the extension in incognito) covers only incognito tabs. An incognito run adds nothing to history or cache statistics.
 - **Cache-Bypass Invariant**: every actual tab reload must call `chrome.tabs.reload(tabId, { bypassCache: true })`. Normal, discarded, media-capture fallback, retry, loading-wait, and error-recovery paths must never substitute a standard cached reload.
 - **Hard-Refresh-Style Behavior**: each reload bypasses local cache for that load. The extension does not delete cache entries or other browsing data.
 - **Smart Batch Processing**:
@@ -62,7 +62,7 @@ would not use.
   - A per-tab timeout records a failure and continues the queue without issuing a standard cached fallback. Work still in flight for that tab is abandoned: it neither reloads the tab nor adds its measured bytes.
   - Measured stale bytes count once per tab, even when its reload is retried.
 - **Cancellation**: The popup can request cancellation. The worker stops before further queued work and records the processed, successful, failed, and skipped counts reached before cancellation.
-- **Interrupted-Operation Recovery**: Progress is persisted in `chrome.storage.session`. If Chrome stops the service worker before a run finishes, the next worker start records the run in history as interrupted, with the counts it reached, rather than pretending it completed or resuming it automatically. The popup reports the interruption once; a run the user had already cancelled is recorded as cancelled.
+- **Interrupted-Operation Recovery**: Progress is persisted in `chrome.storage.session`. If Chrome stops the service worker before a run finishes, the next worker start records the run in history as interrupted (an incognito run is not recorded), with the counts it reached, rather than pretending it completed or resuming it automatically. The popup reports the interruption once; a run the user had already cancelled is recorded as cancelled.
 
 ### 3.5 User Interface
 - **Fixed Frame**: The popup is a fixed 360 by 480 px frame. Its hero, action and detail slots change in place, so the popup window never resizes. Motion uses only transform and opacity, five durations (90, 140, 220, 300, 560 ms), one ease-out curve and two damped springs; it uses no View Transitions and only system fonts. It needs Chrome 117 (`minimum_chrome_version`).
