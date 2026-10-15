@@ -108,7 +108,7 @@ npm run stress-test
 
 ## Cache measurement limits
 
-The cache-byte figures are lower bounds. Some cross-origin files do not expose their sizes, and Chrome keeps 250 Resource Timing entries by default. The extension reads the entries already present and never enlarges that buffer, so additional resources can be omitted. It reads only `transferSize`, `decodedBodySize`, and `encodedBodySize`; it does not collect timing values.
+The cache-byte figures are lower bounds. Some cross-origin files do not expose their sizes, and Chrome keeps 250 Resource Timing entries by default. The extension reads the entries already present and never enlarges that buffer, so additional resources can be omitted. It reads no timing values, only the resource-size fields described in the background-worker coverage above.
 
 Without optional host access, refreshes still run but no new cache bytes are measured. Completion records `lastRun` as zero, and the rolling 7-day and 30-day totals continue to change as retained daily buckets age out.
 

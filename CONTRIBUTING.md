@@ -6,6 +6,9 @@ This document provides a high-level overview of the project structure and guidel
 
 ```
 refresh-em-all/
+├── _locales/            # Localized UI strings
+│   ├── en/messages.json # English (fallback locale)
+│   └── tr/messages.json # Turkish
 ├── assets/              # Extension icons
 ├── scripts/             # Deterministic release packaging
 ├── tests/               # Test files and utilities
@@ -34,15 +37,13 @@ compatibility flag requires a reviewed test-mock migration.
 
 ## Testing Guidelines
 
-The project includes several testing utilities:
+Common commands while developing:
 
-- Jest unit/integration/contract suites: `npm test`
-- Essential E2E and smoke tests: `npm run e2e`
-- Packaged-extension smoke test: `npm run e2e:package`
-- Medium reliability tests: `npm run e2e:reliability:medium`
-- Full reliability tests: `npm run e2e:reliability`
-- Stress tests: `npm run stress-test`
-- Extension debugging: `npm run debug-extension`
+- `npm test` runs the Jest unit/integration/contract suites.
+- `npm run e2e` runs the essential end-to-end and smoke tests.
+
+`TESTING.md` is the canonical reference for the full test surface: every
+command, the reliability and stress profiles, and the current test counts.
 
 Generated coverage, screenshots, and JSON results are written to ignored output
 directories and must not be committed.

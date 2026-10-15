@@ -9,9 +9,20 @@ The product bypasses local cache during each reload. It does not delete cached b
 To provide the most reliable and safe method for bulk-refreshing browser tabs, ensuring that even users with hundreds of open tabs can refresh them without crashing their browser or losing their place.
 
 ## 2. Target Audience
-- **Power Users**: Users with high tab counts (50-100+) who need to update content across all sessions.
-- **Developers & QA**: Professionals who need to bulk-reload environments or stress-test web applications.
-- **General Users**: Anyone needing a quick "reset" for their browsing session.
+
+The primary audience is **general users**: anyone who needs a quick "reset" for
+their browsing session and expects one button to do the obvious thing. Power
+users with 50-100+ tabs and developers or QA staff who bulk-reload environments
+are served by the same behavior, and the reliability work exists for them, but
+they are not who the product is designed around.
+
+This ordering is a design filter, not a description. A proposed feature that
+only a power user would find must clear a higher bar than one a general user
+would reach for, and several such features have been declined on exactly this
+ground. Scheduling, tab-group and domain filtering, an active-window-only
+scope, a keyboard shortcut, and a separate options page were all considered and
+rejected in August 2026 because they added surface that the primary audience
+would not use.
 
 ## 3. detailed Feature Specifications
 
@@ -76,7 +87,7 @@ To provide the most reliable and safe method for bulk-refreshing browser tabs, e
 - **Permissions Required**:
   - `tabs`: To query and manipulate tabs.
   - `scripting`: To inject cache measurement and media capture before reload, then inject media restoration after reload when optional host access is available.
-  - `storage`: To save session operation state, local refresh history, `cacheStats`, and the one-time `mediaAccessAsked` prompt flag, and to migrate legacy extension storage. Media state uses the relevant page's `sessionStorage`, not the Chrome `storage` permission.
+  - `storage`: To save session operation state, the `pendingMediaRestores` map in `chrome.storage.session` (`{ tabId: expiry timestamp }`, which keeps a tab's media restoration alive if the MV3 service worker is evicted between reload and completion), local refresh history, `cacheStats`, and the one-time `mediaAccessAsked` prompt flag, and to migrate legacy extension storage. The captured media state itself uses the relevant page's `sessionStorage`, not the Chrome `storage` permission.
 - **Optional Host Permission**:
   - `<all_urls>`: Requested at runtime from the first refresh or the permanent Settings control. It enables cache measurement and media capture/restoration on supported pages; reloads still proceed without it.
 - **Local Processing**: All logic runs client-side. No user data or telemetry is sent to external servers.

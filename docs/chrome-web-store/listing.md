@@ -19,7 +19,7 @@ change the interface, and it replaces five message catalog keys with six in
 both locales, so the statistics rows read differently in the product while the
 listing text below is unaffected.
 
-The permission model below is unchanged since v2.4.2, which made all-sites host
+The permission model below is unchanged since v2.4.0, which made all-sites host
 access optional and requested it at runtime for media preservation and cache
 measurement. Refreshing continues without that grant. Dashboard-only items are tracked separately in
 [`dashboard-checklist.md`](dashboard-checklist.md).
@@ -210,8 +210,8 @@ yerel HTTP önbelleğini atlayarak yeniden yüklemektir.
 
 ## Permission justifications and audit
 
-The v2.5.0 manifest keeps `tabs`, `scripting`, and `storage` required while
-moving `<all_urls>` from `host_permissions` to `optional_host_permissions`.
+The v2.5.0 manifest keeps `tabs`, `scripting`, and `storage` required and keeps
+`<all_urls>` in `optional_host_permissions`, where it has been since v2.4.0.
 The popup requests that host access at runtime; refusing it does not prevent
 cache-bypassing tab reloads.
 
@@ -226,18 +226,22 @@ cache-bypassing tab reloads.
 No required permission is unused. Media restoration and cache measurement under
 the optional host permission support the single cache-bypassing reload purpose.
 
-### Permission reduction attempts in this release
+### Permission model and least-privilege analysis
 
 Chrome's guidance is to request relevant, least-privilege, and where possible
-optional permissions. v2.5.0 ships the all-sites host permission as optional,
-while retaining `tabs` for the separate restricted-page classification and
-display-metadata behavior established by Candidate 1.
+optional permissions. The all-sites host permission has been optional and
+runtime-requested since v2.4.0; v2.5.0 changes no permission. `tabs` is retained
+for the separate restricted-page classification and display-metadata behavior
+established by Candidate 1. The permission model is already minimal and has been
+stable since v2.4.0, so this release makes no reduction attempt of its own; the
+analysis below records why the current set is what it is.
 
-**Shipped change: move `<all_urls>` to runtime-requested optional host
+**v2.4.0 change: `<all_urls>` moved to runtime-requested optional host
 access.**
 
-- *Manifest and prompt.* `<all_urls>` moves from `host_permissions` to
-  `optional_host_permissions`. A fresh install begins with no granted origins.
+- *Manifest and prompt.* `<all_urls>` moved from `host_permissions` to
+  `optional_host_permissions` in v2.4.0. A fresh install begins with no granted
+  origins.
   The popup requests access directly inside the user's first Refresh All Tabs
   click and records that it has asked, so it never prompts automatically twice.
   Settings keeps a permanent user-triggered way to request access later.
@@ -309,9 +313,10 @@ access.**
   nor restoration injection is attempted.
 - *What this buys.* `content-script.js` does not execute at `document_idle` on
   every navigation. With access granted it runs only on tabs the user just
-  asked to refresh; without access it does not run at all. v2.5.0's optional
-  host declaration is the mechanism that removes the broad install-time host
-  warning while preserving this programmatic design after consent.
+  asked to refresh; without access it does not run at all. The optional host
+  declaration introduced in v2.4.0 is the mechanism that removes the broad
+  install-time host warning while preserving this programmatic design after
+  consent.
 - *Implementation boundary.* The `chrome.tabs.onUpdated` and
   `chrome.tabs.onRemoved` listeners are registered at worker top level, as MV3
   requires. A tab is marked pending only once its cache-bypassing reload has
@@ -330,8 +335,8 @@ access.**
   scenario checks that no-grant refreshes complete without media restoration.
 
 Candidate 1 is not shipped, so the `tabs` warning remains. Candidate 2 remains
-the restoration model. v2.4.2 changes required all-sites host access into an
-optional runtime grant and keeps basic refreshing available without it.
+the restoration model. The v2.4.0 change turned required all-sites host access
+into an optional runtime grant and kept basic refreshing available without it.
 
 Note also that removing permissions does **not** earn Enhanced Safe Browsing
 publisher trust; see "Trust, badges, and what this release can and cannot
