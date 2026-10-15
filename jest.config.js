@@ -1,5 +1,6 @@
 module.exports = {
   testEnvironment: 'jsdom',
+  roots: ['<rootDir>/tests'],
   setupFiles: ['./tests/setup.js'],
   moduleFileExtensions: ['js'],
   testMatch: ['**/tests/**/*.test.js'],
@@ -14,7 +15,7 @@ module.exports = {
     '!jest.config.js'
   ],
   coverageReporters: ['html', 'text', 'text-summary', 'lcov'],
-  testPathIgnorePatterns: ['/node_modules/', '/\.claude/worktrees/'],
+  testPathIgnorePatterns: ['/node_modules/'],
   verbose: true,
   transform: {}
 };
