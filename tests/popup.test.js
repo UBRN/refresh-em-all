@@ -374,43 +374,6 @@ describe('Popup controller', () => {
     confirmSpy.mockRestore();
   });
 
-  test('respects reduced motion without changing the success message', () => {
-    jest.useFakeTimers();
-    window.matchMedia.mockImplementation(query => ({
-      matches: true,
-      media: query,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn()
-    }));
-    let onMessage = executePopupJs();
-
-    onMessage({
-      action: 'refreshComplete', success: true,
-      details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2, failedCount: 0, skippedCount: 0 }
-    });
-
-    expect(document.getElementById('confetti').childElementCount).toBe(0);
-    expect(document.getElementById('confetti').style.display).not.toBe('block');
-    expect(document.getElementById('statusText').textContent).toBe(
-      chrome.i18n.getMessage('statusCompleteAll', ['2'])
-    );
-
-    window.matchMedia.mockImplementation(query => ({
-      matches: false,
-      media: query,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn()
-    }));
-    onMessage = executePopupJs();
-    onMessage({
-      action: 'refreshComplete', success: true,
-      details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2, failedCount: 0, skippedCount: 0 }
-    });
-
-    expect(document.querySelectorAll('#confetti .confetti-piece').length).toBeGreaterThan(0);
-    jest.useRealTimers();
-  });
-
   test.each([
     [
       'skipped tabs',

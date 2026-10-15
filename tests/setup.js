@@ -168,22 +168,12 @@ Object.defineProperty(global, 'sessionStorage', {
   configurable: true
 });
 
-const defaultMatchMedia = query => ({
-  matches: false,
-  media: query,
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn()
-});
-
-window.matchMedia = jest.fn(defaultMatchMedia);
-
-// jest.clearAllMocks() does not restore implementations, so a test that switches locale or
-// forces reduced motion has to hand the environment back itself. setupFiles runs before the test
+// jest.clearAllMocks() does not restore implementations, so a test that switches locale
+// has to hand the environment back itself. setupFiles runs before the test
 // framework exists, so this cannot be registered as a global beforeEach here, suites that mutate
 // the environment call it from their own afterEach instead.
 global.resetTestEnvironment = () => {
   currentLocale = 'en';
-  window.matchMedia.mockImplementation(defaultMatchMedia);
   chrome.i18n.getUILanguage.mockImplementation(() => currentLocale);
   chrome.i18n.getMessage.mockImplementation((key, substitutions) => resolveMessage(key, substitutions));
 };

@@ -552,7 +552,6 @@ function updateHistoryDisplay(history) {
 }
 
 function showConfetti() {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     confettiElement.style.display = 'block';
     const colors = ['#4285f4', '#0f9d58', '#f4b400', '#db4437'];
 

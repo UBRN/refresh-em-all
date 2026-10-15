@@ -523,24 +523,6 @@
                 transform: translateY(calc(100vh + 20px)) rotate(720deg);
             }
         }
-
-        @media (prefers-reduced-motion: reduce) {
-            *,
-            *::before,
-            *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-
-            #refreshAll:active:not(:disabled) {
-                transform: none;
-            }
-
-            #confetti {
-                display: none !important;
-            }
-        }
     </style>
 </head>
 
