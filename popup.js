@@ -168,6 +168,9 @@ function setView(next) {
     const isHome = next === 'home';
     $('homeView').classList.toggle('on', isHome);
     $('subView').classList.toggle('on', !isHome);
+    // The hidden view's active controls keep pointer-events and visibility, so inert stops clicks reaching them.
+    $('homeView').toggleAttribute('inert', !isHome);
+    $('subView').toggleAttribute('inert', isHome);
     $('homeHead').classList.toggle('on', isHome);
     $('subHead').classList.toggle('on', !isHome);
 

@@ -597,6 +597,21 @@ describe('Popup controller', () => {
     expect(document.activeElement).toBe($('openHistory'));
   });
 
+  test('makes the hidden view inert so its controls cannot be clicked from the other view', async () => {
+    executePopupJs();
+    await settle();
+    expect($('subView').hasAttribute('inert')).toBe(true);
+    expect($('homeView').hasAttribute('inert')).toBe(false);
+
+    $('openSettings').click();
+    expect($('homeView').hasAttribute('inert')).toBe(true);
+    expect($('subView').hasAttribute('inert')).toBe(false);
+
+    $('back').click();
+    expect($('homeView').hasAttribute('inert')).toBe(false);
+    expect($('subView').hasAttribute('inert')).toBe(true);
+  });
+
   test('renders sanitized local history with relative times', async () => {
     jest.setSystemTime(new Date('2026-01-01T02:00:00.000Z'));
     executePopupJs({
