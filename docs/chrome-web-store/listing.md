@@ -544,18 +544,20 @@ The listing assets and their reproducible sources live under
 `docs/chrome-web-store/assets/`. They are documentation-only Store inputs and
 are not included in the extension package.
 
-The icon record below is verified against the v2.7.0 submission package
+The icon record below is verified against the v2.7.1 submission package
 itself: asset validation reads `icons.128` out of that ZIP and audits the file
-it names. All ten screenshots were recaptured for v2.7.0 from the artifact
-recorded below, so their provenance matches the package being submitted. The
-submission artifact was rebuilt from this working tree and recorded as follows:
+it names. The ten screenshots were captured for v2.7.0 and are kept for v2.7.1:
+2.7.1 fixes edge cases (retries, measured bytes, typed-text detection, media
+restore, wording at unit boundaries) and changes none of the five captured
+states. The submission artifact was built from this working tree and recorded
+as follows:
 
-- **ZIP filename:** `refresh-em-all-v2.7.0.zip`
-- **Byte size:** 196636 bytes
+- **ZIP filename:** `refresh-em-all-v2.7.1.zip`
+- **Byte size:** 196610 bytes
 - **SHA-256:**
-  `1505924f9ff7c98be732a70b79836e410c2e76e198508b65ca945510453d5ad8`
-- All ten 1280×800 screenshots were captured from the v2.7.0 package described
-  above, after the capture script verified its hash and reported version.
+  `8cec8414286a198afeebe0612bf82892325cd8fd90b1d855c02dcaed34d534cf`
+- All ten 1280×800 screenshots were captured from the v2.7.0 package, after the
+  capture script verified its hash and reported version.
   - English: `assets/screenshots/*.png` (5 files)
   - Turkish: `assets/screenshots/tr/*.png` (5 files)
 - Each capture run also asserts the popup's resolved `@@ui_locale` matches the
@@ -596,11 +598,11 @@ them. Dashboard-only items live in
       approval is still required.
 - [x] Generate the required 440×280 PNG promotional image from its repository
       SVG source. Human visual approval is still required.
-- [x] Validate the 128×128 icon in the actual v2.7.0 package against current
+- [x] Validate the 128×128 icon in the actual v2.7.0 package (unchanged in v2.7.1) against current
       Store guidance: 96×96 px artwork inside a transparent 16 px margin.
       The audit is written to `test-results/chrome-web-store/icon-audit.json`;
       human visual approval is still required.
-- [ ] Confirm the actual v2.7.0 package contains both locale catalogs and
+- [ ] Confirm the actual v2.7.1 package contains both locale catalogs and
       nothing undeclared. The packaging allowlist fails closed on an undeclared
       locale, a stray file inside `_locales/`, or a missing default-locale
       catalog.
@@ -619,7 +621,7 @@ them. Dashboard-only items live in
       finishes reloading, the interface is localized with Chrome's built-in
       `chrome.i18n` using packaged static catalogs, and no remote code or
       external reporting endpoint exists.
-- [ ] The v2.7.0 package has been built and verified (filename, byte size, and
+- [ ] The v2.7.1 package has been built and verified (filename, byte size, and
       SHA-256 recorded above under Visual assets). Before upload, confirm the
       SHA-256 of the exact file being uploaded matches that recorded hash.
 - [ ] Work through [`dashboard-checklist.md`](dashboard-checklist.md) in full.
