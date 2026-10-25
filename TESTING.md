@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Jest unit/integration/contract suite: **186 tests across 6 suites**
+- Jest unit/integration/contract suite: **215 tests across 6 suites**
 - Fast browser suite: **10 scenarios** (the first-run question, the denied-access path, 7 essential scenarios, and the 8-tab smoke profile)
 - Full reliability profile: **50 tabs across 2 windows, including paused and playing media**
 
@@ -83,6 +83,13 @@ npm run e2e:reliability:large
 - Retries only the tabs listed in `tabIds`, and keeps the failed tab ids in session storage, not in history
 - Stores only tab ids in the run state it writes after every tab
 - Records a stopped run as cancelled when a cancel from a popup of its window kind arrives while the worker wakes
+- Spends a loading tab's wait once, so a tab still loading gets both retries inside the tab time limit
+- Adds no measured bytes for a tab whose reload was rejected every time or never answered
+- Answers a status read that a new run overtakes with that run, and keeps its stored state
+- Puts a sleeping tab back to sleep only after the reload that woke it, so a tab the user opened during a retry stays awake
+- Paces reloads 75 ms apart within a batch and 250 ms between batches, and finishes with the last tab
+- Shows the processed percentage on the toolbar badge during a run
+- Detects typed text in fields of an unknown type, ignores the value attribute's stripped spaces and line breaks, and still answers when the page refuses to store media state
 
 ### Popup
 
@@ -117,6 +124,11 @@ The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails 
 - Keeps a zero-byte run measured since a reset when Undo restores the statistics
 - Writes the result and run counts without a wrong plural, and gives a skip reason that covers closed tabs
 - Shrinks the tab dots past 280 tabs so a 500-tab run shows every dot
+- Keeps `aria-valuenow` below 100 while a tab is in flight, and leaves unchanged count text in place
+- Shows the neutral badge for a run over every tab that reloaded none
+- Plays no confetti for a run that finished while the popup was hidden, and frees the canvas after a burst
+- Reads relative times without "60 minutes" or future wording, and byte counts without "1,024.0"
+- Tolerates a malformed history entry, and keeps at most 31 daily buckets after Undo
 
 ### Localization
 
@@ -138,6 +150,10 @@ The popup tests load the shipped `popup.html` into jsdom, so a renamed id fails 
 - Skips restoring audio state when reordered sources no longer match the saved source
 - Restores a source-less audio element from saved state
 - Leaves autoplay alone for media that was paused before it ever started, including through the YouTube player state
+- Gives each saved state to one element, so a source-less video inserted before a restored one does not take its state
+- Pauses the YouTube player once, so a video the user plays again stays playing
+- Keeps the source check on a host that only contains youtube.com
+- Restores playback rate and a video the page inserts later, and leaves the user's seek alone on a later pass
 - Applies saved YouTube state only to the video it was saved from
 
 ### E2E harness and release workflow contracts

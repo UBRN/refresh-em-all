@@ -311,10 +311,6 @@
     "message": "Could not start reloading your tabs",
     "description": "Fallback reason when the refresh could not be started."
   },
-  "errorStartFailureTabTitle": {
-    "message": "Could not start",
-    "description": "Title of the synthetic failure entry recorded when a refresh never began."
-  },
   "errorReloadFailed": {
     "message": "Failed to reload tab",
     "description": "Fallback reason when Chrome rejected a reload without a message."
@@ -332,10 +328,6 @@
         "example": "30"
       }
     }
-  },
-  "errorTabRefreshFailed": {
-    "message": "Unable to reload this tab",
-    "description": "Fallback per-tab failure reason sent to the popup."
   },
   "heroReadyTitle": {
     "message": "Every tab, fresh.",

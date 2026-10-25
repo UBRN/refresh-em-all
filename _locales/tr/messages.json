@@ -311,10 +311,6 @@
     "message": "Yenileme başlatılamadı",
     "description": "Fallback reason when the refresh could not be started."
   },
-  "errorStartFailureTabTitle": {
-    "message": "Yenileme başlatılamadı",
-    "description": "Title of the synthetic failure entry recorded when a refresh never began."
-  },
   "errorReloadFailed": {
     "message": "Sekme yenilenemedi",
     "description": "Fallback reason when Chrome rejected a reload without a message."
@@ -332,10 +328,6 @@
         "example": "30"
       }
     }
-  },
-  "errorTabRefreshFailed": {
-    "message": "Bu sekme yenilenemedi",
-    "description": "Fallback per-tab failure reason sent to the popup."
   },
   "heroReadyTitle": {
     "message": "Her sekme taptaze.",
