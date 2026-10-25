@@ -24,7 +24,11 @@
     }
 
     const restoredElements = new WeakSet();
-    const isYouTube = window.location.hostname.includes('youtube.com');
+    // The element each saved state went to. A state belongs to that element while it
+    // stays in the page, so a source-less element inserted before it cannot take it.
+    const stateOwners = new Map();
+    let youTubePlayerRestored = false;
+    const isYouTube = /(^|\.)youtube\.com$/.test(window.location.hostname);
 
     function restoreProperty(media, property, value) {
         if (value === undefined) return;
@@ -53,7 +57,6 @@
     }
 
     function restoreElement(media, savedState) {
-        if (restoredElements.has(media)) return;
         restoredElements.add(media);
 
         const applyState = () => {
@@ -94,8 +97,9 @@
     function restoreMedia() {
         for (const kind of ['video', 'audio']) {
             document.querySelectorAll(kind).forEach((media, index) => {
-                const savedState = mediaStates[`${kind}_${index}`];
-                if (!savedState) return;
+                const key = `${kind}_${index}`;
+                const savedState = mediaStates[key];
+                if (!savedState || restoredElements.has(media) || stateOwners.get(key)?.isConnected) return;
 
                 const source = mediaSource(media);
                 // Only video states carry isYouTube.
@@ -104,6 +108,7 @@
                     || (isYouTube && savedState.isYouTube && sameYouTubeVideo());
 
                 if (sourceMatches) {
+                    stateOwners.set(key, media);
                     restoreElement(media, savedState);
                 }
             });
@@ -113,7 +118,7 @@
     }
 
     function restoreYouTubePlayerState() {
-        if (!isYouTube) return;
+        if (!isYouTube || youTubePlayerRestored) return;
 
         const savedState = mediaStates.youtube_player_state;
         if (!savedState || !savedState.paused || !sameYouTubeVideo()) return;
@@ -122,7 +127,10 @@
 
         const player = document.querySelector('.html5-video-player');
         const video = player?.querySelector('video');
-        if (video && !video.paused) video.pause();
+        if (!video) return;
+        // Paused once: a later pass must not pause a video the user started again.
+        youTubePlayerRestored = true;
+        if (!video.paused) video.pause();
     }
 
     restoreMedia();
