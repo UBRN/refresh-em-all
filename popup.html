@@ -169,29 +169,9 @@
         }
 
         .bar > .hv {
-            grid-area: 1 / 1;
-            display: flex;
             align-items: center;
             gap: 10px;
             min-width: 0;
-            transition: opacity var(--d-fast) var(--ease-exit), transform var(--d-fast) var(--ease-exit), visibility 0s linear var(--d-fast);
-        }
-
-        .bar > .hv:not(.on) {
-            opacity: 0;
-            visibility: hidden;
-        }
-
-        .bar > .hv.home:not(.on) {
-            transform: translateX(var(--view-out));
-        }
-
-        .bar > .hv.sub:not(.on) {
-            transform: translateX(var(--view-in));
-        }
-
-        .bar > .hv.on {
-            transition: opacity var(--d-base) var(--ease-out) 40ms, transform var(--d-medium) var(--spring-settle) 40ms, visibility 0s;
         }
 
         .app-icon {
@@ -267,28 +247,40 @@
             overflow: clip;
         }
 
+        /* The header's two variants slide with the views. */
+        .bar > .hv,
         .view {
             grid-area: 1 / 1;
-            min-height: 0;
             display: flex;
-            flex-direction: column;
             transition: opacity var(--d-fast) var(--ease-exit), transform var(--d-fast) var(--ease-exit), visibility 0s linear var(--d-fast);
         }
 
+        .view {
+            min-height: 0;
+            flex-direction: column;
+        }
+
+        .bar > .hv:not(.on),
         .view:not(.on) {
             opacity: 0;
             visibility: hidden;
+        }
+
+        .view:not(.on) {
             pointer-events: none;
         }
 
+        .bar > .hv.home:not(.on),
         .view.home:not(.on) {
             transform: translateX(var(--view-out));
         }
 
+        .bar > .hv.sub:not(.on),
         .view.sub:not(.on) {
             transform: translateX(var(--view-in));
         }
 
+        .bar > .hv.on,
         .view.on {
             transition: opacity var(--d-base) var(--ease-out) 40ms, transform var(--d-medium) var(--spring-settle) 40ms, visibility 0s;
         }
@@ -741,7 +733,6 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            min-height: 0;
         }
 
         .chips {
@@ -903,7 +894,6 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            min-height: 0;
             height: 100%;
         }
 
@@ -1008,10 +998,6 @@
         .ta[aria-disabled="true"] {
             color: var(--muted);
             cursor: not-allowed;
-        }
-
-        .ta[aria-disabled="true"]:hover {
-            background: none;
         }
 
         .ta svg,
