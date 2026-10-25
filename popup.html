@@ -439,7 +439,8 @@
 
         /* A single-tab result names a host, which can be long. */
         body[data-state="tab-done"] #doneTitle,
-        body[data-state="tab-stopped"] #stopTitle {
+        body[data-state="tab-stopped"] #stopTitle,
+        body[data-state="failed"] #failTitle {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;

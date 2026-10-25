@@ -47,6 +47,22 @@ describe('Popup markup contract', () => {
     expect(popupList.length).toBeGreaterThan(5);
     expect(popupList).toEqual(list(background));
   });
+
+  test.each([
+    ['tab-done', 'doneTitle'],
+    ['tab-stopped', 'stopTitle'],
+    ['failed', 'failTitle']
+  ])('a %s title, which can name a long host, stays on one line with an ellipsis', (bodyState, id) => {
+    const style = document.createElement('style');
+    style.textContent = popupHtml.match(/<style>([\s\S]*?)<\/style>/)[1];
+    document.head.append(style);
+    document.body.innerHTML = `<div id="${id}"></div>`;
+    document.body.dataset.state = bodyState;
+    const { whiteSpace, overflow, textOverflow } = getComputedStyle($(id));
+    style.remove();
+
+    expect({ whiteSpace, overflow, textOverflow }).toEqual({ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' });
+  });
 });
 
 describe('Popup controller', () => {
@@ -309,6 +325,27 @@ describe('Popup controller', () => {
     expect($('progressBar').getAttribute('aria-valuenow')).toBe('25');
   });
 
+  test('aria-valuenow stays below 100 while a tab is still in flight', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(200) });
+    onMessage({ action: 'refreshProgress', current: 199, total: 200, percent: 99, successful: 199, failed: 0, skipped: 0 });
+
+    expect($('progressBar').getAttribute('aria-valuenow')).toBe('99');
+  });
+
+  test('a count that does not change keeps its text in place while another counts up', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(4) });
+    const failedText = $('countFailed').firstChild;
+    onMessage({ action: 'refreshProgress', current: 1, total: 4, percent: 25, successful: 1, failed: 0, skipped: 0 });
+    await settle(500);
+
+    expect($('countReloaded').textContent).toBe('1');
+    expect($('countFailed').firstChild).toBe(failedText);
+  });
+
   test('stops the animation loop while the popup is hidden', async () => {
     const onMessage = executePopupJs();
     await settle();
@@ -551,12 +588,14 @@ describe('Popup controller', () => {
     expect(getContext.mock.calls.length > 0).toBe(expected);
   });
 
-  test('no confetti when the popup is hidden or only reopened over a finished run', async () => {
+  test('no confetti for a run that finished while hidden, once shown again, or on reopening', async () => {
     let onMessage = executePopupJs();
     await settle();
     onMessage({ action: 'refreshStarted', tabs: tabs(2) });
     setVisibility('hidden');
     onMessage({ action: 'refreshComplete', details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2 } });
+    // Chrome holds the frames of a hidden popup and runs them once it shows again.
+    setVisibility('visible');
     await settle(1500);
     expect(state()).toBe('done');
     expect(getContext).not.toHaveBeenCalled();
@@ -567,6 +606,35 @@ describe('Popup controller', () => {
     onMessage({ action: 'refreshComplete', details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2 } });
     await settle(1500);
     expect(getContext).not.toHaveBeenCalled();
+  });
+
+  test('confetti frees its canvas when the burst ends', async () => {
+    getContext.mockReturnValue(new Proxy({}, { get: () => () => {} }));
+    const box = jest.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 360, height: 480 });
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(2) });
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 2, processedTabs: 2, successfulTabs: 2 } });
+    await settle(1000);
+    const during = $('confetti').width;
+    await settle(2000);
+    box.mockRestore();
+
+    expect(during).toBe(360);
+    expect([$('confetti').hidden, $('confetti').width, $('confetti').height]).toEqual([true, 0, 0]);
+  });
+
+  test('a run over every tab that reloaded none ends with the neutral badge, not the tick', async () => {
+    const onMessage = executePopupJs();
+    await settle();
+    onMessage({ action: 'refreshStarted', tabs: tabs(2) });
+    onMessage({ action: 'refreshComplete', details: { totalTabs: 2, processedTabs: 2, successfulTabs: 0, skippedCount: 2 } });
+    await settle(1500);
+
+    expect(state()).toBe('stopped');
+    expect(visible(document.querySelector('.badge.stop'))).toBe(true);
+    expect($('stopTitle').textContent).toBe('Reloaded 0 tabs. Skipped 2.');
+    expect($('stopSub').textContent).toBe(chrome.i18n.getMessage('doneSubSkipped'));
   });
 
   test('moves keyboard focus to Cancel when a run starts and back to Refresh when it ends', async () => {
@@ -648,6 +716,35 @@ describe('Popup controller', () => {
     expect($('readySub').textContent).toBe('Last reload 2 hours ago: 2 of 4 reloaded');
   });
 
+  test.each([
+    [-3590, '1 hour ago'],
+    [-86000, 'yesterday'],
+    // The clock was set back after the run.
+    [5 * 3600, 'now']
+  ])('a run %i seconds from now reads as "%s"', async (offset, text) => {
+    jest.setSystemTime(new Date('2026-03-10T12:00:00.000Z'));
+    executePopupJs({ history: [{ timestamp: new Date(Date.now() + offset * 1000).toISOString(), totalTabs: 1, successfulTabs: 1 }] });
+    await settle();
+
+    expect($('metaHistory').textContent).toBe(text);
+  });
+
+  test('one malformed history entry leaves the others readable', async () => {
+    executePopupJs({ history: [null, { timestamp: new Date().toISOString(), totalTabs: 2, successfulTabs: 2 }] });
+    await settle();
+    $('openHistory').click();
+
+    expect([...$('historyList').children].map(row => row.querySelector('b').textContent)).toEqual(['2 of 2 reloaded']);
+  });
+
+  test('a byte count just under a unit boundary moves to the next unit', async () => {
+    executePopupJs({ cacheStats: { lastRun: 1023, total: 1024 * 1024 - 1, days: {} } });
+    await settle();
+
+    expect($('statsTotal').textContent).toBe('1.0 MB');
+    expect($('statsLastRun').textContent).toBe('about1,023 B');
+  });
+
   test('shows estimates for the measured totals', async () => {
     jest.setSystemTime(new Date(2026, 7, 24, 12));
     executePopupJs({
@@ -681,6 +778,22 @@ describe('Popup controller', () => {
 
     expect(onMessage.storage.cacheStats).toEqual({ lastRun: 5, total: 105, days: { '2026-08-24': 105 } });
     expect($('undoReset').hidden).toBe(true);
+  });
+
+  test('Undo after a reset keeps at most 31 daily buckets, like the worker', async () => {
+    const days = Object.fromEntries(Array.from({ length: 31 }, (_, index) => [`2026-07-${String(index + 1).padStart(2, '0')}`, 1]));
+    const onMessage = executePopupJs({ cacheStats: { lastRun: 1, total: 31, days } });
+    await settle();
+    $('openSettings').click();
+
+    $('resetStats').click();
+    onMessage.storage.cacheStats = { lastRun: 5, total: 5, days: { '2026-08-01': 5 } };
+    $('undoResetButton').click();
+
+    const kept = Object.keys(onMessage.storage.cacheStats.days);
+    expect(kept).toHaveLength(31);
+    expect(kept).not.toContain('2026-07-01');
+    expect(kept).toContain('2026-08-01');
   });
 
   test('the Undo offer is announced and ends after six seconds unless it has focus', async () => {

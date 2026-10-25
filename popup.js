@@ -14,7 +14,8 @@ function formatBytes(bytes) {
     let value = Number.isFinite(bytes) ? bytes : 0;
     let unitIndex = 0;
 
-    while (value >= 1024 && unitIndex < units.length - 1) {
+    // From 1023.95 a unit would print as 1,024.0, so the next unit takes over there.
+    while (value >= 1023.95 && unitIndex < units.length - 1) {
         value /= 1024;
         unitIndex++;
     }
@@ -221,20 +222,25 @@ $('back').addEventListener('click', () => setView('home'));
 
 // ---- Numbers ----
 
+// Tweens write every frame; text that would not change is left in place.
+function setText(element, text) {
+    if (element.textContent !== text) element.textContent = text;
+}
+
 // One tween per element, cancelled when a new value arrives.
 function tween(element, to, format = String, duration = 260) {
     const from = Number(element.dataset.value || 0);
     element.dataset.value = String(to);
     cancelAnimationFrame(element.tweenFrame);
     if (from === to) {
-        element.textContent = format(to);
+        setText(element, format(to));
         return;
     }
     const startedAt = performance.now();
     const frame = now => {
         const progress = Math.min(1, (now - startedAt) / duration);
         const eased = 1 - Math.pow(1 - progress, 3);
-        element.textContent = format(Math.round(from + (to - from) * eased));
+        setText(element, format(Math.round(from + (to - from) * eased)));
         if (progress < 1) element.tweenFrame = requestAnimationFrame(frame);
     };
     frame(startedAt);
@@ -243,7 +249,7 @@ function tween(element, to, format = String, duration = 260) {
 function setNumber(element, value, format = String) {
     cancelAnimationFrame(element.tweenFrame);
     element.dataset.value = String(value);
-    element.textContent = format(value);
+    setText(element, format(value));
 }
 
 function setCounts(reloaded, failed, skipped, animate) {
@@ -369,7 +375,7 @@ function barReal(done) {
     bar.stepAverage = Math.min(5000, Math.max(80, bar.stepAverage));
     bar.done = Math.min(done, bar.total);
     bar.lastMessageAt = now;
-    progressBar.setAttribute('aria-valuenow', String(Math.round((bar.done / bar.total) * 100)));
+    progressBar.setAttribute('aria-valuenow', String(Math.floor((bar.done / bar.total) * 100 + 1e-6)));
     if (!singleTabRun) progressBar.setAttribute('aria-valuetext', t('statusMilestone', bar.done, bar.total));
     barKick();
 }
@@ -398,7 +404,7 @@ function barSet(done, total) {
     bar.done = Math.min(done, bar.total);
     bar.x = bar.target = bar.done / bar.total;
     bar.v = 0;
-    progressBar.setAttribute('aria-valuenow', String(Math.round(bar.x * 100)));
+    progressBar.setAttribute('aria-valuenow', String(Math.floor(bar.x * 100 + 1e-6)));
     barRender();
 }
 
@@ -761,21 +767,22 @@ function showResult(result, { live }) {
         title = result.skipped > 0
             ? t(result.reloaded === 1 ? 'statusCompleteSkippedOne' : 'statusCompleteSkipped', result.reloaded, result.skipped)
             : result.reloaded === 1 ? t('statusCompleteAllOne') : t('statusCompleteAll', result.reloaded);
-        $('doneTitle').textContent = title;
-        $('doneSub').textContent = t(result.unsaved > 0
+        // A run that reloaded nothing gets the neutral badge, not the tick.
+        const none = result.reloaded === 0;
+        $(none ? 'stopTitle' : 'doneTitle').textContent = title;
+        $(none ? 'stopSub' : 'doneSub').textContent = t(result.unsaved > 0
             ? 'doneSubUnsaved'
             : result.skipped > 0 ? 'doneSubSkipped' : 'doneSubFresh');
         renderBytes(footDone, result.staleBytes, live);
-        next = 'done';
+        next = none ? 'stopped' : 'done';
     }
 
     setState(next, refreshButton);
     announce(title);
 
     // Confetti marks a clean run over every tab that the user is watching right now.
-    if (live && next === 'done' && result.reloaded >= 1) {
-        requestAnimationFrame(burstConfetti);
-    }
+    // It starts at once: a frame queued while the popup is hidden runs when it shows again.
+    if (live && next === 'done') burstConfetti();
 }
 
 function renderFailure(title, sub, result) {
@@ -920,12 +927,15 @@ function initializeSiteAccess() {
 
 function relativeTime(timestamp) {
     const formatter = new Intl.RelativeTimeFormat(t('htmlLang'), { numeric: 'auto' });
-    const seconds = (new Date(timestamp).getTime() - Date.now()) / 1000;
-    const distance = Math.abs(seconds);
-    if (distance < 60) return formatter.format(0, 'second');
-    if (distance < 3600) return formatter.format(Math.round(seconds / 60), 'minute');
-    if (distance < 86400) return formatter.format(Math.round(seconds / 3600), 'hour');
-    return formatter.format(Math.round(seconds / 86400), 'day');
+    // A time ahead of the clock (set back since) reads as now. Each unit is rounded
+    // before it is chosen, so 59.5 minutes reads as 1 hour, not 60 minutes.
+    const seconds = Math.max(0, (Date.now() - new Date(timestamp).getTime()) / 1000);
+    if (seconds < 60) return formatter.format(0, 'second');
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return formatter.format(-minutes, 'minute');
+    const hours = Math.round(seconds / 3600);
+    if (hours < 24) return formatter.format(-hours, 'hour');
+    return formatter.format(-Math.round(seconds / 86400), 'day');
 }
 
 function validDate(timestamp) {
@@ -940,14 +950,15 @@ function refreshStoredViews() {
 
 function initializeHistory() {
     chrome.storage.local.get(['refreshHistory'], (result) => {
-        latestHistory = Array.isArray(result.refreshHistory) ? result.refreshHistory : [];
+        latestHistory = Array.isArray(result.refreshHistory)
+            ? result.refreshHistory.filter(item => item && typeof item === 'object')
+            : [];
         const latest = latestHistory[0];
         const date = latest && validDate(latest.timestamp);
         $('metaHistory').textContent = latest
             ? (date ? relativeTime(date) : t('historyUnknownDate'))
             : t('historyEmpty');
         renderReadySub();
-        renderReadyDetail();
         if (view === 'history') renderHistory(false);
     });
     chrome.storage.session.get(['retryTabIds'], (result) => {
@@ -981,8 +992,7 @@ function renderHistory(animate) {
         row.style.setProperty('--i', String(index));
         const reloaded = Number(item.successfulTabs) || 0;
         const total = Number(item.totalTabs) || 0;
-        const failed = Number(item.failedCount)
-            || (Array.isArray(item.failedTabs) ? item.failedTabs.length : 0);
+        const failed = Number(item.failedCount) || 0;
         const skipped = Number(item.skippedCount) || 0;
 
         const marker = document.createElement('i');
@@ -1116,7 +1126,8 @@ undoResetButton.addEventListener('click', () => {
                 // Any record means a run finished since the reset, even one that measured 0.
                 lastRun: result.cacheStats ? current.lastRun : previous.lastRun,
                 total: previous.total + current.total,
-                days
+                // At most 31 daily buckets, as the worker keeps.
+                days: Object.fromEntries(Object.keys(days).sort().slice(-31).map(key => [key, days[key]]))
             }
         }, initializeStats);
     });
@@ -1179,8 +1190,8 @@ function burstConfetti() {
     let frame = 0;
     const stop = () => {
         cancelAnimationFrame(frame);
-        context.setTransform(1, 0, 0, 1, 0, 0);
-        context.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        // A zero size clears the canvas and frees its bitmap until the next burst.
+        confettiCanvas.width = confettiCanvas.height = 0;
         confettiCanvas.hidden = true;
         confettiStop = null;
         document.removeEventListener('visibilitychange', stop);
