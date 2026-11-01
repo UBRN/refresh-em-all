@@ -26,12 +26,12 @@
     "node": ">=22.12 <26"
   },
   "devDependencies": {
-    "@types/chrome": "^0.3.5",
+    "@types/chrome": "^0.3.7",
     "@types/jest": "^30.0.0",
     "istanbul-lib-instrument": "^6.0.3",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
-    "puppeteer": "25.13.0",
+    "puppeteer": "25.16.0",
     "sharp": "^0.35.5"
   },
   "allowScripts": {
